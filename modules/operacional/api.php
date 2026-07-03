@@ -240,6 +240,25 @@ if ($action === 'corrigir_acentos_andamentos') {
 }
 
 // ── Criar pasta no Drive (retry manual quando a criação automática falhou) ──
+if ($action === 'confirmar_cancelamento_comercial') {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!validate_csrf($_POST['csrf_token'] ?? '')) { echo json_encode(array('error' => 'CSRF invalido')); exit; }
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    if (!$caseId) { echo json_encode(array('error' => 'case_id obrigatorio')); exit; }
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS case_cancel_confirmado (case_id INT NOT NULL, user_id INT NOT NULL, confirmado_em DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (case_id, user_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+        $pdo->prepare("INSERT INTO case_cancel_confirmado (case_id, user_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE confirmado_em = NOW()")
+            ->execute(array($caseId, current_user_id()));
+        if (function_exists('audit_log')) {
+            audit_log('cancel_comercial_confirmado', 'case', $caseId, 'usuario tomou ciencia do cancelamento');
+        }
+        echo json_encode(array('ok' => true));
+    } catch (Exception $e) {
+        echo json_encode(array('error' => $e->getMessage()));
+    }
+    exit;
+}
+
 if ($action === 'criar_treinamento_audiencia') {
     header('Content-Type: application/json; charset=utf-8');
     require_once APP_ROOT . '/core/functions_treinamento_audiencia.php';

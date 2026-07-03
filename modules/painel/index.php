@@ -693,43 +693,98 @@ try {
     if ($_luizIdC === $_uidC) $_ehGestaoOuLuiz = true;
 } catch (Exception $_e) {}
 try {
+    // Amanda 03/07: self-heal da tabela de confirmação (cada user confirma
+    // individualmente, admin confirmar não afeta responsável).
+    $pdo->exec("CREATE TABLE IF NOT EXISTS case_cancel_confirmado (
+        case_id INT NOT NULL,
+        user_id INT NOT NULL,
+        confirmado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (case_id, user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
     $sqlC = "SELECT cs.id, cs.title, cs.cancelado_em, cs.cancelado_motivo, cs.responsible_user_id,
                     cl.name AS client_name, u.name AS canceled_by_name
              FROM cases cs
              LEFT JOIN clients cl ON cl.id = cs.client_id
              LEFT JOIN users u ON u.id = cs.cancelado_por
              WHERE cs.cancelado_pelo_comercial = 1
-               AND cs.cancelado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+               AND cs.cancelado_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+               AND NOT EXISTS (
+                   SELECT 1 FROM case_cancel_confirmado ccc
+                   WHERE ccc.case_id = cs.id AND ccc.user_id = ?
+               )";
     if (!$_ehGestaoOuLuiz) {
         $sqlC .= " AND cs.responsible_user_id = ?";
         $stC = $pdo->prepare($sqlC . " ORDER BY cs.cancelado_em DESC LIMIT 10");
-        $stC->execute(array($_uidC));
+        $stC->execute(array($_uidC, $_uidC));
     } else {
         $stC = $pdo->prepare($sqlC . " ORDER BY cs.cancelado_em DESC LIMIT 10");
-        $stC->execute();
+        $stC->execute(array($_uidC));
     }
     $_cancelRecentes = $stC->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $_e) {}
 ?>
 <?php if (!empty($_cancelRecentes)): ?>
-<div style="background:linear-gradient(135deg,#fee2e2,#fff);border-left:4px solid #dc2626;border-radius:10px;padding:12px 16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(220,38,38,.15);">
+<div id="banner-cancel-recentes" style="background:linear-gradient(135deg,#fee2e2,#fff);border-left:4px solid #dc2626;border-radius:10px;padding:12px 16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(220,38,38,.15);">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:8px;">
-        <div style="font-weight:800;color:#991b1b;font-size:.95rem;">📛 Contratos cancelados pelo comercial (<?= count($_cancelRecentes) ?>) — últimos 7 dias</div>
-        <span style="font-size:.7rem;color:#7f1d1d;font-weight:600;">Não prossiga sem confirmar</span>
+        <div style="font-weight:800;color:#991b1b;font-size:.95rem;">📛 Contratos cancelados pelo comercial (<span id="cancelrec-count"><?= count($_cancelRecentes) ?></span>) — últimos 7 dias</div>
+        <span style="font-size:.7rem;color:#7f1d1d;font-weight:600;">Clique em ✓ Confirmei quando tomar ciência</span>
     </div>
     <?php foreach ($_cancelRecentes as $_cr):
         $_crDt = $_cr['cancelado_em'] ? date('d/m H:i', strtotime($_cr['cancelado_em'])) : '';
         $_crMot = trim((string)($_cr['cancelado_motivo'] ?? ''));
     ?>
-    <a href="<?= url('modules/operacional/caso_ver.php?id=' . (int)$_cr['id']) ?>" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#fff;border-radius:6px;margin-top:4px;font-size:.82rem;flex-wrap:wrap;text-decoration:none;color:inherit;border:1px solid #fecaca;">
-        <span style="background:#dc2626;color:#fff;padding:1px 7px;border-radius:4px;font-size:.66rem;font-weight:800;">❌ CANCELADO</span>
-        <span style="font-weight:700;color:#7f1d1d;"><?= e($_cr['title'] ?: ('Caso #' . $_cr['id'])) ?></span>
-        <?php if (!empty($_cr['client_name'])): ?><span style="color:#666;font-size:.74rem;">👤 <?= e($_cr['client_name']) ?></span><?php endif; ?>
-        <?php if ($_crMot): ?><span style="color:#991b1b;font-size:.72rem;font-style:italic;">💬 <?= e(mb_substr($_crMot, 0, 60)) ?><?= mb_strlen($_crMot) > 60 ? '…' : '' ?></span><?php endif; ?>
-        <span style="margin-left:auto;font-size:.7rem;color:#666;"><?= $_crDt ?><?php if (!empty($_cr['canceled_by_name'])): ?> · <?= e(explode(' ', $_cr['canceled_by_name'])[0]) ?><?php endif; ?></span>
-    </a>
+    <div class="cancelrec-item" data-case-id="<?= (int)$_cr['id'] ?>" style="display:flex;align-items:center;gap:8px;padding:6px 8px;background:#fff;border-radius:6px;margin-top:4px;font-size:.82rem;flex-wrap:wrap;border:1px solid #fecaca;">
+        <a href="<?= url('modules/operacional/caso_ver.php?id=' . (int)$_cr['id']) ?>" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;flex-wrap:wrap;text-decoration:none;color:inherit;">
+            <span style="background:#dc2626;color:#fff;padding:1px 7px;border-radius:4px;font-size:.66rem;font-weight:800;">❌ CANCELADO</span>
+            <span style="font-weight:700;color:#7f1d1d;"><?= e($_cr['title'] ?: ('Caso #' . $_cr['id'])) ?></span>
+            <?php if (!empty($_cr['client_name'])): ?><span style="color:#666;font-size:.74rem;">👤 <?= e($_cr['client_name']) ?></span><?php endif; ?>
+            <?php if ($_crMot): ?><span style="color:#991b1b;font-size:.72rem;font-style:italic;">💬 <?= e(mb_substr($_crMot, 0, 60)) ?><?= mb_strlen($_crMot) > 60 ? '…' : '' ?></span><?php endif; ?>
+            <span style="margin-left:auto;font-size:.7rem;color:#666;white-space:nowrap;"><?= $_crDt ?><?php if (!empty($_cr['canceled_by_name'])): ?> · <?= e(explode(' ', $_cr['canceled_by_name'])[0]) ?><?php endif; ?></span>
+        </a>
+        <button type="button" onclick="confirmarCancelamento(<?= (int)$_cr['id'] ?>, this)" style="background:#059669;color:#fff;border:0;padding:5px 12px;border-radius:6px;font-size:.72rem;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;" title="Marcar que você tomou ciência (some pra você mas registro do cancelamento continua)">✓ Confirmei</button>
+    </div>
     <?php endforeach; ?>
 </div>
+<script>
+function confirmarCancelamento(caseId, btn) {
+    btn.disabled = true;
+    btn.innerHTML = '⏳';
+    var fd = new FormData();
+    fd.append('action', 'confirmar_cancelamento_comercial');
+    fd.append('case_id', caseId);
+    fd.append('csrf_token', <?= json_encode(generate_csrf_token()) ?>);
+    fetch('<?= module_url('operacional', 'api.php') ?>', {
+        method: 'POST', body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){ return r.json(); }).then(function(d){
+        if (d && d.ok) {
+            var item = btn.closest('.cancelrec-item');
+            if (item) item.style.transition = 'opacity .3s ease, transform .3s ease';
+            if (item) { item.style.opacity = '0'; item.style.transform = 'translateX(20px)'; }
+            setTimeout(function(){
+                if (item) item.remove();
+                // Atualiza contador; se zerou, some o banner inteiro
+                var restantes = document.querySelectorAll('.cancelrec-item').length;
+                var cnt = document.getElementById('cancelrec-count');
+                if (cnt) cnt.textContent = restantes;
+                if (restantes === 0) {
+                    var banner = document.getElementById('banner-cancel-recentes');
+                    if (banner) banner.remove();
+                }
+            }, 320);
+        } else {
+            btn.disabled = false;
+            btn.innerHTML = '✓ Confirmei';
+            alert('Erro: ' + (d && d.error ? d.error : 'desconhecido'));
+        }
+    }).catch(function(e){
+        btn.disabled = false;
+        btn.innerHTML = '✓ Confirmei';
+        alert('Erro de rede: ' + e.message);
+    });
+}
+</script>
 <?php endif; ?>
 
 <?php if (!empty($_meusEsfri)): ?>
