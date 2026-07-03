@@ -864,24 +864,22 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var podeEnviar   = (+c.lock_pode_enviar === 1);
         var temNota = !!(d.conversa && d.conversa.nota_fixa);
 
-        // Botões PRIMÁRIOS (visíveis direto no header):
-        //   - Bot (21), Assumir, Processo — o resto vai pro menu.
-        //   Amanda 03/07: quer só o essencial visivel, resto no hamburguer.
-        var primary = [];
+        // Amanda 03/07: TODOS os botoes ficam no menu hamburguer, sem primarios visiveis.
+        // Header fica so com o icone ☰ e os detalhes do contato.
+        var menu = [];
+        // Grupo 1: acoes rapidas (o que antes era "primario")
         if (c.canal === '21') {
-            if (+c.bot_ativo) primary.push('<button onclick="waToggleBot(0)" style="background:#ede9fe;border-color:#a78bfa;color:#6d28d9;" title="Bot ativo — clique para desativar">🤖 Bot ON</button>');
-            else               primary.push('<button onclick="waToggleBot(1)" title="Ativar bot IA para responder sozinho">🤖 Bot OFF</button>');
+            if (+c.bot_ativo) menu.push('<button onclick="waToggleBot(0)" title="Bot ativo — clique para desativar" style="color:#6d28d9;">🤖 Bot ON (clique pra desativar)</button>');
+            else               menu.push('<button onclick="waToggleBot(1)" title="Ativar bot IA para responder sozinho">🤖 Ativar Bot IA</button>');
         }
         if (!souEuAtendente && podeEnviar) {
-            primary.push('<button class="btn-primary-sm" onclick="waAssumir()">👤 Assumir</button>');
+            menu.push('<button onclick="waAssumir()" title="Assumir esta conversa" style="color:#0f766e;font-weight:800;">👤 Assumir conversa</button>');
         }
         if (c.client_id) {
-            primary.push('<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="background:#B87333;color:#fff;border-color:#B87333;">⚖️ Processo</button>');
+            menu.push('<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="color:#B87333;">⚖️ Abrir processo</button>');
         }
-
-        // Botões SECUNDÁRIOS (dentro do menu hamburguer)
-        var menu = [];
-        // Grupo 1: atendimento (etiqueta, delegar, resolver, vincular)
+        menu.push('<div class="sep"></div>');
+        // Grupo 2: atendimento (etiqueta, delegar, resolver, vincular)
         menu.push('<button onclick="waToggleEtiquetas(event)" title="Etiquetas">🏷 Etiquetas</button>');
         if (PODE_DELEGAR) {
             var tipTxt = c.canal === '24'
@@ -899,12 +897,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
             menu.push('<button onclick="waVincularCliente()" title="Vincular esta conversa a um cliente cadastrado" style="color:#059669;">🔗 Vincular cliente</button>');
         }
         menu.push('<div class="sep"></div>');
-        // Grupo 2: conversa
+        // Grupo 3: conversa
         menu.push('<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato">🔗 Mesclar conversa</button>');
         menu.push('<button onclick="waRecarregarAgora()" title="Recarrega lista e mensagens agora">🔄 Recarregar</button>');
         menu.push('<button onclick="waCopiarConversa()" title="Copia toda a conversa em texto pro clipboard">📋 Copiar conversa</button>');
         menu.push('<div class="sep"></div>');
-        // Grupo 3: organização
+        // Grupo 4: organização
         if (+c.fixada) {
             menu.push('<button onclick="waPinConversa()" title="Desfixar do topo">📌 Fixada (clique pra desfixar)</button>');
         } else {
@@ -913,7 +911,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         menu.push('<button onclick="waMarcarNaoLida()" title="Marcar como não lida">📩 Marcar não lida</button>');
         menu.push('<button onclick="waNotaFixa()" title="Observação interna fixa">📌 ' + (temNota ? 'Editar nota fixa' : 'Adicionar nota fixa') + '</button>');
         menu.push('<div class="sep"></div>');
-        // Grupo 4: IA / Chamados
+        // Grupo 5: IA / Chamados
         menu.push('<button onclick="waCriarChamado()" title="Abrir chamado no Helpdesk">📋 Abrir chamado</button>');
         <?php if (function_exists('ia_user_autorizado') && ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_wa_chamado')): ?>
         menu.push('<button onclick="waCriarChamadoComResumoIA()" title="IA resume e abre chamado (R$ ~0,05)">✨ Abrir chamado com resumo IA</button>');
@@ -923,13 +921,12 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php endif; ?>
         if (c.client_id) menu.push('<button onclick="waEnviarLinkPortal()" title="Gerar link Central VIP">🔑 Enviar link Portal (VIP)</button>');
         menu.push('<div class="sep"></div>');
-        // Grupo 5: utilidades
+        // Grupo 6: utilidades
         menu.push('<button onclick="waExportarConversa()" title="Exportar em .txt para o Drive">📄 Exportar conversa</button>');
         menu.push('<button onclick="waArquivar()" title="Arquivar conversa">🗄 Arquivar</button>');
         menu.push('<button onclick="waEditarTelefone()" title="Corrigir número (Multi-Device)">✏️ Corrigir número</button>');
 
         var actions = '<div class="wa-chat-actions">';
-        actions += primary.join('');
         actions += '<div class="wa-actions-menu-wrap">';
         actions += '<button type="button" class="wa-actions-menu-btn" onclick="waToggleActionsMenu(event)" title="Mais ações" aria-label="Mais ações"><span class="wa-hamburger" aria-hidden="true"><span></span><span></span><span></span></span></button>';
         actions += '<div class="wa-actions-menu" id="waActionsMenu">' + menu.join('') + '</div>';
