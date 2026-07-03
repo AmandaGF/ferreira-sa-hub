@@ -68,6 +68,21 @@ $stmtEv = $pdo->prepare("SELECT * FROM agenda_eventos WHERE case_id = ? AND visi
 $stmtEv->execute([$caseId]);
 $eventos = $stmtEv->fetchAll();
 
+// --- Treinamentos de audiência (feature Amanda 02/07) ---
+// Cliente da VIP vê APENAS certificados que ele mesmo assinou (já concluídos).
+// Links pendentes ele acessa direto pelo WhatsApp — não faz sentido listar aqui.
+$treinamentosCli = array();
+try {
+    $stTr = $pdo->prepare(
+        "SELECT id, token, aceite_em, aceite_nome, certificado_url, audiencia_titulo, audiencia_data_hora
+         FROM treinamento_audiencia_aceites
+         WHERE case_id = ? AND aceite_em IS NOT NULL
+         ORDER BY aceite_em DESC"
+    );
+    $stTr->execute([$caseId]);
+    $treinamentosCli = $stTr->fetchAll(PDO::FETCH_ASSOC) ?: array();
+} catch (Exception $e) { /* tabela pode nao existir */ }
+
 // Mapeamento de tipo para label e cor
 $tipoAndLabels = [
     'movimentacao' => 'Movimentação', 'despacho' => 'Despacho', 'decisao' => 'Decisão',
@@ -300,6 +315,38 @@ require_once __DIR__ . '/../includes/header.php';
                 <div style="color:var(--sv-text-muted);font-size:.78rem;"><?= sv_e(sv_nome_tipo_evento($ev['tipo'])) ?><?php if (!empty($ev['local'])): ?> · <?= sv_e($ev['local']) ?><?php endif; ?></div>
             </div>
             <span style="color:var(--sv-text-muted);font-size:.82rem;white-space:nowrap;"><?= date('H:i', strtotime($ev['data_inicio'])) ?></span>
+        </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if (!empty($treinamentosCli)): ?>
+<!-- Certificados de Treinamento -->
+<div class="sv-card" style="margin-bottom:1.5rem;">
+    <h3>🎓 Meus Certificados</h3>
+    <p style="color:var(--sv-text-muted);font-size:.82rem;margin:.4rem 0 .8rem;">Certificados de treinamento obrigatório de audiência remota que você já concluiu. Uma cópia também está na pasta do processo do escritório.</p>
+    <div style="display:flex;flex-direction:column;gap:.6rem;">
+        <?php foreach ($treinamentosCli as $tr): ?>
+        <div style="display:flex;align-items:center;gap:.75rem;padding:.7rem .85rem;background:linear-gradient(135deg,#ecfdf5,#d1fae5);border-radius:10px;border:1px solid #86efac;">
+            <div style="font-size:1.6rem;flex-shrink:0;">🎓</div>
+            <div style="flex:1;min-width:0;">
+                <div style="color:var(--sv-text);font-size:.9rem;font-weight:700;line-height:1.3;">
+                    Certificado de Treinamento
+                    <?php if (!empty($tr['audiencia_titulo'])): ?>
+                        <span style="font-weight:500;color:var(--sv-text-muted);font-size:.8rem;">· <?= sv_e($tr['audiencia_titulo']) ?></span>
+                    <?php endif; ?>
+                </div>
+                <div style="color:var(--sv-text-muted);font-size:.75rem;margin-top:3px;">
+                    Assinado em <?= date('d/m/Y \à\s H:i', strtotime($tr['aceite_em'])) ?>
+                    <?php if (!empty($tr['audiencia_data_hora'])): ?>
+                        · Audiência: <?= date('d/m/Y H:i', strtotime($tr['audiencia_data_hora'])) ?>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <a href="https://ferreiraesa.com.br/conecta/publico/treinamento_audiencia.php?t=<?= urlencode($tr['token']) ?>" target="_blank" rel="noopener" class="sv-btn sv-btn-sm" style="background:#059669;color:#fff;padding:.4rem .7rem;font-size:.75rem;text-decoration:none;border-radius:6px;white-space:nowrap;">
+                📄 Ver certificado
+            </a>
         </div>
         <?php endforeach; ?>
     </div>
