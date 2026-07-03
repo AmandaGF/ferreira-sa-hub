@@ -216,9 +216,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-chat-actions .btn-primary-sm { background:<?= $accentColor ?>;color:#fff;border-color:<?= $accentColor ?>; }
 /* Wrapper do menu "⋮ Mais" */
 .wa-actions-menu-wrap { position:relative; display:inline-block; }
-.wa-actions-menu-btn { padding:5px 10px;font-size:.85rem;font-weight:700;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;color:var(--text);line-height:1; }
+.wa-actions-menu-btn { padding:6px 10px;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;color:var(--text);line-height:1;display:inline-flex;align-items:center;justify-content:center;height:26px; }
 .wa-actions-menu-btn:hover { background:<?= $accentLight ?>;border-color:<?= $accentColor ?>; }
 .wa-actions-menu-btn.aberto { background:<?= $accentColor ?>;color:#fff;border-color:<?= $accentColor ?>; }
+/* Hamburger: 3 tracos que viram X quando o menu esta aberto */
+.wa-hamburger { display:inline-flex;flex-direction:column;justify-content:space-between;width:18px;height:14px;pointer-events:none; }
+.wa-hamburger span { display:block;height:2px;width:100%;background:currentColor;border-radius:2px;transform-origin:center;transition:transform .28s cubic-bezier(.4,.1,.3,1.1), opacity .18s ease; }
+.wa-actions-menu-btn.aberto .wa-hamburger span:nth-child(1) { transform:translateY(6px) rotate(45deg); }
+.wa-actions-menu-btn.aberto .wa-hamburger span:nth-child(2) { opacity:0; transform:scaleX(0); }
+.wa-actions-menu-btn.aberto .wa-hamburger span:nth-child(3) { transform:translateY(-6px) rotate(-45deg); }
 .wa-actions-menu { position:absolute;top:calc(100% + 6px);right:0;min-width:220px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px rgba(5,34,40,.18);padding:6px;z-index:180;display:none;flex-direction:column;gap:2px;max-height:70vh;overflow-y:auto; }
 .wa-actions-menu.aberto { display:flex; }
 .wa-actions-menu button { width:100%;text-align:left;padding:8px 12px;font-size:.78rem;border:0;background:transparent;border-radius:6px;cursor:pointer;color:var(--text);white-space:nowrap;font-weight:600;display:flex;align-items:center;gap:6px; }
@@ -917,7 +923,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var actions = '<div class="wa-chat-actions">';
         actions += primary.join('');
         actions += '<div class="wa-actions-menu-wrap">';
-        actions += '<button type="button" class="wa-actions-menu-btn" onclick="waToggleActionsMenu(event)" title="Mais ações">⋮</button>';
+        actions += '<button type="button" class="wa-actions-menu-btn" onclick="waToggleActionsMenu(event)" title="Mais ações" aria-label="Mais ações"><span class="wa-hamburger" aria-hidden="true"><span></span><span></span><span></span></span></button>';
         actions += '<div class="wa-actions-menu" id="waActionsMenu">' + menu.join('') + '</div>';
         actions += '</div>';
         actions += '</div>';
