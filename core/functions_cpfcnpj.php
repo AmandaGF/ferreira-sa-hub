@@ -130,6 +130,8 @@ function buscar_cpf($cpf)
     } catch (Exception $e) {}
 
     // Camada 5: API externa cpfcnpj.com.br
+    // Pacote 7 (Amanda 03/07): nome completo + data de nascimento (R$ 0,25/consulta)
+    // Pacote 1 (anterior): so nome completo (R$ 0,17/consulta) — mantido como fallback
     $token = _cpfcnpj_token();
     if ($token) {
         $pacote = _cpfcnpj_pacote();
@@ -139,6 +141,7 @@ function buscar_cpf($cpf)
             CURLOPT_TIMEOUT => 10,
             CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_USERAGENT => 'FES-Hub/1.0',
+            CURLOPT_HTTPHEADER => array('Accept: application/json'),
         ));
         $resp = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
@@ -241,9 +244,10 @@ function _cpfcnpj_pacote()
         $stmt = db()->prepare("SELECT valor FROM configuracoes WHERE chave = 'cpfcnpj_pacote'");
         $stmt->execute();
         $row = $stmt->fetch();
-        $pacote = $row ? $row['valor'] : '1';
+        // Amanda 03/07: pacote 7 (nome + nascimento) e' o padrao novo (R$0,25/consulta)
+        $pacote = $row ? $row['valor'] : '7';
     } catch (Exception $e) {
-        $pacote = '1';
+        $pacote = '7';
     }
     return $pacote;
 }
