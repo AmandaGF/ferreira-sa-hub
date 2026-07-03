@@ -617,11 +617,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
     var arquivoPendente = null; // {file, previewUrl}
     var convNomeAtual = ''; // nome do contato da conversa aberta (pra {{nome}})
     var PODE_DELEGAR = <?= $podeDelegar ? 'true' : 'false' ?>;
-    var WA_CANAL_ATUAL = <?= json_encode($canal, JSON_UNESCAPED_UNICODE) ?>;
+    window.WA_CANAL_ATUAL = <?= json_encode($canal, JSON_UNESCAPED_UNICODE) ?>;
+    var WA_CANAL_ATUAL = window.WA_CANAL_ATUAL;
     // Favoritos do menu de acoes — cache local em memoria, sync com servidor via api.php.
     // Salvo POR USUARIO + POR CANAL na tabela user_wa_favoritos. Amanda 03/07: quer que
     // seja padrao do usuario em todas as conversas daquele canal (nao mais por conversa).
-    var WA_FAVS = <?php
+    //
+    // BUG FIX (Amanda relatou "nao estao ficando salvos"): antes usava `var WA_FAVS`
+    // (variavel local ao <script>) mas `waGetFavoritos()` lia `window.WA_FAVS` (undefined).
+    // Cada clique lia [] no fallback, empurrava so o novo id e ao salvar o backend
+    // fazia DELETE+INSERT: apagava tudo o que havia antes. Agora usa `window.WA_FAVS`
+    // explicitamente pra evitar confusao de escopo.
+    window.WA_FAVS = <?php
         try {
             db()->exec("CREATE TABLE IF NOT EXISTS user_wa_favoritos (user_id INT NOT NULL, canal VARCHAR(4) NOT NULL, fav_id VARCHAR(48) NOT NULL, ordem INT DEFAULT 0, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY (user_id, canal, fav_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
             $__stF = db()->prepare("SELECT fav_id FROM user_wa_favoritos WHERE user_id = ? AND canal = ? ORDER BY ordem, fav_id");
