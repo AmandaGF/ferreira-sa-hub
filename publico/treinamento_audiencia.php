@@ -292,38 +292,19 @@ if (!function_exists('e')) {
 
         .cert-content{ position: relative; z-index: 1; text-align: center; }
 
-        /* Cabeçalho: logo estilizado F&S */
+        /* Cabeçalho: logo oficial do escritório */
         .cert-logo{
             display: flex; align-items: center; justify-content: center;
-            gap: 14px; margin-bottom: 18px;
+            margin-bottom: 8px;
         }
-        .cert-logo-mark{
-            width: 56px; height: 56px;
-            color: var(--brown);
-        }
-        .cert-logo-txt{
-            text-align: left;
-        }
-        .cert-logo-nome{
-            font-family: Georgia, serif;
-            font-size: 22px;
-            font-weight: 700;
-            color: var(--petrol-900);
-            letter-spacing: .06em;
-            line-height: 1;
-        }
-        .cert-logo-sub{
-            font-family: system-ui, sans-serif;
-            font-size: 10.5px;
-            color: var(--brown);
-            letter-spacing: .25em;
-            text-transform: uppercase;
-            margin-top: 4px;
+        .cert-logo img{
+            display: block;
+            width: 100%;
+            max-width: 320px;
+            height: auto;
         }
         @media (min-width: 720px){
-            .cert-logo-mark{ width: 68px; height: 68px; }
-            .cert-logo-nome{ font-size: 26px; }
-            .cert-logo-sub{ font-size: 11px; }
+            .cert-logo img{ max-width: 440px; }
         }
 
         /* Divisor ornamental */
@@ -468,21 +449,21 @@ if (!function_exists('e')) {
             text-transform: uppercase;
         }
 
-        /* Selo hexagonal central */
+        /* Monograma F&S como selo institucional */
         .cert-selo{
             width: 92px; height: 92px;
-            background: radial-gradient(circle at 30% 30%, #B08050, var(--brown));
-            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-            display: inline-flex; flex-direction: column;
-            align-items: center; justify-content: center;
-            color: #fff;
-            font-family: Georgia, serif;
-            box-shadow: 0 6px 18px rgba(140,90,59,.35);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 6px 18px rgba(5,34,40,.35);
             margin: 0 auto;
-            position: relative;
+            display: block;
         }
-        .cert-selo b{ font-size: 15px; letter-spacing: .04em; }
-        .cert-selo span{ font-size: 9px; letter-spacing: .15em; text-transform: uppercase; margin-top: 2px; }
+        .cert-selo img{
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
 
         .cert-meta{
             font-family: system-ui, sans-serif;
@@ -514,12 +495,33 @@ if (!function_exists('e')) {
             text-align: center;
         }
 
-        /* Print: força paisagem no A4 */
+        /* Print: força paisagem no A4 e mostra APENAS o certificado limpo */
         @media print {
-            @page { size: A4 landscape; margin: 8mm; }
-            body{ background:#fff; padding: 0; }
-            .cert-wrap{ box-shadow:none; padding: 20mm; }
-            .no-print{ display:none !important; }
+            @page { size: A4 landscape; margin: 0; }
+            html, body{
+                background:#fff !important;
+                margin: 0 !important; padding: 0 !important;
+                width: 100%;
+            }
+            /* Esconde TUDO do body por padrão */
+            body > *{ display: none !important; }
+            /* Mostra só o wrapper que contém o certificado */
+            body > .wrap{ display: block !important; }
+            .wrap > *{ display: none !important; }
+            .wrap > .cert-wrap{ display: block !important; }
+            /* Certificado ocupa a folha inteira */
+            .cert-wrap{
+                box-shadow: none !important;
+                border-radius: 0 !important;
+                margin: 0 !important;
+                padding: 12mm 16mm !important;
+                width: 100% !important;
+                min-height: 100vh;
+                page-break-inside: avoid;
+            }
+            .cert-wrap::before{ inset: 6mm !important; }
+            .cert-wrap::after{ inset: 8mm !important; }
+            .no-print{ display: none !important; }
         }
 
         .footer{
@@ -565,31 +567,9 @@ if (!function_exists('e')) {
         <div class="cert-wrap">
             <div class="cert-content">
 
-                <!-- Logo estilizado F&S -->
+                <!-- Logo oficial do escritório -->
                 <div class="cert-logo">
-                    <svg class="cert-logo-mark" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-                        <!-- Balança da justiça estilizada -->
-                        <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-                            <!-- Base e coluna -->
-                            <line x1="50" y1="18" x2="50" y2="82"/>
-                            <line x1="38" y1="82" x2="62" y2="82"/>
-                            <line x1="42" y1="86" x2="58" y2="86"/>
-                            <!-- Trave superior -->
-                            <line x1="18" y1="30" x2="82" y2="30"/>
-                            <!-- Pratos -->
-                            <path d="M 24 30 L 12 58 A 14 14 0 0 0 36 58 Z" fill="currentColor" fill-opacity="0.14"/>
-                            <path d="M 76 30 L 64 58 A 14 14 0 0 0 88 58 Z" fill="currentColor" fill-opacity="0.14"/>
-                            <!-- Correntes -->
-                            <line x1="24" y1="30" x2="20" y2="20" stroke-opacity="0.6"/>
-                            <line x1="76" y1="30" x2="80" y2="20" stroke-opacity="0.6"/>
-                            <!-- Topo com detalhe -->
-                            <circle cx="50" cy="16" r="4" fill="currentColor" fill-opacity="0.24"/>
-                        </g>
-                    </svg>
-                    <div class="cert-logo-txt">
-                        <div class="cert-logo-nome">Ferreira &amp; Sá</div>
-                        <div class="cert-logo-sub">Advocacia Especializada</div>
-                    </div>
+                    <img src="https://ferreiraesa.com.br/conecta/assets/img/logo.png" alt="Ferreira & Sá Advocacia Especializada">
                 </div>
 
                 <!-- Divisor ornamental -->
@@ -639,10 +619,9 @@ if (!function_exists('e')) {
                         <div class="cert-sig-role">Sócia — OAB/RS 005.987</div>
                     </div>
 
-                    <!-- Selo -->
+                    <!-- Selo com monograma oficial F&S -->
                     <div class="cert-selo" aria-hidden="true">
-                        <b>F&amp;S</b>
-                        <span>Autêntico</span>
+                        <img src="https://ferreiraesa.com.br/conecta/assets/img/site/monograma.png" alt="Monograma Ferreira & Sá">
                     </div>
 
                     <!-- Meta -->
