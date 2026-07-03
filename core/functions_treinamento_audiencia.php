@@ -199,6 +199,20 @@ function treinamento_audiencia_registrar_aceite(PDO $pdo, $registroId, $dados) {
         if (empty($checks[$k])) return array('ok' => false, 'motivo' => 'checkbox_faltando:' . $k);
     }
 
+    // Vincula ao CPF do cliente do case (impede terceiro assinar por outro).
+    // Se cliente não tem CPF cadastrado, aceita e registra pra atualizar
+    // depois — não bloqueia o cliente por erro do cadastro interno.
+    try {
+        $st = $pdo->prepare("SELECT c.cpf FROM treinamento_audiencia_aceites ta JOIN clients c ON c.id = ta.client_id WHERE ta.id = ?");
+        $st->execute(array($registroId));
+        $cpfCliente = preg_replace('/\D/', '', (string)$st->fetchColumn());
+        if (strlen($cpfCliente) === 11 && $cpfCliente !== $cpf) {
+            return array('ok' => false, 'motivo' => 'cpf_nao_confere');
+        }
+    } catch (Exception $e) {
+        // Se query falhar, deixa passar (não trava cliente por bug interno).
+    }
+
     $checksJson = json_encode($checks, JSON_UNESCAPED_UNICODE);
     $checksHash = hash('sha256', $checksJson . '|' . $nome . '|' . $cpf);
     $ip = isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0] : ($_SERVER['REMOTE_ADDR'] ?? '');

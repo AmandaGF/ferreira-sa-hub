@@ -61,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && empty($reg['aceite_em'])) {
         $mapaErros = array(
             'nome_curto' => 'Por favor, digite seu nome completo.',
             'cpf_invalido' => 'CPF inválido. Digite os 11 dígitos.',
+            'cpf_nao_confere' => 'O CPF informado não confere com o cadastrado no processo. Verifique se está usando o CPF do titular do processo, não de outra pessoa. Se o problema persistir, fale com o escritório pelo WhatsApp (24) 9.9205-0096.',
         );
         $motivo = $res['motivo'] ?? '';
         if (isset($mapaErros[$motivo])) $mensagemErro = $mapaErros[$motivo];
@@ -256,27 +257,242 @@ if (!function_exists('e')) {
         .msg-err{ background:#fde8e8; color: var(--danger); border:1px solid #fbcaca; }
         .msg-ok{ background:#ecfdf5; color: var(--success); border:1px solid #bbf7d0; }
 
-        /* Certificado */
-        .cert{
-            background: linear-gradient(135deg, #FBF6F1 0%, #F3E9DF 100%);
-            border: 3px double var(--brown);
-            border-radius: 18px;
-            padding: 32px 26px;
-            text-align: center;
-            box-shadow: var(--shadow);
+        /* ═══════════════ CERTIFICADO ESTILO DIPLOMA ═══════════════ */
+        .cert-wrap{
+            /* Papel do diploma — proporção paisagem */
+            background:
+              radial-gradient(ellipse at top left, rgba(215,171,144,.10), transparent 50%),
+              radial-gradient(ellipse at bottom right, rgba(140,90,59,.08), transparent 50%),
+              linear-gradient(180deg, #FDFAF5 0%, #F7EFE3 100%);
+            border-radius: 12px;
+            padding: 30px 26px;
+            position: relative;
+            box-shadow: 0 24px 60px rgba(5,34,40,.16);
+            font-family: Georgia, "Times New Roman", serif;
+            color: var(--petrol-900);
+            overflow: hidden;
         }
-        @media (min-width: 720px){ .cert{ padding: 46px 40px; } }
-        .cert-brand{ color: var(--brown); letter-spacing: .18em; font-size: 12px; font-weight: 800; text-transform: uppercase; }
-        .cert h2{ color: var(--petrol-900); margin: 12px 0; font-size: 22px; }
-        .cert .nome{ color: var(--petrol-900); font-size: 24px; font-weight: 800; margin: 16px 0 4px; letter-spacing: -.01em; }
-        .cert .cpf{ color: var(--muted); font-size: 14px; }
-        .cert .decl{ margin: 22px auto; max-width: 560px; font-size: 15px; color: var(--text); line-height: 1.7; }
-        .cert-hash{
+        @media (min-width: 720px){ .cert-wrap{ padding: 56px 60px; } }
+
+        /* Moldura decorativa dupla */
+        .cert-wrap::before{
+            content:"";
+            position: absolute; inset: 12px;
+            border: 2px solid var(--brown);
+            border-radius: 6px;
+            pointer-events: none;
+        }
+        .cert-wrap::after{
+            content:"";
+            position: absolute; inset: 18px;
+            border: 1px solid rgba(140,90,59,.35);
+            border-radius: 4px;
+            pointer-events: none;
+        }
+
+        .cert-content{ position: relative; z-index: 1; text-align: center; }
+
+        /* Cabeçalho: logo estilizado F&S */
+        .cert-logo{
+            display: flex; align-items: center; justify-content: center;
+            gap: 14px; margin-bottom: 18px;
+        }
+        .cert-logo-mark{
+            width: 56px; height: 56px;
+            color: var(--brown);
+        }
+        .cert-logo-txt{
+            text-align: left;
+        }
+        .cert-logo-nome{
+            font-family: Georgia, serif;
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--petrol-900);
+            letter-spacing: .06em;
+            line-height: 1;
+        }
+        .cert-logo-sub{
+            font-family: system-ui, sans-serif;
+            font-size: 10.5px;
+            color: var(--brown);
+            letter-spacing: .25em;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+        @media (min-width: 720px){
+            .cert-logo-mark{ width: 68px; height: 68px; }
+            .cert-logo-nome{ font-size: 26px; }
+            .cert-logo-sub{ font-size: 11px; }
+        }
+
+        /* Divisor ornamental */
+        .cert-div{
+            display: flex; align-items: center; justify-content: center;
+            gap: 12px; margin: 8px 0 20px;
+        }
+        .cert-div::before, .cert-div::after{
+            content:""; flex: 1; max-width: 90px;
+            height: 1px; background: linear-gradient(90deg, transparent, var(--brown), transparent);
+        }
+        .cert-div span{
+            color: var(--brown); font-size: 14px;
+            width: 8px; height: 8px; border-radius: 50%;
+            background: var(--brown); display: inline-block;
+        }
+
+        /* Título */
+        .cert-title{
+            font-family: Georgia, serif;
+            font-size: 30px;
+            font-weight: 400;
+            letter-spacing: .28em;
+            color: var(--petrol-900);
+            margin: 0 0 4px;
+            text-transform: uppercase;
+        }
+        @media (min-width: 720px){ .cert-title{ font-size: 40px; } }
+        .cert-sub{
+            font-size: 13px;
+            color: var(--brown);
+            letter-spacing: .22em;
+            text-transform: uppercase;
+            margin: 0 0 24px;
+        }
+
+        /* Texto formal */
+        .cert-body{
+            font-size: 15px;
+            line-height: 1.85;
+            color: #2B2B2B;
+            max-width: 640px;
+            margin: 12px auto 0;
+            text-align: justify;
+            text-align-last: center;
+        }
+        @media (min-width: 720px){ .cert-body{ font-size: 16px; line-height: 1.9; } }
+        .cert-body p{ margin: 0 0 12px; }
+
+        /* Nome do cliente em destaque */
+        .cert-nome{
+            font-family: "Brush Script MT", "Snell Roundhand", Georgia, cursive;
+            font-size: 34px;
+            color: var(--petrol-900);
+            margin: 18px 0 4px;
+            font-weight: 400;
+            font-style: italic;
+            letter-spacing: .01em;
+            line-height: 1.15;
+        }
+        @media (min-width: 720px){ .cert-nome{ font-size: 46px; margin: 26px 0 6px; } }
+        .cert-nome-linha{
+            border-top: 1px solid rgba(140,90,59,.42);
+            max-width: 500px;
+            margin: 0 auto 4px;
+        }
+        .cert-cpf{
+            font-family: system-ui, sans-serif;
+            font-size: 12px;
+            color: var(--muted);
+            letter-spacing: .12em;
+            text-transform: uppercase;
+            margin-bottom: 8px;
+        }
+
+        /* Rodapé com assinatura + selo */
+        .cert-foot{
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 24px;
+            margin-top: 30px;
+            padding-top: 22px;
+            border-top: 1px solid rgba(140,90,59,.22);
+            text-align: center;
+        }
+        @media (min-width: 720px){
+            .cert-foot{ grid-template-columns: 1fr auto 1fr; gap: 40px; align-items: end; text-align: left; }
+        }
+        .cert-sig{
+            text-align: center;
+        }
+        .cert-sig-line{
+            font-family: "Brush Script MT", "Snell Roundhand", Georgia, cursive;
+            font-size: 24px;
+            color: var(--petrol-900);
+            font-style: italic;
+            margin-bottom: 2px;
+            border-bottom: 1px solid rgba(140,90,59,.42);
+            padding-bottom: 4px;
+            display: inline-block;
+            min-width: 200px;
+        }
+        .cert-sig-nome{
+            font-family: system-ui, sans-serif;
+            font-size: 12px; font-weight: 700;
+            color: var(--petrol-900);
+            letter-spacing: .04em;
+            margin-top: 6px;
+        }
+        .cert-sig-role{
+            font-family: system-ui, sans-serif;
+            font-size: 11px;
+            color: var(--muted);
+            letter-spacing: .08em;
+            text-transform: uppercase;
+        }
+
+        /* Selo hexagonal central */
+        .cert-selo{
+            width: 92px; height: 92px;
+            background: radial-gradient(circle at 30% 30%, #B08050, var(--brown));
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            display: inline-flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            color: #fff;
+            font-family: Georgia, serif;
+            box-shadow: 0 6px 18px rgba(140,90,59,.35);
+            margin: 0 auto;
+            position: relative;
+        }
+        .cert-selo b{ font-size: 15px; letter-spacing: .04em; }
+        .cert-selo span{ font-size: 9px; letter-spacing: .15em; text-transform: uppercase; margin-top: 2px; }
+
+        .cert-meta{
+            font-family: system-ui, sans-serif;
+            font-size: 11px;
+            color: var(--muted);
+            letter-spacing: .04em;
+            line-height: 1.55;
+        }
+        .cert-meta strong{
+            color: var(--petrol-900);
+            font-weight: 700;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            font-size: 10.5px;
+            display: block;
+            margin-bottom: 3px;
+        }
+        .cert-hash-box{
             font-family: ui-monospace, "Courier New", monospace;
-            font-size: 11px; color: var(--muted);
-            background: rgba(255,255,255,.5); border-radius: 8px;
-            padding: 8px 12px; margin-top: 20px;
+            font-size: 10.5px;
+            color: var(--muted);
+            background: rgba(255,255,255,.7);
+            border: 1px dashed rgba(140,90,59,.3);
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin: 22px auto 0;
             word-break: break-all;
+            max-width: 620px;
+            text-align: center;
+        }
+
+        /* Print: força paisagem no A4 */
+        @media print {
+            @page { size: A4 landscape; margin: 8mm; }
+            body{ background:#fff; padding: 0; }
+            .cert-wrap{ box-shadow:none; padding: 20mm; }
+            .no-print{ display:none !important; }
         }
 
         .footer{
@@ -318,46 +534,114 @@ if (!function_exists('e')) {
     <?php endif; ?>
 
     <?php if ($jaAssinado): ?>
-        <!-- ═══════════════ CERTIFICADO ═══════════════ -->
-        <div class="cert">
-            <div class="cert-brand">Ferreira &amp; Sá Advocacia Especializada</div>
-            <h2>Certificado de Conclusão</h2>
-            <p style="color: var(--muted); font-size: 14px; margin: 0;">Treinamento Obrigatório — Audiência por Videoconferência</p>
+        <!-- ═══════════════ CERTIFICADO DIPLOMA ═══════════════ -->
+        <div class="cert-wrap">
+            <div class="cert-content">
 
-            <div class="nome"><?= e($reg['aceite_nome']) ?></div>
-            <?php if (!empty($reg['aceite_cpf'])): ?>
-                <div class="cpf">CPF <?= e(treinamento_audiencia_cpf_mascarado($reg['aceite_cpf'])) ?></div>
-            <?php endif; ?>
+                <!-- Logo estilizado F&S -->
+                <div class="cert-logo">
+                    <svg class="cert-logo-mark" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                        <!-- Balança da justiça estilizada -->
+                        <g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+                            <!-- Base e coluna -->
+                            <line x1="50" y1="18" x2="50" y2="82"/>
+                            <line x1="38" y1="82" x2="62" y2="82"/>
+                            <line x1="42" y1="86" x2="58" y2="86"/>
+                            <!-- Trave superior -->
+                            <line x1="18" y1="30" x2="82" y2="30"/>
+                            <!-- Pratos -->
+                            <path d="M 24 30 L 12 58 A 14 14 0 0 0 36 58 Z" fill="currentColor" fill-opacity="0.14"/>
+                            <path d="M 76 30 L 64 58 A 14 14 0 0 0 88 58 Z" fill="currentColor" fill-opacity="0.14"/>
+                            <!-- Correntes -->
+                            <line x1="24" y1="30" x2="20" y2="20" stroke-opacity="0.6"/>
+                            <line x1="76" y1="30" x2="80" y2="20" stroke-opacity="0.6"/>
+                            <!-- Topo com detalhe -->
+                            <circle cx="50" cy="16" r="4" fill="currentColor" fill-opacity="0.24"/>
+                        </g>
+                    </svg>
+                    <div class="cert-logo-txt">
+                        <div class="cert-logo-nome">Ferreira &amp; Sá</div>
+                        <div class="cert-logo-sub">Advocacia Especializada</div>
+                    </div>
+                </div>
 
-            <div class="decl">
-                Concluiu o treinamento obrigatório sobre a participação em audiência por videoconferência,
-                tendo lido a cartilha, realizado os testes técnicos prévios e assinado o Termo de Ciência
-                e Responsabilidade correspondente<?= !empty($reg['case_title']) ? ', nos autos do processo <b>' . e($reg['case_title']) . '</b>' : '' ?>.
-            </div>
+                <!-- Divisor ornamental -->
+                <div class="cert-div"><span></span></div>
 
-            <div style="margin-top: 20px; font-size: 14px; color: var(--petrol-900);">
-                <b>Assinado eletronicamente em</b><br>
-                <?= date('d/m/Y \à\s H:i', strtotime($reg['aceite_em'])) ?>
-                <?php if (!empty($reg['aceite_ip'])): ?>
-                    <br><span style="font-size: 12px; color: var(--muted);">IP <?= e($reg['aceite_ip']) ?></span>
+                <!-- Título -->
+                <h1 class="cert-title">Certificado</h1>
+                <div class="cert-sub">Treinamento Obrigatório de Audiência por Videoconferência</div>
+
+                <!-- Preâmbulo -->
+                <div class="cert-body">
+                    <p>Certificamos, para os devidos fins de prova, que</p>
+                </div>
+
+                <!-- Nome do cliente -->
+                <div class="cert-nome"><?= e($reg['aceite_nome']) ?></div>
+                <div class="cert-nome-linha"></div>
+                <?php if (!empty($reg['aceite_cpf'])): ?>
+                    <div class="cert-cpf">CPF <?= e(treinamento_audiencia_cpf_mascarado($reg['aceite_cpf'])) ?></div>
                 <?php endif; ?>
-            </div>
 
-            <div class="cert-hash" title="Hash de integridade do aceite eletrônico">
-                Código de verificação: <?= e(substr($reg['aceite_checks_hash'] ?? '', 0, 16)) ?>...
-            </div>
+                <!-- Corpo do texto -->
+                <div class="cert-body">
+                    <p>
+                        concluiu integralmente o <b>Treinamento Obrigatório</b> ministrado pelo escritório <b>FERREIRA &amp; SÁ ADVOCACIA ESPECIALIZADA</b>,
+                        preparatório para a participação em audiência por meio de videoconferência<?= !empty($reg['case_title']) ? ', nos autos do processo <b>' . e($reg['case_title']) . '</b>' . (!empty($reg['case_number']) ? ' (nº ' . e($reg['case_number']) . ')' : '') : '' ?><?= $audienciaFmt ? ', com sessão designada para <b>' . e($audienciaFmt) . '</b>' : '' ?>.
+                    </p>
+                    <p>
+                        Tendo, para tanto, procedido à leitura integral da cartilha institucional, realizado os testes prévios
+                        de câmera, microfone e conexão de internet, e firmado, por meio de assinatura eletrônica, o competente
+                        <b>Termo de Ciência e Responsabilidade</b>, encontra-se APTO(A) a participar da audiência remota
+                        designada, assumindo as responsabilidades técnicas ali descritas.
+                    </p>
+                </div>
 
-            <div style="margin-top: 22px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 12.5px; color: var(--muted); line-height: 1.6;">
-                CNPJ 51.294.223/0001-40 • OAB/RS 005.987/2023<br>
-                Contato: WhatsApp (24) 9.9205-0096 • www.ferreiraesa.com.br
+                <!-- Rodapé: assinatura + selo + meta -->
+                <div class="cert-foot">
+                    <!-- Assinatura -->
+                    <div class="cert-sig">
+                        <div class="cert-sig-line">Amanda Guedes Ferreira</div>
+                        <div class="cert-sig-nome">Amanda Guedes Ferreira</div>
+                        <div class="cert-sig-role">Sócia — OAB/RS 005.987</div>
+                    </div>
+
+                    <!-- Selo -->
+                    <div class="cert-selo" aria-hidden="true">
+                        <b>F&amp;S</b>
+                        <span>Autêntico</span>
+                    </div>
+
+                    <!-- Meta -->
+                    <div class="cert-meta" style="text-align: right;">
+                        <strong>Registro de assinatura</strong>
+                        <?= date('d/m/Y', strtotime($reg['aceite_em'])) ?> às <?= date('H:i', strtotime($reg['aceite_em'])) ?><br>
+                        <?php if (!empty($reg['aceite_ip'])): ?>
+                            IP <?= e($reg['aceite_ip']) ?><br>
+                        <?php endif; ?>
+                        Versão do termo: <?= e($reg['aceite_termo_versao'] ?: '—') ?>
+                    </div>
+                </div>
+
+                <!-- Hash de verificação -->
+                <div class="cert-hash-box" title="Hash SHA-256 da assinatura eletrônica">
+                    <strong style="color: var(--brown);">CÓDIGO DE VERIFICAÇÃO:</strong>
+                    <?= e(substr($reg['aceite_checks_hash'] ?? '', 0, 32)) ?>
+                </div>
+
+                <!-- Institucional footer -->
+                <div style="margin-top: 18px; font-size: 11px; color: var(--muted); font-family: system-ui, sans-serif; letter-spacing: .04em;">
+                    FERREIRA &amp; SÁ ADVOCACIA ESPECIALIZADA • CNPJ 51.294.223/0001-40 • WhatsApp (24) 9.9205-0096 • www.ferreiraesa.com.br
+                </div>
             </div>
         </div>
 
-        <div style="text-align: center; margin: 20px 0;" class="no-print">
+        <div style="text-align: center; margin: 24px 0;" class="no-print">
             <button onclick="window.print()" class="btn-primary" style="max-width: 320px; margin: 0 auto;">🖨️ Imprimir / Salvar como PDF</button>
             <p style="font-size: 12.5px; color: var(--muted); margin-top: 12px;">
                 Ao clicar em <b>Imprimir</b>, escolha “Salvar como PDF” no destino da impressão pra guardar uma cópia.
-                <br>Uma cópia também é anexada automaticamente ao seu processo pelo escritório.
+                Certificado gerado no formato <b>A4 paisagem</b>. Uma cópia também é anexada automaticamente ao seu processo pelo escritório.
             </p>
         </div>
 
@@ -395,9 +679,9 @@ if (!function_exists('e')) {
             <div class="cartilha-link">
                 <div>
                     <b>📖 Cartilha completa de audiências</b>
-                    <p>Abre em uma nova aba. Leia inteira antes de continuar.</p>
+                    <p>Abre em uma nova aba — você continua nesta página aberta pra assinar depois.</p>
                 </div>
-                <a href="https://ferreiraesa.com.br/audiencias/" target="_blank" rel="noopener">Abrir cartilha</a>
+                <a class="link-externo" href="https://ferreiraesa.com.br/audiencias/" target="_blank" rel="noopener noreferrer external">Abrir cartilha ↗</a>
             </div>
         </div>
 
@@ -488,6 +772,16 @@ if (!function_exists('e')) {
         CNPJ 51.294.223/0001-40 • WhatsApp (24) 9.9205-0096
     </div>
 </div>
+
+<!-- Fallback pros webviews (WhatsApp/IG in-app browser) que às vezes ignoram target=_blank -->
+<script>
+document.addEventListener('click', function(e){
+    var a = e.target.closest('a.link-externo');
+    if (!a) return;
+    var opened = window.open(a.href, '_blank');
+    if (opened) { e.preventDefault(); try { opened.opener = null; } catch(_){} }
+});
+</script>
 
 <?php if (!$jaAssinado): ?>
 <script>
