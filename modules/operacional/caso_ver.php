@@ -160,6 +160,28 @@ if (!empty($case['client_id'])) {
         }
     } catch (Exception $e) {}
 }
+// Treinamentos de audiência (feature Amanda 02/07) — lista aceites pro case
+$_treinamentosCase = array();
+try {
+    $_stTr = $pdo->prepare(
+        "SELECT id, token, criado_em, aceite_em, aceite_nome, aceite_cpf,
+                aceite_ip, aceite_termo_versao, certificado_url,
+                certificado_gerado_em, audiencia_titulo, audiencia_data_hora,
+                agenda_evento_id
+         FROM treinamento_audiencia_aceites
+         WHERE case_id = ?
+         ORDER BY criado_em DESC"
+    );
+    $_stTr->execute(array((int)$case['id']));
+    $_treinamentosCase = $_stTr->fetchAll(PDO::FETCH_ASSOC) ?: array();
+} catch (Exception $e) { /* tabela pode não existir se migration não rodou */ }
+$_treinAssinados = 0;
+$_treinPendentes = 0;
+foreach ($_treinamentosCase as $_t) {
+    if (!empty($_t['aceite_em'])) $_treinAssinados++;
+    else $_treinPendentes++;
+}
+
 // Labels/ícones dos tipos de formulário (espelha modules/formularios/index.php)
 $_formTypeLabels = array(
     'cadastro_cliente'       => array('📋', 'Cadastro de Cliente'),
@@ -1456,6 +1478,7 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
     <button type="button" class="cv-tab" data-aba="partes" onclick="cvAba('partes')">👥 Partes</button>
     <button type="button" class="cv-tab" data-aba="incidentais" onclick="cvAba('incidentais')">📎 Incidentais</button>
     <button type="button" class="cv-tab" data-aba="formularios" onclick="cvAba('formularios')">📝 Formulários<?php if (!empty($_formsCliente)): ?> <span class="cv-tab-badge"><?= count($_formsCliente) ?></span><?php endif; ?></button>
+    <button type="button" class="cv-tab" data-aba="treinamentos" onclick="cvAba('treinamentos')">🎓 Treinamentos<?php if (!empty($_treinamentosCase)): ?> <span class="cv-tab-badge"><?= count($_treinamentosCase) ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="ia" onclick="cvAba('ia')">🧠 IA</button>
     <button type="button" class="cv-header-toggle" onclick="cvHeaderToggle()" style="margin-left:auto;" title="Minimizar/expandir cabeçalho do caso">▲ header</button>
   </div>
@@ -1503,6 +1526,63 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
                     <span style="background:<?= e($_stInfo[0]) ?>;color:<?= e($_stInfo[1]) ?>;font-size:.66rem;font-weight:700;padding:2px 8px;border-radius:10px;text-transform:uppercase;letter-spacing:.3px;flex-shrink:0;"><?= e($_stInfo[2]) ?></span>
                     <span style="color:#94a3b8;font-size:.85rem;flex-shrink:0;">→</span>
                 </a>
+            <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+    </div>
+</div>
+
+<!-- 02/07/2026 Amanda: aba Treinamentos de audiência remota -->
+<div class="card mb-2 cv-secao" data-aba="treinamentos" id="cv-treinamentos">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
+        <h3 style="margin:0;">🎓 Treinamentos de Audiência Remota (<?= count($_treinamentosCase) ?>)</h3>
+        <button type="button" onclick="cvCriarTreinamento()" class="btn btn-sm btn-primary" style="font-size:.72rem;">🎓 Enviar treinamento pro cliente</button>
+    </div>
+    <div class="card-body" style="padding:.6rem 1rem 1rem;">
+        <?php if (empty($_treinamentosCase)): ?>
+            <p class="text-muted text-sm" style="margin:.5rem 0;">Nenhum treinamento gerado para este caso ainda.</p>
+            <p class="text-muted" style="font-size:.75rem;">
+                Clique em "Enviar treinamento pro cliente" pra gerar o link. Depois copie e mande no WhatsApp — quando o cliente assinar, o certificado é anexado automaticamente aqui e à pasta do Drive.
+            </p>
+        <?php else: ?>
+            <div style="display:flex;flex-direction:column;gap:.5rem;">
+            <?php foreach ($_treinamentosCase as $_tr):
+                $_assinado = !empty($_tr['aceite_em']);
+                $_dtCr = date('d/m/Y H:i', strtotime($_tr['criado_em']));
+                $_dtAc = $_assinado ? date('d/m/Y H:i', strtotime($_tr['aceite_em'])) : '';
+                $_linkPub = url('publico/treinamento_audiencia.php?t=' . urlencode($_tr['token']));
+            ?>
+                <div style="padding:.7rem .85rem;background:#fff;border:1px solid <?= $_assinado ? '#86efac' : '#fde68a' ?>;border-left:4px solid <?= $_assinado ? '#10b981' : '#f59e0b' ?>;border-radius:8px;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem;flex-wrap:wrap;">
+                        <div style="flex:1;min-width:200px;">
+                            <div style="font-weight:700;font-size:.85rem;color:#052228;">
+                                <?= $_assinado ? '✅ Assinado por ' . e($_tr['aceite_nome']) : '⏳ Aguardando cliente assinar' ?>
+                            </div>
+                            <div style="font-size:.72rem;color:#6b7280;margin-top:3px;line-height:1.5;">
+                                <b>Criado:</b> <?= $_dtCr ?>
+                                <?php if ($_assinado): ?>
+                                    · <b>Assinado:</b> <?= $_dtAc ?>
+                                    <?php if (!empty($_tr['aceite_ip'])): ?> · <b>IP:</b> <?= e($_tr['aceite_ip']) ?><?php endif; ?>
+                                <?php endif; ?>
+                                <?php if (!empty($_tr['audiencia_titulo'])): ?>
+                                    <br><b>Audiência:</b> <?= e($_tr['audiencia_titulo']) ?><?= $_tr['audiencia_data_hora'] ? ' (' . date('d/m/Y H:i', strtotime($_tr['audiencia_data_hora'])) . ')' : '' ?>
+                                <?php endif; ?>
+                                <?php if ($_assinado && !empty($_tr['aceite_termo_versao'])): ?>
+                                    <br><b>Versão do termo:</b> <code style="font-size:.68rem;background:#f3f4f6;padding:1px 5px;border-radius:3px;"><?= e($_tr['aceite_termo_versao']) ?></code>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:.3rem;flex-shrink:0;align-items:flex-end;">
+                            <a href="<?= e($_linkPub) ?>" target="_blank" style="font-size:.72rem;padding:5px 10px;background:#052228;color:#fff;border-radius:6px;text-decoration:none;white-space:nowrap;">🔗 Abrir link do cliente</a>
+                            <?php if (!empty($_tr['certificado_url'])): ?>
+                                <a href="<?= e($_tr['certificado_url']) ?>" target="_blank" style="font-size:.72rem;padding:5px 10px;background:#10b981;color:#fff;border-radius:6px;text-decoration:none;white-space:nowrap;">📁 Certificado PDF (Drive)</a>
+                            <?php elseif ($_assinado): ?>
+                                <span style="font-size:.68rem;color:#92400e;">PDF ainda não arquivado no Drive</span>
+                            <?php endif; ?>
+                            <button type="button" onclick="cvCopiarLinkTreino('<?= e($_linkPub) ?>')" style="font-size:.68rem;padding:4px 8px;background:transparent;color:#6b7280;border:1px solid #d1d5db;border-radius:6px;cursor:pointer;">📋 Copiar link</button>
+                        </div>
+                    </div>
+                </div>
             <?php endforeach; ?>
             </div>
         <?php endif; ?>
@@ -7981,6 +8061,40 @@ window.pedirObsRealizado = function(form) {
         document.body.classList.toggle('cv-header-min');
         var btn = document.querySelector('.cv-header-toggle');
         if (btn) btn.textContent = document.body.classList.contains('cv-header-min') ? '▼ header' : '▲ header';
+    };
+
+    // Treinamento obrigatorio de audiencia remota (feature Amanda 02/07)
+    window.cvCriarTreinamento = function() {
+        if (!confirm('Gerar um link de treinamento obrigatório para este cliente?\n\nApós criar, você pode copiar o link e enviar pelo WhatsApp. Quando o cliente assinar, o certificado será anexado automaticamente à pasta do processo.')) return;
+        var fd = new FormData();
+        fd.append('action', 'criar_treinamento_audiencia');
+        fd.append('case_id', <?= (int)$case['id'] ?>);
+        fd.append('csrf_token', <?= json_encode(generate_csrf_token()) ?>);
+        fetch('<?= module_url('operacional', 'api.php') ?>', {
+            method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function(r){ return r.json(); }).then(function(d){
+            if (d && d.ok) {
+                if (confirm('✅ Link criado!\n\n' + d.url + '\n\nClique OK pra copiar ou Cancelar pra apenas recarregar a página.')) {
+                    if (navigator.clipboard) {
+                        navigator.clipboard.writeText(d.url).then(function(){
+                            alert('Link copiado! Cole no WhatsApp do cliente.');
+                            location.reload();
+                        });
+                    } else {
+                        prompt('Copie o link:', d.url);
+                        location.reload();
+                    }
+                } else { location.reload(); }
+            } else {
+                alert('Erro: ' + (d.error || 'desconhecido'));
+            }
+        }).catch(function(err){ alert('Erro de rede: ' + err.message); });
+    };
+
+    window.cvCopiarLinkTreino = function(url) {
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(url).then(function(){ alert('Link copiado!'); });
+        } else { prompt('Copie o link:', url); }
     };
 
     // Conta cards de uma aba pra mostrar no badge da tab

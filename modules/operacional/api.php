@@ -240,6 +240,21 @@ if ($action === 'corrigir_acentos_andamentos') {
 }
 
 // ── Criar pasta no Drive (retry manual quando a criação automática falhou) ──
+if ($action === 'criar_treinamento_audiencia') {
+    header('Content-Type: application/json; charset=utf-8');
+    require_once APP_ROOT . '/core/functions_treinamento_audiencia.php';
+    $caseId = (int)($_POST['case_id'] ?? 0);
+    $agEv   = (int)($_POST['agenda_evento_id'] ?? 0) ?: null;
+    if (!$caseId) { echo json_encode(array('error' => 'case_id obrigatório')); exit; }
+    try {
+        $r = treinamento_audiencia_criar($pdo, $caseId, $agEv, current_user_id());
+        echo json_encode(array('ok' => true, 'url' => $r['url'], 'id' => $r['id']));
+    } catch (Exception $e) {
+        echo json_encode(array('error' => $e->getMessage()));
+    }
+    exit;
+}
+
 if ($action === 'criar_pasta_drive') {
     header('Content-Type: application/json; charset=utf-8');
     $caseId = (int)($_POST['case_id'] ?? 0);
