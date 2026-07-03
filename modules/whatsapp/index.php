@@ -227,9 +227,24 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .wa-actions-menu-btn.aberto .wa-hamburger span:nth-child(3) { transform:translateY(-6px) rotate(-45deg); }
 .wa-actions-menu { position:absolute;top:calc(100% + 6px);right:0;min-width:220px;background:#fff;border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 32px rgba(5,34,40,.18);padding:6px;z-index:180;display:none;flex-direction:column;gap:2px;max-height:70vh;overflow-y:auto; }
 .wa-actions-menu.aberto { display:flex; }
-.wa-actions-menu button { width:100%;text-align:left;padding:8px 12px;font-size:.78rem;border:0;background:transparent;border-radius:6px;cursor:pointer;color:var(--text);white-space:nowrap;font-weight:600;display:flex;align-items:center;gap:6px; }
-.wa-actions-menu button:hover { background:<?= $accentLight ?>; }
 .wa-actions-menu .sep { height:1px;background:var(--border);margin:4px 6px; }
+/* Cada linha do menu = botao principal (esquerda) + estrelinha de favorito (direita) */
+.wa-actions-menu .wa-menu-row { display:flex;align-items:center;gap:2px; }
+.wa-actions-menu .wa-menu-row > button:first-child { flex:1;text-align:left;padding:8px 12px;font-size:.78rem;border:0;background:transparent;border-radius:6px;cursor:pointer;color:var(--text);white-space:nowrap;font-weight:600;display:flex;align-items:center;gap:6px; }
+.wa-actions-menu .wa-menu-row > button:first-child:hover { background:<?= $accentLight ?>; }
+.wa-menu-fav { border:0;background:transparent;cursor:pointer;padding:4px 8px;font-size:1rem;color:#94a3b8;border-radius:6px;line-height:1; }
+.wa-menu-fav:hover { color:#f59e0b;background:#fef3c7; }
+.wa-menu-fav.active { color:#f59e0b; }
+/* Barra de favoritos: fica a esquerda do hamburger, encolhe em telas pequenas */
+.wa-fav-bar { display:flex;gap:.35rem;flex-wrap:wrap;justify-content:flex-end;align-items:center; }
+.wa-fav-bar:empty { display:none; }
+.wa-fav-btn { display:inline-flex;align-items:center;gap:5px;padding:5px 10px;font-size:.72rem;font-weight:700;border:1px solid var(--border);background:#fff;border-radius:6px;cursor:pointer;color:var(--text);white-space:nowrap;line-height:1;height:26px; }
+.wa-fav-btn:hover { background:<?= $accentLight ?>;border-color:<?= $accentColor ?>; }
+.wa-fav-emoji { font-size:.85rem; }
+@media (max-width: 900px) {
+    .wa-fav-btn .wa-fav-lbl { display:none; } /* mobile: só o emoji */
+    .wa-fav-btn { padding:5px 8px; }
+}
 @media (max-width:900px) {
     .wa-chat-actions { max-width:100%;margin-left:0;margin-top:4px;width:100%; }
     .wa-chat-head { flex-wrap:wrap; }
@@ -864,72 +879,97 @@ require_once APP_ROOT . '/templates/layout_start.php';
         var podeEnviar   = (+c.lock_pode_enviar === 1);
         var temNota = !!(d.conversa && d.conversa.nota_fixa);
 
-        // Amanda 03/07: TODOS os botoes ficam no menu hamburguer, sem primarios visiveis.
-        // Header fica so com o icone ☰ e os detalhes do contato.
-        var menu = [];
-        // Grupo 1: acoes rapidas (o que antes era "primario")
+        // Amanda 03/07: TODOS os botoes ficam no menu hamburguer. Cada item tem uma
+        // estrelinha ao lado — clicando, o botao vira FAVORITO fixo na barra ao lado
+        // do nome do contato. Favoritos salvos em localStorage por dispositivo.
+        //
+        // Cada item = objeto { id, emoji, label, onclick, [color], [tip] }
+        // "id" e' a chave persistente do favorito.
+        var menuItems = [];
+        // Grupo 1: acoes rapidas
         if (c.canal === '21') {
-            if (+c.bot_ativo) menu.push('<button onclick="waToggleBot(0)" title="Bot ativo — clique para desativar" style="color:#6d28d9;">🤖 Bot ON (clique pra desativar)</button>');
-            else               menu.push('<button onclick="waToggleBot(1)" title="Ativar bot IA para responder sozinho">🤖 Ativar Bot IA</button>');
+            menuItems.push(+c.bot_ativo
+                ? { id:'bot_off', emoji:'🤖', label:'Desativar Bot IA', onclick:'waToggleBot(0)', color:'#6d28d9', tip:'Bot ativo — clique para desativar' }
+                : { id:'bot_on',  emoji:'🤖', label:'Ativar Bot IA',   onclick:'waToggleBot(1)', tip:'Ativar bot IA para responder sozinho' });
         }
         if (!souEuAtendente && podeEnviar) {
-            menu.push('<button onclick="waAssumir()" title="Assumir esta conversa" style="color:#0f766e;font-weight:800;">👤 Assumir conversa</button>');
+            menuItems.push({ id:'assumir', emoji:'👤', label:'Assumir conversa', onclick:'waAssumir()', color:'#0f766e', bold:true, tip:'Assumir esta conversa' });
         }
         if (c.client_id) {
-            menu.push('<button onclick="waAbrirProcesso(' + c.client_id + ')" title="Abrir a pasta do processo vinculado a este cliente" style="color:#B87333;">⚖️ Abrir processo</button>');
+            menuItems.push({ id:'processo', emoji:'⚖️', label:'Abrir processo', onclick:'waAbrirProcesso(' + c.client_id + ')', color:'#B87333', tip:'Abrir a pasta do processo vinculado a este cliente' });
         }
-        menu.push('<div class="sep"></div>');
-        // Grupo 2: atendimento (etiqueta, delegar, resolver, vincular)
-        menu.push('<button onclick="waToggleEtiquetas(event)" title="Etiquetas">🏷 Etiquetas</button>');
+        menuItems.push({ sep:true });
+        // Grupo 2: atendimento
+        menuItems.push({ id:'etiquetas', emoji:'🏷', label:'Etiquetas', onclick:'waToggleEtiquetas(event)', tip:'Etiquetas' });
         if (PODE_DELEGAR) {
-            var tipTxt = c.canal === '24'
-                ? 'Delegar para outro atendente. Lembrete: o canal 24 é colaborativo — ao delegar, os outros atendentes ficam bloqueados de enviar até destravar.'
+            var tipDeleg = c.canal === '24'
+                ? 'Delegar para outro atendente. Canal 24 é colaborativo — ao delegar, os outros ficam bloqueados até destravar.'
                 : 'Delegar para outro atendente (trava para que só ele possa assumir).';
-            menu.push('<button onclick="waAbrirDelegar()" title="' + tipTxt + '">🎯 Delegar atendimento</button>');
+            menuItems.push({ id:'delegar', emoji:'🎯', label:'Delegar atendimento', onclick:'waAbrirDelegar()', tip:tipDeleg });
             if (estaDelegada) {
-                menu.push('<button onclick="waRemoverDelegacao()" title="Remover delegação (libera pra qualquer um assumir)" style="color:#991b1b;">🔓 Destravar delegação</button>');
+                menuItems.push({ id:'destravar', emoji:'🔓', label:'Destravar delegação', onclick:'waRemoverDelegacao()', color:'#991b1b', tip:'Remover delegação (libera pra qualquer um assumir)' });
             }
         }
         if (c.status !== 'resolvido') {
-            menu.push('<button onclick="waResolver()" title="Marcar conversa como resolvida" style="color:#059669;">✅ Resolver conversa</button>');
+            menuItems.push({ id:'resolver', emoji:'✅', label:'Resolver conversa', onclick:'waResolver()', color:'#059669', tip:'Marcar conversa como resolvida' });
         }
         if (!c.client_id) {
-            menu.push('<button onclick="waVincularCliente()" title="Vincular esta conversa a um cliente cadastrado" style="color:#059669;">🔗 Vincular cliente</button>');
+            menuItems.push({ id:'vincular', emoji:'🔗', label:'Vincular cliente', onclick:'waVincularCliente()', color:'#059669', tip:'Vincular esta conversa a um cliente cadastrado' });
         }
-        menu.push('<div class="sep"></div>');
+        menuItems.push({ sep:true });
         // Grupo 3: conversa
-        menu.push('<button onclick="waAbrirMesclar()" title="Mesclar esta conversa com outra do mesmo contato">🔗 Mesclar conversa</button>');
-        menu.push('<button onclick="waRecarregarAgora()" title="Recarrega lista e mensagens agora">🔄 Recarregar</button>');
-        menu.push('<button onclick="waCopiarConversa()" title="Copia toda a conversa em texto pro clipboard">📋 Copiar conversa</button>');
-        menu.push('<div class="sep"></div>');
+        menuItems.push({ id:'mesclar', emoji:'🔗', label:'Mesclar conversa', onclick:'waAbrirMesclar()', tip:'Mesclar esta conversa com outra do mesmo contato' });
+        menuItems.push({ id:'recarregar', emoji:'🔄', label:'Recarregar', onclick:'waRecarregarAgora()', tip:'Recarrega lista e mensagens agora' });
+        menuItems.push({ id:'copiar', emoji:'📋', label:'Copiar conversa', onclick:'waCopiarConversa()', tip:'Copia toda a conversa em texto pro clipboard' });
+        menuItems.push({ sep:true });
         // Grupo 4: organização
-        if (+c.fixada) {
-            menu.push('<button onclick="waPinConversa()" title="Desfixar do topo">📌 Fixada (clique pra desfixar)</button>');
-        } else {
-            menu.push('<button onclick="waPinConversa()" title="Fixar esta conversa no topo">📌 Fixar no topo</button>');
-        }
-        menu.push('<button onclick="waMarcarNaoLida()" title="Marcar como não lida">📩 Marcar não lida</button>');
-        menu.push('<button onclick="waNotaFixa()" title="Observação interna fixa">📌 ' + (temNota ? 'Editar nota fixa' : 'Adicionar nota fixa') + '</button>');
-        menu.push('<div class="sep"></div>');
+        menuItems.push(+c.fixada
+            ? { id:'desfixar', emoji:'📌', label:'Desfixar do topo', onclick:'waPinConversa()', tip:'Desfixar do topo' }
+            : { id:'fixar',    emoji:'📌', label:'Fixar no topo',   onclick:'waPinConversa()', tip:'Fixar esta conversa no topo' });
+        menuItems.push({ id:'nao_lida', emoji:'📩', label:'Marcar não lida', onclick:'waMarcarNaoLida()', tip:'Marcar como não lida' });
+        menuItems.push({ id:'nota', emoji:'📌', label: (temNota ? 'Editar nota fixa' : 'Adicionar nota fixa'), onclick:'waNotaFixa()', tip:'Observação interna fixa' });
+        menuItems.push({ sep:true });
         // Grupo 5: IA / Chamados
-        menu.push('<button onclick="waCriarChamado()" title="Abrir chamado no Helpdesk">📋 Abrir chamado</button>');
+        menuItems.push({ id:'chamado', emoji:'📋', label:'Abrir chamado', onclick:'waCriarChamado()', tip:'Abrir chamado no Helpdesk' });
         <?php if (function_exists('ia_user_autorizado') && ia_user_autorizado(current_user_id()) && ia_feature_ativa('resumo_wa_chamado')): ?>
-        menu.push('<button onclick="waCriarChamadoComResumoIA()" title="IA resume e abre chamado (R$ ~0,05)">✨ Abrir chamado com resumo IA</button>');
+        menuItems.push({ id:'chamado_ia', emoji:'✨', label:'Chamado com resumo IA', onclick:'waCriarChamadoComResumoIA()', tip:'IA resume e abre chamado (R$ ~0,05)' });
         <?php endif; ?>
         <?php if (function_exists('ia_user_autorizado') && ia_user_autorizado(current_user_id())): ?>
-        menu.push('<button onclick="waPerguntarIA()" title="Perguntar sobre o conteúdo da conversa">🤖 Perguntar à IA</button>');
+        menuItems.push({ id:'perguntar_ia', emoji:'🤖', label:'Perguntar à IA', onclick:'waPerguntarIA()', tip:'Perguntar sobre o conteúdo da conversa' });
         <?php endif; ?>
-        if (c.client_id) menu.push('<button onclick="waEnviarLinkPortal()" title="Gerar link Central VIP">🔑 Enviar link Portal (VIP)</button>');
-        menu.push('<div class="sep"></div>');
+        if (c.client_id) menuItems.push({ id:'portal', emoji:'🔑', label:'Enviar link Portal (VIP)', onclick:'waEnviarLinkPortal()', tip:'Gerar link Central VIP' });
+        menuItems.push({ sep:true });
         // Grupo 6: utilidades
-        menu.push('<button onclick="waExportarConversa()" title="Exportar em .txt para o Drive">📄 Exportar conversa</button>');
-        menu.push('<button onclick="waArquivar()" title="Arquivar conversa">🗄 Arquivar</button>');
-        menu.push('<button onclick="waEditarTelefone()" title="Corrigir número (Multi-Device)">✏️ Corrigir número</button>');
+        menuItems.push({ id:'exportar', emoji:'📄', label:'Exportar conversa', onclick:'waExportarConversa()', tip:'Exportar em .txt para o Drive' });
+        menuItems.push({ id:'arquivar', emoji:'🗄', label:'Arquivar', onclick:'waArquivar()', tip:'Arquivar conversa' });
+        menuItems.push({ id:'editar_tel', emoji:'✏️', label:'Corrigir número', onclick:'waEditarTelefone()', tip:'Corrigir número (Multi-Device)' });
+
+        // Salva a lista de items pra JS de favoritos re-renderizar sem precisar
+        // reabrir a conversa (waAbrir) — a lista viva fica em window.
+        window._waMenuItems = menuItems;
+
+        // Renderiza o menu (com estrela em cada item nao-sep)
+        var favSet = waGetFavoritosSet();
+        var menuHtml = menuItems.map(function(it){
+            if (it.sep) return '<div class="sep"></div>';
+            var style = '';
+            if (it.color) style += 'color:' + it.color + ';';
+            if (it.bold) style += 'font-weight:800;';
+            var isFav = favSet[it.id];
+            return '<div class="wa-menu-row">'
+                 + '<button onclick="' + it.onclick + '" title="' + (it.tip || '').replace(/"/g,'&quot;') + '" style="' + style + '">' + it.emoji + ' ' + it.label + '</button>'
+                 + '<button class="wa-menu-fav ' + (isFav ? 'active' : '') + '" data-fav-id="' + it.id + '" onclick="waToggleFavorito(\'' + it.id + '\', event)" title="' + (isFav ? 'Remover dos favoritos' : 'Fixar na barra do chat') + '">' + (isFav ? '★' : '☆') + '</button>'
+                 + '</div>';
+        }).join('');
+
+        // Renderiza a barra de favoritos (à esquerda do hamburger)
+        var favBarHtml = waRenderFavBar(menuItems);
 
         var actions = '<div class="wa-chat-actions">';
+        actions += favBarHtml;
         actions += '<div class="wa-actions-menu-wrap">';
         actions += '<button type="button" class="wa-actions-menu-btn" onclick="waToggleActionsMenu(event)" title="Mais ações" aria-label="Mais ações"><span class="wa-hamburger" aria-hidden="true"><span></span><span></span><span></span></span></button>';
-        actions += '<div class="wa-actions-menu" id="waActionsMenu">' + menu.join('') + '</div>';
+        actions += '<div class="wa-actions-menu" id="waActionsMenu">' + menuHtml + '</div>';
         actions += '</div>';
         actions += '</div>';
 
@@ -2985,6 +3025,70 @@ require_once APP_ROOT . '/templates/layout_start.php';
         });
     };
     window.waResolver  = function() { if(confirm('Marcar como resolvida?')) acaoConversa('resolver').then(function(){ window.waAbrir(convAtiva); carregarLista(); }); };
+
+    // ═══ Favoritos do menu de acoes (Amanda 03/07) ═══
+    // Guardados em localStorage: array de IDs. Sao os botoes que ficam
+    // FIXOS na barra do header ao lado do nome do contato.
+    var WA_FAV_KEY = 'wa_actions_favs_v1';
+    window.waGetFavoritos = function(){
+        try {
+            var raw = localStorage.getItem(WA_FAV_KEY);
+            if (!raw) return [];
+            var arr = JSON.parse(raw);
+            return Array.isArray(arr) ? arr : [];
+        } catch(e) { return []; }
+    };
+    window.waGetFavoritosSet = function(){
+        var set = {};
+        window.waGetFavoritos().forEach(function(id){ set[id] = true; });
+        return set;
+    };
+    window.waSaveFavoritos = function(arr){
+        try { localStorage.setItem(WA_FAV_KEY, JSON.stringify(arr)); } catch(e) {}
+    };
+    window.waToggleFavorito = function(id, ev){
+        if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+        var favs = window.waGetFavoritos();
+        var idx = favs.indexOf(id);
+        if (idx >= 0) favs.splice(idx, 1);
+        else {
+            if (favs.length >= 8) {
+                alert('Voce ja tem 8 botoes favoritos (limite). Remova um antes de adicionar outro.');
+                return;
+            }
+            favs.push(id);
+        }
+        window.waSaveFavoritos(favs);
+        // Re-renderiza estrela no menu + barra de favoritos
+        var star = document.querySelector('.wa-menu-fav[data-fav-id="' + id + '"]');
+        if (star) {
+            var agora = idx < 0;
+            star.classList.toggle('active', agora);
+            star.textContent = agora ? '★' : '☆';
+            star.title = agora ? 'Remover dos favoritos' : 'Fixar na barra do chat';
+        }
+        var barra = document.getElementById('waFavBar');
+        if (barra && window._waMenuItems) {
+            barra.outerHTML = window.waRenderFavBar(window._waMenuItems);
+        }
+    };
+    // Renderiza a barra de favoritos (retorna HTML string)
+    window.waRenderFavBar = function(items){
+        var favSet = window.waGetFavoritosSet();
+        var favs = items.filter(function(it){ return it.id && favSet[it.id]; });
+        if (!favs.length) return '<div id="waFavBar" class="wa-fav-bar"></div>';
+        var html = '<div id="waFavBar" class="wa-fav-bar">';
+        favs.forEach(function(it){
+            var style = '';
+            if (it.color) style += 'color:' + it.color + ';border-color:' + it.color + ';';
+            html += '<button class="wa-fav-btn" onclick="' + it.onclick + '" title="' + (it.tip || it.label).replace(/"/g,'&quot;') + '" style="' + style + '">'
+                 + '<span class="wa-fav-emoji">' + it.emoji + '</span>'
+                 + '<span class="wa-fav-lbl">' + it.label + '</span>'
+                 + '</button>';
+        });
+        html += '</div>';
+        return html;
+    };
 
     // Menu "⋮ Mais açoes" — abre/fecha dropdown com os botoes secundarios
     // Amanda 03/07: refatoracao pra tirar barra de rolagem horizontal.
