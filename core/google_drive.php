@@ -204,7 +204,17 @@ function drive_get_or_create_subfolder($parentFolderUrl, $subfolderName) {
             'created'  => !empty($data['created']),
         );
     }
-    return array('success' => false, 'error' => 'HTTP ' . $r['http'] . ': ' . $r['resp']);
+    // Amanda 03/07: mensagem clara pra caso comum de "pasta pai deletada".
+    // Apps Script retorna Exception getFolderById quando o parentFolderId
+    // aponta pra pasta que foi apagada/movida pra lixeira no Drive.
+    $errApps = isset($data['error']) ? (string)$data['error'] : '';
+    if (stripos($errApps, 'getFolderById') !== false || stripos($errApps, 'not found') !== false) {
+        return array(
+            'success' => false,
+            'error'   => 'A pasta principal deste processo foi APAGADA do Google Drive. Restaure da lixeira (drive.google.com/drive/trash) ou clique em "Criar pasta no Drive" na tela do caso pra gerar uma nova.',
+        );
+    }
+    return array('success' => false, 'error' => 'HTTP ' . $r['http'] . ': ' . substr((string)$r['resp'], 0, 300));
 }
 
 /**
