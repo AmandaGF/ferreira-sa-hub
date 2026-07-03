@@ -1433,9 +1433,10 @@ $tipoCompLabels = array(
 <!-- ═══════ ABAS DA PASTA (movida pra antes dos cards pra ficar no topo) ═══════ -->
 <style>
 .cv-tabs-wrap { position:sticky; top:0; z-index:30; background:var(--bg-card,#fff); padding:8px 6px 0; margin:0 0 0; border:1.5px solid var(--border,#e5e7eb); border-radius:12px 12px 0 0; border-bottom:3px solid #0f3d3e; box-shadow:0 2px 8px rgba(0,0,0,.04); }
-.cv-tabs { display:flex; gap:3px; padding:0; overflow-x:auto; scrollbar-width:none; }
-.cv-tabs::-webkit-scrollbar { display:none; }
-.cv-tab { background:transparent; border:none; padding:9px 16px; font-size:.86rem; font-weight:700; color:#6b7280; cursor:pointer; border:1.5px solid transparent; border-bottom:none; white-space:nowrap; font-family:inherit; border-radius:8px 8px 0 0; transition:all .15s; margin-bottom:-3px; }
+/* Amanda 03/07: abas agora quebram linha (flex-wrap) em vez de scroll horizontal.
+   Como sao 10 abas, em telas menores caem em 2 linhas — nenhuma fica escondida. */
+.cv-tabs { display:flex; gap:3px; padding:0; flex-wrap:wrap; row-gap:4px; }
+.cv-tab { background:transparent; border:none; padding:9px 14px; font-size:.85rem; font-weight:700; color:#6b7280; cursor:pointer; border:1.5px solid transparent; border-bottom:none; white-space:nowrap; font-family:inherit; border-radius:8px 8px 0 0; transition:all .15s; margin-bottom:-3px; }
 .cv-tab:hover { color:#0f3d3e; background:rgba(15,61,62,.05); }
 .cv-tab.ativa { color:#fff !important; background:#0f3d3e !important; border-color:#0f3d3e; padding-bottom:12px; }
 .cv-tab .cv-tab-badge { background:#dc2626; color:#fff; border-radius:999px; padding:1px 7px; font-size:.66rem; margin-left:4px; font-weight:800; }
