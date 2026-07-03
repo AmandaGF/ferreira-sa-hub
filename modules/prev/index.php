@@ -60,7 +60,10 @@ $columns = array(
     'aguardando_implantacao'    => array('label' => 'Aguardando Implantação',      'color' => '#148F77', 'icon' => '🎯'),
     'suspenso'                  => array('label' => 'Suspenso',                    'color' => '#5B2D8E', 'icon' => '⏸️'),
     'parceria'                  => array('label' => 'Parceria',                    'color' => '#17A589', 'icon' => '🤝'),
-    'cancelado'                 => array('label' => 'Cancelado',                   'color' => '#616A6B', 'icon' => '✕'),
+    // Luiz Eduardo 03/07: separou "finalizados" em 2 (com/sem êxito) + renomeou cancelado.
+    'finalizado_exito'          => array('label' => 'Finalizado com Êxito',        'color' => '#065F46', 'icon' => '🏆'),
+    'finalizado_sem_exito'      => array('label' => 'Finalizado sem Êxito',        'color' => '#4B5563', 'icon' => '🔚'),
+    'cancelado'                 => array('label' => 'Cancelado / Demitido',        'color' => '#616A6B', 'icon' => '✕'),
 );
 
 // Esconde colunas configuradas pra esse usuário (ex: Simone não vê 'Parceria')
@@ -143,8 +146,8 @@ $byStatus = array();
 foreach (array_keys($columns) as $s) { $byStatus[$s] = array(); }
 foreach ($allCases as $cs) {
     $prevSt = isset($cs['prev_status']) ? $cs['prev_status'] : 'aguardando_docs';
-    // Cancelados: só no mês que cancelou
-    if ($prevSt === 'cancelado') {
+    // Cancelados / finalizados: só no mês vigente (senão a coluna vira cemitério)
+    if (in_array($prevSt, array('cancelado','finalizado_exito','finalizado_sem_exito'), true)) {
         $mesRef = date('Y-m', strtotime($cs['updated_at']));
         if ($mesRef !== date('Y-m')) continue;
     }

@@ -51,7 +51,9 @@ function buscarLeadVinculadoPrev($pdo, $caseId, $clientId = 0) {
 $validPrevStatuses = array(
     'aguardando_docs', 'pasta_apta', 'aguardando_analise_inss', 'aguardando_pericia',
     'recurso_administrativo', 'recurso_crps', 'acao_judicial', 'aguardando_sentenca',
-    'cumprimento_precatorio', 'aguardando_implantacao', 'suspenso', 'parceria', 'cancelado'
+    'cumprimento_precatorio', 'aguardando_implantacao', 'suspenso', 'parceria',
+    // Luiz Eduardo 03/07: separou "finalizados" em 2 (com/sem êxito) + cancelado/demitido.
+    'finalizado_exito', 'finalizado_sem_exito', 'cancelado',
 );
 
 switch ($action) {
