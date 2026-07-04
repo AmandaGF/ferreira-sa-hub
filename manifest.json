@@ -2,12 +2,15 @@
     "name": "Ferreira & Sá Hub",
     "short_name": "F&S Hub",
     "description": "Sistema interno do escritório Ferreira & Sá Advocacia",
+    "id": "/conecta/",
     "start_url": "/conecta/modules/dashboard/",
     "scope": "/conecta/",
     "display": "standalone",
+    "display_override": ["standalone", "minimal-ui"],
     "background_color": "#052228",
     "theme_color": "#052228",
     "orientation": "any",
+    "dir": "ltr",
     "categories": ["business", "productivity"],
     "lang": "pt-BR",
     "icons": [
@@ -15,7 +18,13 @@
             "src": "/conecta/assets/img/pwa-icon.svg",
             "sizes": "any",
             "type": "image/svg+xml",
-            "purpose": "any maskable"
+            "purpose": "maskable"
+        },
+        {
+            "src": "/conecta/assets/img/pwa-icon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
         },
         {
             "src": "/conecta/assets/img/logo-sidebar.png",
