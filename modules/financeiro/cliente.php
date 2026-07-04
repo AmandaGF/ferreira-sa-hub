@@ -5,6 +5,9 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 
+// TEMP DIAG (04/07): com &debugkey=... mostra o erro na tela (só pra quem tem a chave)
+if (($_GET['debugkey'] ?? '') === 'fsa-hub-deploy-2026') { error_reporting(E_ALL); ini_set('display_errors', '1'); }
+
 // TEMP DIAG (04/07): captura erro fatal desta página pra rastrear o 500 no fluxo
 // "R$ Cobrar". Remover depois. Grava em uploads/cliente_last_error.log (web-legível).
 register_shutdown_function(function () {
