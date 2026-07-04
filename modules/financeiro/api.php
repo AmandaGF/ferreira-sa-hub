@@ -696,7 +696,7 @@ if ($action === 'criar_cobranca_lead') {
         if ($recorrente) {
             if ($numParcelas < 2) $numParcelas = 12; // se não informou, assume 12 meses
             $diaVenc = (int)date('d', strtotime($vencIso));
-            $resp = criar_assinatura_asaas($asaasCustomerId, $valor, $diaVenc, $numParcelas, $descBase, $billingType);
+            $resp = criar_assinatura_asaas($asaasCustomerId, $valor, $diaVenc, $numParcelas, $descBase, $billingType, $vencIso);
         } else {
             $resp = criar_cobranca_asaas($asaasCustomerId, $valor, $vencIso, $descBase, $billingType);
         }
@@ -845,8 +845,9 @@ switch ($action) {
             flash_set('success', "Parcelamento criado! $numParcelas × R$ " . number_format($valorParcela, 2, ',', '.') . " = R$ " . number_format($valorTotal, 2, ',', '.') . " (" . strtoupper($formaPag) . ")");
 
         } elseif ($tipo === 'recorrente') {
-            // Assinatura recorrente: mensal, SEM FIM (ou até maxPayments)
-            $resp = criar_assinatura_asaas($asaasCustomerId, $valor, $diaVenc, $numParcelas, $descricao, $formaPag);
+            // Assinatura recorrente: mensal, SEM FIM (ou até maxPayments).
+            // Passa $vencimento pra 1ª cobrança respeitar a data escolhida pelo usuário.
+            $resp = criar_assinatura_asaas($asaasCustomerId, $valor, $diaVenc, $numParcelas, $descricao, $formaPag, $vencimento);
             if (isset($resp['error'])) {
                 flash_set('error', 'Erro Asaas: ' . $resp['error']);
                 redirect(module_url('financeiro'));

@@ -214,21 +214,30 @@ function criar_parcelamento_asaas($asaasCustomerId, $valor, $numParcelas, $prime
 /**
  * Criar assinatura recorrente no Asaas
  */
-function criar_assinatura_asaas($asaasCustomerId, $valor, $diaVenc, $numParcelas, $descricao, $formaPagamento = 'PIX') {
+function criar_assinatura_asaas($asaasCustomerId, $valor, $diaVenc, $numParcelas, $descricao, $formaPagamento = 'PIX', $primeiroVenc = null) {
     $billingType = strtoupper($formaPagamento);
     if (!in_array($billingType, array('BOLETO', 'PIX', 'CREDIT_CARD', 'UNDEFINED'))) $billingType = 'UNDEFINED';
 
-    // Monta a 1ª cobrança no dia escolhido SEM estourar em meses curtos (fev etc):
-    // se o dia não existe no mês, usa o último dia do mês. Asaas mantém o dia nos
-    // meses seguintes (ajustando sozinho quando o mês não tem aquele dia).
-    $diaVenc = max(1, min(31, (int)$diaVenc));
-    $ano = (int)date('Y'); $mes = (int)date('n');
-    $ultimo = (int)date('t', mktime(0, 0, 0, $mes, 1, $ano));
-    $nextDate = sprintf('%04d-%02d-%02d', $ano, $mes, min($diaVenc, $ultimo));
-    if (strtotime($nextDate) < strtotime('today')) {
-        $mes++; if ($mes > 12) { $mes = 1; $ano++; }
+    // 1ª cobrança: PRIORIZA a data escolhida pelo usuário (campo "Vencimento").
+    // Antes o sistema ignorava essa data e recalculava só pelo "Dia venc." — bug
+    // relatado (usuário marcava 01/09 e ia 01/08). Só cai no cálculo por dia-do-mês
+    // se a data não veio, é inválida ou já passou.
+    if ($primeiroVenc && preg_match('/^\d{4}-\d{2}-\d{2}$/', $primeiroVenc)
+        && strtotime($primeiroVenc) !== false && strtotime($primeiroVenc) >= strtotime('today')) {
+        $nextDate = $primeiroVenc;
+    } else {
+        // Monta a 1ª cobrança no dia escolhido SEM estourar em meses curtos (fev etc):
+        // se o dia não existe no mês, usa o último dia do mês. Asaas mantém o dia nos
+        // meses seguintes (ajustando sozinho quando o mês não tem aquele dia).
+        $diaVenc = max(1, min(31, (int)$diaVenc));
+        $ano = (int)date('Y'); $mes = (int)date('n');
         $ultimo = (int)date('t', mktime(0, 0, 0, $mes, 1, $ano));
         $nextDate = sprintf('%04d-%02d-%02d', $ano, $mes, min($diaVenc, $ultimo));
+        if (strtotime($nextDate) < strtotime('today')) {
+            $mes++; if ($mes > 12) { $mes = 1; $ano++; }
+            $ultimo = (int)date('t', mktime(0, 0, 0, $mes, 1, $ano));
+            $nextDate = sprintf('%04d-%02d-%02d', $ano, $mes, min($diaVenc, $ultimo));
+        }
     }
 
     $data = array(
