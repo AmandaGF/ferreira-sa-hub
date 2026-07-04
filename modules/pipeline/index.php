@@ -740,7 +740,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     <td class="editable" style="min-width:140px;">
         <?php
             $_fpValor = mb_strtoupper($lead['forma_pagamento'] ?? '');
-            $_formas = array('CARTÃO DE CRÉDITO', 'CRÉDITO RECORRENTE', 'PIX RECORRENTE', 'BOLETO', 'À VISTA', 'RISCO');
+            $_formas = array('CARTÃO DE CRÉDITO', 'CRÉDITO RECORRENTE', 'PIX RECORRENTE', 'BOLETO', 'À VISTA', 'RISCO', 'PRO BONO');
             // Match inteligente pra valores antigos — normaliza pras 5 opções da whitelist
             $_fpMapped = $_fpValor; // default
             if ($_fpValor && !in_array($_fpValor, $_formas, true)) {
@@ -772,22 +772,38 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
             <?php foreach ($users as $u): ?><option value="<?= $u['id'] ?>" <?= $lead['assigned_to'] == $u['id'] ? 'selected' : '' ?>><?= e(explode(' ', $u['name'])[0]) ?></option><?php endforeach; ?>
         </select>
     </td>
-    <td style="text-align:center;min-width:140px;">
+    <td style="text-align:center;min-width:150px;">
         <?php
             $_asaasId = $lead['asaas_customer_id'] ?? '';
             $_totalCob = (int)($lead['asaas_total_cobrancas'] ?? 0);
             $_cobAtivas = (int)($lead['asaas_cobrancas_ativas'] ?? 0);
-            if (empty($_asaasId)) {
-                // Cliente ainda não cadastrado no Asaas
-                echo '<span title="Cliente ainda não cadastrado no Asaas" style="background:#fef2f2;color:#991b1b;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;">✕ NÃO</span>';
+            $_manual = $lead['asaas_manual'] ?? '';
+            // Risco / Pro bono não geram cobrança no Asaas — puxa do forma_pagamento (cadastro do comercial)
+            $_formaUp = mb_strtoupper($lead['forma_pagamento'] ?? '');
+            $_isRisco = (strpos($_formaUp, 'RISCO') !== false);
+            $_isProBono = (strpos($_formaUp, 'PRO BONO') !== false || strpos($_formaUp, 'PROBONO') !== false || strpos($_formaUp, 'PRÓ BONO') !== false);
+            // Badge AUTOMÁTICO (sem override) — guardado em data-attrs pro JS restaurar ao voltar pra "auto"
+            if (empty($_asaasId) && $_isRisco) {
+                $_aE='⚖️ À RISCO'; $_aC='#3730a3'; $_aB='#e0e7ff'; $_aTtl='Contrato de risco — honorários só no êxito, não gera cobrança no Asaas.';
+            } elseif (empty($_asaasId) && $_isProBono) {
+                $_aE='🤝 PRO BONO'; $_aC='#6b21a8'; $_aB='#f3e8ff'; $_aTtl='Atendimento pro bono (gratuito) — sem cobrança no Asaas.';
+            } elseif (empty($_asaasId)) {
+                $_aE='✕ NÃO'; $_aC='#991b1b'; $_aB='#fef2f2'; $_aTtl='Cliente ainda não cadastrado no Asaas.';
             } elseif ($_totalCob > 0 && $_cobAtivas === 0) {
-                // Cliente cadastrado, mas TODAS as cobranças foram canceladas/reembolsadas
-                echo '<span title="Cliente no Asaas, mas todas as ' . $_totalCob . ' cobrança(s) estão canceladas. Crie uma nova pra reativar." style="background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:10px;font-size:.64rem;font-weight:700;">⊘ CANCELADA</span>';
+                $_aE='⊘ CANCELADA'; $_aC='#92400e'; $_aB='#fef3c7'; $_aTtl='Cliente no Asaas, mas todas as ' . $_totalCob . ' cobrança(s) estão canceladas.';
             } else {
-                // Cliente cadastrado com cobrança ativa (ou ainda sem cobrança — só customer)
-                echo '<span title="Cliente cadastrado no Asaas (' . e($_asaasId) . ') — ' . $_cobAtivas . ' cobrança(s) ativa(s)" style="background:#dcfce7;color:#166534;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;">✓ SIM</span>';
+                $_aE='✓ SIM'; $_aC='#166534'; $_aB='#dcfce7'; $_aTtl='Cliente cadastrado no Asaas (' . $_asaasId . ') — ' . $_cobAtivas . ' cobrança(s) ativa(s). ⚠️ Conta o cliente inteiro, não este contrato específico.';
             }
+            // Override manual (resolve cliente duplicado E 2ª demanda do mesmo cliente)
+            if ($_manual === 'sim')      { $_dE='✓ SIM ✋'; $_dC='#166534'; $_dB='#dcfce7'; $_dTtl='SIM forçado manualmente (ex: cliente duplicado já cadastrado). Clique: SIM → NÃO → automático.'; $_dDash=true; }
+            elseif ($_manual === 'nao')  { $_dE='✕ NÃO ✋'; $_dC='#991b1b'; $_dB='#fef2f2'; $_dTtl='NÃO forçado manualmente (ex: nova demanda ainda sem cobrança própria). Clique: SIM → NÃO → automático.'; $_dDash=true; }
+            else                         { $_dE=$_aE; $_dC=$_aC; $_dB=$_aB; $_dTtl=$_aTtl . ' Clique pra forçar SIM/NÃO manualmente.'; $_dDash=false; }
         ?>
+        <span class="asaas-badge" onclick="event.stopPropagation();ciclarAsaasManual(this,<?= $lid ?>)"
+              data-manual="<?= e($_manual) ?>"
+              data-auto-e="<?= e($_aE) ?>" data-auto-c="<?= e($_aC) ?>" data-auto-b="<?= e($_aB) ?>" data-auto-ttl="<?= e($_aTtl) ?>"
+              title="<?= e($_dTtl) ?>"
+              style="display:inline-block;background:<?= $_dB ?>;color:<?= $_dC ?>;padding:2px 8px;border-radius:10px;font-size:.66rem;font-weight:700;cursor:pointer;<?= $_dDash ? 'border:1px dashed ' . $_dC . ';' : '' ?>"><?= $_dE ?></span>
         <?php if (function_exists('can_access_financeiro') && can_access_financeiro()):
             $_hasClient = (int)($lead['client_id'] ?? 0) > 0;
             $_btnTitle = $_hasClient
@@ -1557,6 +1573,38 @@ function ciclarCadAsaas(btn, leadId) {
         btn.style.borderColor = c + '33';
         var chk = document.getElementById('filtroPendentesAsaas');
         if (chk) filtrarPendentesAsaas(chk.checked);
+    }).catch(function(err){ alert('⚠️ Falha de rede: ' + err.message); });
+}
+
+// Override manual do status Asaas (automático -> SIM -> NÃO -> automático)
+// Resolve 2 casos: (1) cliente duplicado já cadastrado; (2) nova demanda do mesmo
+// cliente que ainda não tem cobrança própria (auto mostra SIM, mas deveria ser NÃO).
+function ciclarAsaasManual(el, leadId) {
+    var atual = el.dataset.manual || '';
+    var proximo = (atual === '') ? 'sim' : (atual === 'sim' ? 'nao' : '');
+
+    var formData = new FormData();
+    formData.append('action', 'inline_edit');
+    formData.append('lead_id', leadId);
+    formData.append('field', 'asaas_manual');
+    formData.append('value', proximo);
+    formData.append('csrf_token', '<?= generate_csrf_token() ?>');
+
+    fetch('<?= module_url("pipeline", "api.php") ?>', {
+        method: 'POST', body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){ return r.json(); }).then(function(d){
+        if (d && d.error) { alert('⚠️ ' + d.error); return; }
+        el.dataset.manual = proximo;
+        var e, c, b, ttl, dash = false;
+        if (proximo === 'sim')      { e='✓ SIM ✋'; c='#166534'; b='#dcfce7'; ttl='SIM forçado manualmente (ex: cliente duplicado já cadastrado). Clique: SIM → NÃO → automático.'; dash=true; }
+        else if (proximo === 'nao') { e='✕ NÃO ✋'; c='#991b1b'; b='#fef2f2'; ttl='NÃO forçado manualmente (ex: nova demanda ainda sem cobrança própria). Clique: SIM → NÃO → automático.'; dash=true; }
+        else                        { e=el.dataset.autoE; c=el.dataset.autoC; b=el.dataset.autoB; ttl=(el.dataset.autoTtl||'') + ' Clique pra forçar SIM/NÃO manualmente.'; dash=false; }
+        el.textContent = e;
+        el.style.background = b;
+        el.style.color = c;
+        el.style.border = dash ? ('1px dashed ' + c) : 'none';
+        el.title = ttl;
     }).catch(function(err){ alert('⚠️ Falha de rede: ' + err.message); });
 }
 
