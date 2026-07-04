@@ -10,7 +10,9 @@
         body {
             margin: 0;
             font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-            background: linear-gradient(135deg, #052228 0%, #0d3640 100%);
+            background:
+                radial-gradient(900px 480px at 50% -10%, #0e404b, transparent 60%),
+                linear-gradient(160deg, #062830 0%, #041a20 100%);
             color: #fff;
             min-height: 100vh;
             display: flex;
@@ -20,41 +22,71 @@
         }
         .wrap {
             max-width: 380px;
+            width: 100%;
             text-align: center;
-            background: rgba(255,255,255,.06);
+            background: rgba(255,255,255,.055);
             border: 1px solid rgba(255,255,255,.12);
-            border-radius: 16px;
-            padding: 2rem 1.6rem;
-            backdrop-filter: blur(10px);
+            border-radius: 22px;
+            padding: 2.2rem 1.7rem;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 24px 60px rgba(0,0,0,.45);
         }
-        .icon { font-size: 3rem; margin-bottom: .8rem; }
-        h1 { font-size: 1.3rem; margin: 0 0 .4rem; font-weight: 700; }
-        p { margin: 0 0 1.3rem; color: rgba(255,255,255,.78); font-size: .9rem; line-height: 1.45; }
+        .radar {
+            width: 92px; height: 92px; margin: 0 auto 1.1rem;
+            position: relative; display: flex; align-items: center; justify-content: center;
+        }
+        .radar span {
+            position: absolute; inset: 0; border-radius: 50%;
+            border: 2px solid rgba(199,138,78,.55);
+            animation: ping 2.2s cubic-bezier(0,0,.2,1) infinite;
+        }
+        .radar span:nth-child(2) { animation-delay: .7s; }
+        .radar span:nth-child(3) { animation-delay: 1.4s; }
+        .radar .dot {
+            width: 44px; height: 44px; border-radius: 50%;
+            background: linear-gradient(145deg, #e8c39e, #a96f33);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.4rem; box-shadow: 0 6px 18px rgba(0,0,0,.35); z-index: 1;
+        }
+        @keyframes ping { 0% { transform: scale(.5); opacity: .9; } 100% { transform: scale(1); opacity: 0; } }
+        h1 { font-family: Georgia, "Times New Roman", serif; font-size: 1.4rem; margin: 0 0 .5rem; font-weight: 700; letter-spacing: .2px; }
+        h1 b { color: #d9a878; font-weight: 700; }
+        p { margin: 0 0 1.5rem; color: rgba(255,255,255,.78); font-size: .9rem; line-height: 1.55; }
         button {
-            background: #B87333;
-            color: #fff;
-            border: none;
-            padding: .7rem 1.3rem;
-            border-radius: 10px;
-            font-weight: 700;
-            cursor: pointer;
-            font-size: .88rem;
-            transition: background .12s;
+            background: linear-gradient(135deg, #c78a4e, #a96f33);
+            color: #fff; border: none; padding: .8rem 1.4rem; border-radius: 12px;
+            font-weight: 700; cursor: pointer; font-size: .9rem; width: 100%;
+            box-shadow: 0 8px 20px rgba(169,111,51,.35); transition: transform .12s, box-shadow .12s;
         }
-        button:hover { background: #a05f22; }
-        .small { font-size: .72rem; color: rgba(255,255,255,.5); margin-top: 1.2rem; }
+        button:hover { transform: translateY(-1px); box-shadow: 0 12px 26px rgba(169,111,51,.45); }
+        button:active { transform: translateY(0); }
+        .status {
+            display: inline-flex; align-items: center; gap: .45rem;
+            font-size: .72rem; color: rgba(255,255,255,.55); margin-top: 1.3rem;
+        }
+        .status i {
+            width: 8px; height: 8px; border-radius: 50%; background: #f59e0b;
+            box-shadow: 0 0 0 0 rgba(245,158,11,.6); animation: blink 1.4s infinite;
+        }
+        @keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
     </style>
 </head>
 <body>
     <div class="wrap">
-        <div class="icon">📡</div>
-        <h1>Sem conexão</h1>
-        <p>Você está offline. O F&amp;S Hub precisa de internet pra carregar leads, casos e mensagens atualizadas.</p>
+        <div class="radar">
+            <span></span><span></span><span></span>
+            <div class="dot">📡</div>
+        </div>
+        <h1>Sem conexão, <b>por enquanto</b></h1>
+        <p>Você está offline. O F&amp;S Hub precisa de internet pra trazer leads, casos e mensagens atualizadas.</p>
         <button onclick="location.reload()">↻ Tentar de novo</button>
-        <div class="small">A conexão voltou? Clique acima.</div>
+        <div class="status"><i></i> <span id="st">Aguardando a conexão voltar…</span></div>
     </div>
     <script>
-        window.addEventListener('online', function() { location.reload(); });
+        window.addEventListener('online', function () {
+            document.getElementById('st').textContent = 'Conexão de volta! Recarregando…';
+            setTimeout(function () { location.reload(); }, 500);
+        });
     </script>
 </body>
 </html>
