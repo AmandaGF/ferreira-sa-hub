@@ -305,6 +305,7 @@ echo voltar_ao_processo_html();
                     <span style="font-size:.68rem;color:<?= $cob['case_id'] ? '#1e40af' : '#94a3b8' ?>;font-weight:<?= $cob['case_id'] ? '600' : '400' ?>;"><?= e($_pNome) ?></span>
                     <?php endif; ?>
                 </div>
+                <?php endif; // fecha if (!empty($processosCliente)) do bloco "🔗 Processo" ?>
                 <?php
                 // Combo: processos EXTRAS desta cobrança (1 contrato cobre 2+ processos)
                 $_extras = $cobExtrasMap[(int)$cob['id']] ?? array();
