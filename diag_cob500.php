@@ -48,5 +48,20 @@ foreach ($leads as $L) {
         echo "  >>> ERRO: " . $e->getMessage() . " @ " . $e->getFile() . ':' . $e->getLine() . "\n";
     }
 }
-echo "\n(nota: este diag NAO chama o sync Asaas pra nao depender da API externa)\n";
-echo "Se tudo OK aqui, o 500 provavelmente e o sync_cobrancas_cliente (Asaas) na linha 61 do cliente.php.\n";
+echo "\n=== TESTE DO SYNC ASAAS (linha 61 do cliente.php) ===\n";
+// Clientes que já têm asaas_customer_id + cobranças — roda o sync real (só leitura)
+$cli = $pdo->query("SELECT DISTINCT c.id, c.asaas_customer_id
+                    FROM clients c JOIN asaas_cobrancas ac ON ac.client_id = c.id
+                    WHERE c.asaas_customer_id IS NOT NULL AND c.asaas_customer_id != ''
+                    ORDER BY c.id DESC LIMIT 5")->fetchAll();
+foreach ($cli as $c) {
+    echo "-- client #{$c['id']} (asaas {$c['asaas_customer_id']}) ... ";
+    $t0 = microtime(true);
+    try {
+        $r = sync_cobrancas_cliente((int)$c['id'], $c['asaas_customer_id']);
+        $ms = round((microtime(true) - $t0) * 1000);
+        echo (isset($r['error']) ? ('ERRO Asaas: ' . (is_array($r['error']) ? json_encode($r['error']) : $r['error'])) : ('OK synced=' . ($r['synced'] ?? '?'))) . " ({$ms}ms)\n";
+    } catch (Throwable $e) {
+        echo ">>> FATAL: " . $e->getMessage() . " @ " . $e->getFile() . ':' . $e->getLine() . "\n";
+    }
+}
