@@ -459,7 +459,7 @@ echo voltar_ao_processo_html();
                     <input type="number" name="num_parcelas" id="parcelasCob1" class="form-input" min="2" max="60" value="12" oninput="atualizarCobUI1()">
                 </div>
                 <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Dia vencimento mensal</label>
-                    <input type="number" name="dia_vencimento" class="form-input" min="1" max="28" value="10">
+                    <input type="number" name="dia_vencimento" class="form-input" min="1" max="31" value="10" title="Dia do mês da cobrança recorrente (1 a 31). Em meses sem esse dia, cai no último dia do mês.">
                 </div>
             </div>
         </div>

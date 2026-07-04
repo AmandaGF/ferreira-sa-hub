@@ -218,9 +218,17 @@ function criar_assinatura_asaas($asaasCustomerId, $valor, $diaVenc, $numParcelas
     $billingType = strtoupper($formaPagamento);
     if (!in_array($billingType, array('BOLETO', 'PIX', 'CREDIT_CARD', 'UNDEFINED'))) $billingType = 'UNDEFINED';
 
-    $nextDate = date('Y-m-') . str_pad($diaVenc, 2, '0', STR_PAD_LEFT);
-    if (strtotime($nextDate) < time()) {
-        $nextDate = date('Y-m-', strtotime('+1 month')) . str_pad($diaVenc, 2, '0', STR_PAD_LEFT);
+    // Monta a 1ª cobrança no dia escolhido SEM estourar em meses curtos (fev etc):
+    // se o dia não existe no mês, usa o último dia do mês. Asaas mantém o dia nos
+    // meses seguintes (ajustando sozinho quando o mês não tem aquele dia).
+    $diaVenc = max(1, min(31, (int)$diaVenc));
+    $ano = (int)date('Y'); $mes = (int)date('n');
+    $ultimo = (int)date('t', mktime(0, 0, 0, $mes, 1, $ano));
+    $nextDate = sprintf('%04d-%02d-%02d', $ano, $mes, min($diaVenc, $ultimo));
+    if (strtotime($nextDate) < strtotime('today')) {
+        $mes++; if ($mes > 12) { $mes = 1; $ano++; }
+        $ultimo = (int)date('t', mktime(0, 0, 0, $mes, 1, $ano));
+        $nextDate = sprintf('%04d-%02d-%02d', $ano, $mes, min($diaVenc, $ultimo));
     }
 
     $data = array(
