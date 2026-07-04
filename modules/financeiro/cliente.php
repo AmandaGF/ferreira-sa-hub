@@ -13,11 +13,12 @@ if (($_GET['debugkey'] ?? '') === 'fsa-hub-deploy-2026') { error_reporting(E_ALL
 register_shutdown_function(function () {
     $err = error_get_last();
     if ($err && in_array($err['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR), true)) {
-        $dir = dirname(__DIR__, 2) . '/uploads';
-        if (!is_dir($dir)) @mkdir($dir, 0755, true);
-        @file_put_contents($dir . '/cliente_last_error.log',
-            '[' . date('Y-m-d H:i:s') . "]\nMSG: " . $err['message'] . "\nFILE: " . $err['file'] . ':' . $err['line']
-            . "\nGET: " . json_encode($_GET) . "\n\n----\n", FILE_APPEND);
+        $linha = '[' . date('Y-m-d H:i:s') . "]\nMSG: " . $err['message'] . "\nFILE: " . $err['file'] . ':' . $err['line']
+            . "\nGET: " . json_encode($_GET) . "\n\n----\n";
+        // /files é gravável (o servidor guarda logs lá); uploads às vezes não é
+        foreach (array(dirname(__DIR__, 2) . '/files', dirname(__DIR__, 2) . '/uploads', sys_get_temp_dir()) as $dir) {
+            if (@file_put_contents($dir . '/cliente_last_error.log', $linha, FILE_APPEND) !== false) break;
+        }
     }
 });
 // 30/06/2026 Amanda: financeiro POR CLIENTE liberado pra todos (era restrito a
