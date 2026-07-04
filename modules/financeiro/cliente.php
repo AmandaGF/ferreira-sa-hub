@@ -21,6 +21,9 @@ register_shutdown_function(function () {
         }
     }
 });
+// TEMP DIAG: checkpoints de progresso (pra achar onde o 500 trava). Remover depois.
+function _ctrace($m) { @file_put_contents(dirname(__DIR__, 2) . '/files/cliente_trace.log', date('H:i:s') . ' | ' . $m . "\n", FILE_APPEND); }
+_ctrace('1-START from_lead=' . (int)($_GET['from_lead'] ?? 0) . ' client=' . (int)($_GET['id'] ?? 0));
 // 30/06/2026 Amanda: financeiro POR CLIENTE liberado pra todos (era restrito a
 // Amanda/Rodrigo/Luiz). Painel GERAL continua com can_access_financeiro().
 if (!can_view_cliente_financeiro()) { redirect(url('modules/dashboard/')); }
@@ -188,7 +191,9 @@ foreach ($cobrancas as $c) {
 }
 foreach ($contratos as $ct) { $totalContratado += (float)$ct['valor_total']; }
 
+_ctrace('2-antes-layout (cobrancas=' . count($cobrancas) . ' processos=' . count($processosCliente) . ' contratos=' . count($contratos) . ')');
 require_once APP_ROOT . '/templates/layout_start.php';
+_ctrace('3-depois-layout_start');
 echo voltar_ao_processo_html();
 ?>
 
@@ -397,6 +402,7 @@ echo voltar_ao_processo_html();
 </div>
 <?php endif; ?>
 
+<?php _ctrace('4-antes-modal'); ?>
 <!-- Modal Nova Cobrança (pré-preenchido com este cliente) -->
 <div id="modalNovaCob" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;">
 <div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:450px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.2);">
@@ -772,4 +778,6 @@ window.cobAcaoSafe = function(id, tipo, venc, nome, valor) {
 };
 console.info('[cliente.php] JS pronto — cobAcao:', typeof window.cobAcao);
 </script>
+<?php _ctrace('5-antes-layout_end'); ?>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
+<?php _ctrace('6-END-ok'); ?>
