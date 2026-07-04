@@ -116,6 +116,27 @@ function zapi_instancia_configurada($ddd) {
 }
 
 /**
+ * Grupos de WhatsApp que o número já conhece (apareceram nas conversas).
+ * Usado pra montar um dropdown "escolher grupo por nome" nos painéis de cobrança
+ * (assim o usuário não precisa descobrir o ID …@g.us na mão).
+ * @param string|null $canal '21' | '24' | null (todos)
+ * @return array [ ['telefone'=>id, 'nome'=>nome, 'canal'=>c], ... ]
+ */
+function zapi_grupos_conhecidos($canal = null) {
+    $sql = "SELECT telefone, MAX(nome_contato) AS nome, canal
+            FROM zapi_conversas
+            WHERE eh_grupo = 1 AND telefone IS NOT NULL AND telefone != ''";
+    $params = array();
+    if ($canal !== null) { $sql .= " AND canal = ?"; $params[] = $canal; }
+    $sql .= " GROUP BY telefone, canal ORDER BY nome";
+    try {
+        $st = db()->prepare($sql);
+        $st->execute($params);
+        return $st->fetchAll();
+    } catch (Exception $e) { return array(); }
+}
+
+/**
  * Consulta Z-API /phone-exists pra descobrir se um número tem WhatsApp e qual o @lid.
  *
  * Paola (suporte Z-API, 24/Abr/2026) confirmou: @lid é ÚNICO e FIXO por número.

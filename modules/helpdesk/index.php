@@ -10,10 +10,11 @@ $pageTitle = 'Helpdesk';
 $pdo = db();
 $userId = current_user_id();
 // Config da cobrança de chamados parados (só gestão+ enxerga o painel)
-$hdCobCfg = null;
+$hdCobCfg = null; $hdGrupos = array();
 if (has_min_role('gestao')) {
     require_once APP_ROOT . '/core/functions_helpdesk_cobranca.php';
     $hdCobCfg = helpdesk_cobranca_cfg($pdo);
+    $hdGrupos = zapi_grupos_conhecidos(); // pra dropdown "escolher grupo por nome"
 }
 // Filtros
 $filterStatus   = $_GET['status'] ?? '';
@@ -298,6 +299,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <?php if ($hdCobCfg !== null):
     $_hdOn = ($hdCobCfg['ativo'] === '1');
+    $_hdGrupoBase = preg_replace('/(@g\.us|-group)$/', '', $hdCobCfg['grupo_id']); // pra casar com zapi_conversas.telefone (puro)
 ?>
 <!-- ⚙️ Cobrança de chamados parados (gestão+) -->
 <details style="margin-bottom:1rem;border:1px solid var(--border);border-radius:10px;background:var(--bg-card);">
@@ -305,7 +307,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         ⏰ Cobrança de chamados parados
         <span style="font-size:.62rem;font-weight:700;padding:1px 8px;border-radius:9999px;background:<?= $_hdOn ? '#dcfce7' : '#f1f5f9' ?>;color:<?= $_hdOn ? '#166534' : '#64748b' ?>;"><?= $_hdOn ? 'LIGADA' : 'desligada' ?></span>
     </summary>
-    <form method="POST" action="<?= module_url('helpdesk', 'api.php') ?>" style="padding:.3rem .9rem 1rem;display:flex;flex-direction:column;gap:.7rem;">
+    <form method="POST" id="hdCobForm" action="<?= module_url('helpdesk', 'api.php') ?>" style="padding:.3rem .9rem 1rem;display:flex;flex-direction:column;gap:.7rem;">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="salvar_cobranca_cfg">
         <div style="font-size:.72rem;color:var(--text-muted);">Chamado aberto sem movimento há +N horas → notifica o(s) responsável(is) + resumo no grupo do WhatsApp. Roda em horário comercial (9h–18h, seg–sex).</div>
@@ -322,9 +324,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <option value="24" <?= $hdCobCfg['grupo_canal'] === '24' ? 'selected' : '' ?>>24 (CX/Operacional)</option>
                     <option value="21" <?= $hdCobCfg['grupo_canal'] === '21' ? 'selected' : '' ?>>21 (Comercial)</option>
                 </select></label>
-            <label style="font-size:.72rem;font-weight:700;flex:1;min-width:220px;">ID do grupo WhatsApp (…@g.us)<br>
-                <input type="text" name="grupo_id" value="<?= e($hdCobCfg['grupo_id']) ?>" placeholder="opcional — sem isso, só notifica no sino/push" style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;"></label>
+            <label style="font-size:.72rem;font-weight:700;flex:1;min-width:240px;">Grupo do WhatsApp<br>
+                <?php if (!empty($hdGrupos)): ?>
+                <select onchange="hdEscolherGrupo(this)" style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;">
+                    <option value="">— escolher grupo pelo nome —</option>
+                    <?php foreach ($hdGrupos as $g): ?>
+                        <option value="<?= e($g['telefone']) ?>" data-canal="<?= e($g['canal']) ?>" <?= $_hdGrupoBase === $g['telefone'] ? 'selected' : '' ?>><?= e($g['nome'] ?: $g['telefone']) ?> (canal <?= e($g['canal']) ?>)</option>
+                    <?php endforeach; ?>
+                </select>
+                <?php endif; ?>
+                <input type="text" name="grupo_id" id="hdGrupoId" value="<?= e($hdCobCfg['grupo_id']) ?>" placeholder="opcional — sem grupo, só notifica no sino/push" style="width:100%;margin-top:4px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.72rem;color:var(--text-muted);" title="Preenchido automaticamente ao escolher acima; ou cole um ID manualmente"></label>
         </div>
+        <script>
+        function hdEscolherGrupo(sel){
+            var opt = sel.options[sel.selectedIndex];
+            document.getElementById('hdGrupoId').value = sel.value;
+            var canal = opt ? opt.getAttribute('data-canal') : '';
+            if (canal){ var c = document.querySelector('#hdCobForm select[name="grupo_canal"]'); if (c) c.value = canal; }
+        }
+        </script>
         <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;">
             <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">Salvar</button>
             <a href="<?= url('cron/helpdesk_cobranca.php') ?>?key=fsa-hub-deploy-2026&dry=1&forcar=1" target="_blank" style="font-size:.72rem;color:#6b21a8;font-weight:700;text-decoration:none;">🧪 Simular (dry-run, não envia)</a>

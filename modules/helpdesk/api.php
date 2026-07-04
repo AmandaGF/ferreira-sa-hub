@@ -52,6 +52,11 @@ switch ($action) {
         $janela = max(1, min(365, (int)($_POST['janela_dias'] ?? 30)));
         $canal = (($_POST['grupo_canal'] ?? '24') === '21') ? '21' : '24';
         $grupo = trim($_POST['grupo_id'] ?? '');
+        // Normaliza: grupo precisa de sufixo @g.us (zapi_send_text converte pra -group
+        // em grupos modernos). Sem isso, o envio trata como número comum e não entrega.
+        if ($grupo !== '' && strpos($grupo, '@') === false && strpos($grupo, '-group') === false) {
+            $grupo .= '@g.us';
+        }
         helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_ativo', $ativo);
         helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_horas', (string)$horas);
         helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_janela_dias', (string)$janela);
