@@ -4,26 +4,6 @@
  */
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
-
-// TEMP DIAG (04/07): com &debugkey=... mostra o erro na tela (só pra quem tem a chave)
-if (($_GET['debugkey'] ?? '') === 'fsa-hub-deploy-2026') { error_reporting(E_ALL); ini_set('display_errors', '1'); }
-
-// TEMP DIAG (04/07): captura erro fatal desta página pra rastrear o 500 no fluxo
-// "R$ Cobrar". Remover depois. Grava em uploads/cliente_last_error.log (web-legível).
-register_shutdown_function(function () {
-    $err = error_get_last();
-    if ($err && in_array($err['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR, E_USER_ERROR), true)) {
-        $linha = '[' . date('Y-m-d H:i:s') . "]\nMSG: " . $err['message'] . "\nFILE: " . $err['file'] . ':' . $err['line']
-            . "\nGET: " . json_encode($_GET) . "\n\n----\n";
-        // /files é gravável (o servidor guarda logs lá); uploads às vezes não é
-        foreach (array(dirname(__DIR__, 2) . '/files', dirname(__DIR__, 2) . '/uploads', sys_get_temp_dir()) as $dir) {
-            if (@file_put_contents($dir . '/cliente_last_error.log', $linha, FILE_APPEND) !== false) break;
-        }
-    }
-});
-// TEMP DIAG: checkpoints de progresso (pra achar onde o 500 trava). Remover depois.
-function _ctrace($m) { @file_put_contents(dirname(__DIR__, 2) . '/files/cliente_trace.log', date('H:i:s') . ' | ' . $m . "\n", FILE_APPEND); }
-_ctrace('1-START from_lead=' . (int)($_GET['from_lead'] ?? 0) . ' client=' . (int)($_GET['id'] ?? 0));
 // 30/06/2026 Amanda: financeiro POR CLIENTE liberado pra todos (era restrito a
 // Amanda/Rodrigo/Luiz). Painel GERAL continua com can_access_financeiro().
 if (!can_view_cliente_financeiro()) { redirect(url('modules/dashboard/')); }
@@ -191,9 +171,7 @@ foreach ($cobrancas as $c) {
 }
 foreach ($contratos as $ct) { $totalContratado += (float)$ct['valor_total']; }
 
-_ctrace('2-antes-layout (cobrancas=' . count($cobrancas) . ' processos=' . count($processosCliente) . ' contratos=' . count($contratos) . ')');
 require_once APP_ROOT . '/templates/layout_start.php';
-_ctrace('3-depois-layout_start');
 echo voltar_ao_processo_html();
 ?>
 
@@ -334,9 +312,11 @@ echo voltar_ao_processo_html();
                 ?>
                 <div style="margin-top:3px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
                     <span style="font-size:.62rem;color:var(--text-muted);">➕ Combo:</span>
-                    <?php if ($_extras): foreach ($_extras as $_ex): ?>
+                    <?php if ($_extras): ?>
+                        <?php foreach ($_extras as $_ex): ?>
                         <span style="font-size:.6rem;background:#ede9fe;color:#6b21a8;padding:1px 6px;border-radius:8px;font-weight:600;"><?= e(mb_substr($procNome[$_ex] ?? ('#' . $_ex), 0, 22)) ?></span>
-                    <?php endforeach; else: ?>
+                        <?php endforeach; ?>
+                    <?php else: ?>
                         <span style="font-size:.6rem;color:#cbd5e1;">só o processo principal</span>
                     <?php endif; ?>
                     <?php if ($_podeEditarFin && count($processosCliente) > 1): ?>
@@ -402,7 +382,6 @@ echo voltar_ao_processo_html();
 </div>
 <?php endif; ?>
 
-<?php _ctrace('4-antes-modal'); ?>
 <!-- Modal Nova Cobrança (pré-preenchido com este cliente) -->
 <div id="modalNovaCob" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:999;align-items:center;justify-content:center;">
 <div style="background:#fff;border-radius:12px;padding:1.5rem;max-width:450px;width:95%;box-shadow:0 20px 40px rgba(0,0,0,.2);">
@@ -778,6 +757,4 @@ window.cobAcaoSafe = function(id, tipo, venc, nome, valor) {
 };
 console.info('[cliente.php] JS pronto — cobAcao:', typeof window.cobAcao);
 </script>
-<?php _ctrace('5-antes-layout_end'); ?>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
-<?php _ctrace('6-END-ok'); ?>
