@@ -711,8 +711,11 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     $sk = $lead['_stage_key'];
     $si = isset($stages[$sk]) ? $stages[$sk] : (isset($stagesHistorico[$sk]) ? $stagesHistorico[$sk] : array('label' => ucfirst($sk), 'color' => '#6b7280', 'icon' => '•'));
     $lid = (int)$lead['id'];
+    // Risco / pro bono não precisam de cadastro no Asaas — não contam como "pendente"
+    $_fpRow = mb_strtoupper($lead['forma_pagamento'] ?? '');
+    $_naoPrecisaAsaas = (strpos($_fpRow, 'RISCO') !== false || strpos($_fpRow, 'PRO BONO') !== false || strpos($_fpRow, 'PROBONO') !== false || strpos($_fpRow, 'PRÓ BONO') !== false) ? '1' : '';
 ?>
-<tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>" data-cadasaas="<?= e($lead['cadastro_asaas'] ?? '') ?>">
+<tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>" data-cadasaas="<?= e($lead['cadastro_asaas'] ?? '') ?>" data-naoprecisaasaas="<?= $_naoPrecisaAsaas ?>">
     <td class="sticky-col-1" style="text-align:center;color:#999;font-size:.7rem;">
         <a href="<?= module_url('pipeline', 'lead_ver.php?id=' . $lid) ?>" style="color:#999;text-decoration:none;" title="Ver detalhes"><?= $n++ ?></a>
     </td>
@@ -1627,7 +1630,8 @@ function filtrarPendentesAsaas(checked) {
     var visiveis = 0, pendentes = 0;
     rows.forEach(function(tr){
         var cad = tr.dataset.cadasaas || '';
-        var ehPendente = (cad === '' || cad === 'Pendente');
+        // Risco / pro bono não precisam de Asaas → nunca são "pendente"
+        var ehPendente = (cad === '' || cad === 'Pendente') && (tr.dataset.naoprecisaasaas !== '1');
         if (checked && !ehPendente) {
             tr.style.display = 'none';
         } else {

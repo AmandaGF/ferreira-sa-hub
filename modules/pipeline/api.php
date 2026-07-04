@@ -38,6 +38,10 @@ if (($_GET['action'] ?? '') === 'export_asaas_csv' && $_SERVER['REQUEST_METHOD']
     // Mesmo filtro da Tabela (planilha de contratos fechados) + filtro de pendentes
     $where = "pl.converted_at IS NOT NULL AND pl.stage NOT IN ('arquivado')";
     $where .= " AND (pl.cadastro_asaas IS NULL OR pl.cadastro_asaas = '' OR pl.cadastro_asaas = 'Pendente')";
+    // Risco / pro bono não precisam de cadastro no Asaas — fora da lista de pendentes
+    $where .= " AND NOT (UPPER(COALESCE(pl.forma_pagamento,'')) LIKE '%RISCO%'
+                     OR UPPER(COALESCE(pl.forma_pagamento,'')) LIKE '%PRO BONO%'
+                     OR UPPER(COALESCE(pl.forma_pagamento,'')) LIKE '%PROBONO%')";
     $params = array();
     if ($busca !== '') {
         $where .= " AND (pl.name LIKE ? OR pl.phone LIKE ? OR pl.case_type LIKE ?)";

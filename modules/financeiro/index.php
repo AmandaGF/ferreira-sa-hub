@@ -484,7 +484,7 @@ echo voltar_ao_processo_html();
                 <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Nº Parcelas</label>
                     <input type="number" name="num_parcelas" id="parcelasCob1" class="form-input" min="2" max="60" value="12" oninput="atualizarCobUI1()">
                 </div>
-                <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Dia vencimento mensal</label>
+                <div style="flex:1;" id="diaVencWrap1"><label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Dia vencimento mensal</label>
                     <input type="number" name="dia_vencimento" class="form-input" min="1" max="31" value="10" title="Dia do mês da cobrança recorrente (1 a 31). Em meses sem esse dia, cai no último dia do mês.">
                 </div>
             </div>
@@ -506,6 +506,9 @@ echo voltar_ao_processo_html();
             var parc = parseInt((document.getElementById('parcelasCob1') || {}).value, 10) || 1;
             var mostrarParcelas = (tipo === 'recorrente' || tipo === 'parcelado');
             document.getElementById('camposParcelas').style.display = mostrarParcelas ? 'block' : 'none';
+            // "Dia vencimento" não se aplica à recorrente: o dia vem da data de Vencimento
+            var _dvw1 = document.getElementById('diaVencWrap1');
+            if (_dvw1) _dvw1.style.display = (tipo === 'recorrente') ? 'none' : '';
 
             // Toggle total/parcela só faz sentido em 'parcelado'
             // Recorrente: só por mensalidade (Asaas não aceita total). Única: só total.

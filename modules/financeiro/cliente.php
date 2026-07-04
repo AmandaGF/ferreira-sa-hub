@@ -424,7 +424,7 @@ echo voltar_ao_processo_html();
         </div>
         <div id="parcCob2" style="display:none;gap:.5rem;margin-bottom:.6rem;">
             <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Parcelas</label><input type="number" name="num_parcelas" id="parcelasCob2" class="form-input" min="2" max="60" value="<?= max(2, $preFill['parcelas']) ?>" oninput="atualizarCobUI2()"></div>
-            <div style="flex:1;"><label style="font-size:.75rem;font-weight:700;">Dia venc.</label><input type="number" name="dia_vencimento" class="form-input" min="1" max="31" value="10" title="Dia do mês da cobrança recorrente (1 a 31). Em meses sem esse dia, cai no último dia do mês."></div>
+            <div style="flex:1;" id="diaVencWrap2"><label style="font-size:.75rem;font-weight:700;">Dia venc.</label><input type="number" name="dia_vencimento" class="form-input" min="1" max="31" value="10" title="Dia do mês da cobrança recorrente (1 a 31). Em meses sem esse dia, cai no último dia do mês."></div>
         </div>
         <div id="previewCob2" style="display:none;background:#f5ebe0;border-left:3px solid #B87333;padding:.5rem .7rem;margin-bottom:.6rem;border-radius:6px;font-size:.75rem;color:#3f2e1c;"></div>
         <script>
@@ -439,6 +439,9 @@ echo voltar_ao_processo_html();
             var parc = parseInt(document.getElementById('parcelasCob2').value, 10) || 1;
             var mostrar = (tipo === 'recorrente' || tipo === 'parcelado');
             document.getElementById('parcCob2').style.display = mostrar ? 'flex' : 'none';
+            // "Dia venc." não se aplica à recorrente: o dia vem da data de Vencimento acima
+            var _dvw2 = document.getElementById('diaVencWrap2');
+            if (_dvw2) _dvw2.style.display = (tipo === 'recorrente') ? 'none' : '';
 
             var modoWrap = document.getElementById('modoValorWrap2');
             var modoTotal = (document.querySelector('#modalNovaCob input[name="modo_valor"][value="total"]') || {}).checked;
