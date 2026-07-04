@@ -298,7 +298,7 @@ echo voltar_ao_processo_html();
                         onchange="inadForma(<?= $cid ?>, this)" list="formasAcordo"
                         style="width:130px;font-size:.72rem;padding:2px 6px;border:1px solid var(--border);border-radius:6px;background:<?= !empty($inad['forma_acordada']) ? '#eff6ff' : '#fff' ?>;">
                 </td>
-                <td><a href="<?= module_url('financeiro', 'cliente.php?id=' . $inad['client_id']) ?>" style="font-size:.72rem;">Ver →</a></td>
+                <td><a href="<?= module_url('financeiro', 'cliente.php?id=' . $inad['client_id']) ?>" onclick="window.location.assign(this.href);return false;" style="font-size:.75rem;font-weight:600;white-space:nowrap;display:inline-block;padding:4px 6px;">Ver →</a></td>
             </tr>
             <?php endforeach; ?>
             </tbody>
