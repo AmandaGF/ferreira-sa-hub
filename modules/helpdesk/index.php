@@ -315,6 +315,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div style="display:flex;gap:.7rem;flex-wrap:wrap;">
             <label style="font-size:.72rem;font-weight:700;">Horas sem movimento<br>
                 <input type="number" name="horas" min="1" max="720" value="<?= (int)$hdCobCfg['horas'] ?>" style="width:90px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;"></label>
+            <label style="font-size:.72rem;font-weight:700;" title="Não cobra chamados parados há mais que isso (evita spam de backlog antigo)">Só dos últimos (dias)<br>
+                <input type="number" name="janela_dias" min="1" max="365" value="<?= (int)$hdCobCfg['janela_dias'] ?>" style="width:90px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;"></label>
             <label style="font-size:.72rem;font-weight:700;">Canal do grupo<br>
                 <select name="grupo_canal" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;">
                     <option value="24" <?= $hdCobCfg['grupo_canal'] === '24' ? 'selected' : '' ?>>24 (CX/Operacional)</option>

@@ -49,10 +49,12 @@ switch ($action) {
         require_once __DIR__ . '/../../core/functions_helpdesk_cobranca.php';
         $ativo = !empty($_POST['ativo']) ? '1' : '0';
         $horas = max(1, min(720, (int)($_POST['horas'] ?? 24)));
+        $janela = max(1, min(365, (int)($_POST['janela_dias'] ?? 30)));
         $canal = (($_POST['grupo_canal'] ?? '24') === '21') ? '21' : '24';
         $grupo = trim($_POST['grupo_id'] ?? '');
         helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_ativo', $ativo);
         helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_horas', (string)$horas);
+        helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_janela_dias', (string)$janela);
         helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_canal', $canal);
         helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_grupo_id', $grupo);
         audit_log('helpdesk_cobranca_cfg', 'helpdesk', 0, "ativo=$ativo horas=$horas canal=$canal grupo=" . ($grupo !== '' ? 'set' : 'vazio'));

@@ -34,6 +34,7 @@ function helpdesk_cobranca_cfg($pdo)
         'grupo_id'        => '',
         'grupo_canal'     => '24',   // grupo do time operacional/CX
         'horas'           => '24',   // horas sem movimento pra cobrar
+        'janela_dias'     => '30',   // NÃO cobra chamados parados há mais que isso (evita spam de backlog antigo)
         'grupo_ultimo_em' => '',
     );
     try {
@@ -43,6 +44,7 @@ function helpdesk_cobranca_cfg($pdo)
             elseif ($r['chave'] === 'helpdesk_cobranca_grupo_id')     $cfg['grupo_id'] = $r['valor'];
             elseif ($r['chave'] === 'helpdesk_cobranca_canal')        $cfg['grupo_canal'] = $r['valor'];
             elseif ($r['chave'] === 'helpdesk_cobranca_horas')        $cfg['horas'] = $r['valor'];
+            elseif ($r['chave'] === 'helpdesk_cobranca_janela_dias')  $cfg['janela_dias'] = $r['valor'];
             elseif ($r['chave'] === 'helpdesk_cobranca_grupo_ultimo_em') $cfg['grupo_ultimo_em'] = $r['valor'];
         }
     } catch (Exception $e) {}
@@ -99,8 +101,10 @@ function helpdesk_cobranca_run($pdo, $opts = array())
     if (!helpdesk_cobranca_em_horario() && !$forcarHorario) { $rep['horario_ok'] = false; return $rep; }
 
     $horas = max(1, (int)$cfg['horas']);
+    $janelaDias = max(1, (int)$cfg['janela_dias']);
 
-    // Chamados abertos sem movimento há +N horas + responsáveis (GROUP_CONCAT)
+    // Chamados abertos sem movimento ENTRE +N horas e a janela máxima (evita cobrar
+    // backlog antigo — só o que "esfriou" recentemente). + responsáveis (GROUP_CONCAT)
     $sql = "SELECT t.id, t.title, t.status, t.updated_at, t.requester_id,
                    TIMESTAMPDIFF(HOUR, t.updated_at, NOW()) AS horas_parado,
                    GROUP_CONCAT(ta.user_id) AS assignee_ids
@@ -108,6 +112,7 @@ function helpdesk_cobranca_run($pdo, $opts = array())
             LEFT JOIN ticket_assignees ta ON ta.ticket_id = t.id
             WHERE t.status NOT IN ('resolvido','cancelado','arquivado','concluido','fechado')
               AND t.updated_at <= DATE_SUB(NOW(), INTERVAL " . (int)$horas . " HOUR)
+              AND t.updated_at >= DATE_SUB(NOW(), INTERVAL " . (int)$janelaDias . " DAY)
             GROUP BY t.id
             ORDER BY t.updated_at ASC
             LIMIT 200";
