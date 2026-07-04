@@ -678,6 +678,11 @@ function toggleParcelas() {
 </script>
 <script src="<?= url('assets/js/cobranca_acoes.js') ?>"></script>
 <script>
+// Wrapper igual ao do cliente.php (o cobranca_acoes.js só define window.cobAcao)
+window.cobAcaoSafe = function(id, tipo, venc, nome, valor){
+    if (typeof window.cobAcao !== 'function'){ alert('⚠️ Ação não carregou. Recarregue a página (Ctrl+F5).'); return; }
+    try { window.cobAcao(id, tipo, venc, nome, valor); } catch(e){ alert('Erro: ' + e.message); }
+};
 function _inadPost(clientId, campo, valor, cb){
     var fd = new FormData();
     fd.append('action','inad_salvar_nego');
