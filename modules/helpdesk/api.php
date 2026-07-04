@@ -44,6 +44,22 @@ try {
 } catch (Exception $e) {}
 
 switch ($action) {
+    case 'salvar_cobranca_cfg':
+        if (!has_min_role('gestao')) { flash_set('error', 'Sem permissão.'); redirect(module_url('helpdesk')); }
+        require_once __DIR__ . '/../../core/functions_helpdesk_cobranca.php';
+        $ativo = !empty($_POST['ativo']) ? '1' : '0';
+        $horas = max(1, min(720, (int)($_POST['horas'] ?? 24)));
+        $canal = (($_POST['grupo_canal'] ?? '24') === '21') ? '21' : '24';
+        $grupo = trim($_POST['grupo_id'] ?? '');
+        helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_ativo', $ativo);
+        helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_horas', (string)$horas);
+        helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_canal', $canal);
+        helpdesk_cobranca_set_cfg($pdo, 'helpdesk_cobranca_grupo_id', $grupo);
+        audit_log('helpdesk_cobranca_cfg', 'helpdesk', 0, "ativo=$ativo horas=$horas canal=$canal grupo=" . ($grupo !== '' ? 'set' : 'vazio'));
+        flash_set('success', 'Cobrança de chamados salva' . ($ativo === '1' ? ' — LIGADA. Lembre de agendar o cron no cPanel (1×/hora).' : '.'));
+        redirect(module_url('helpdesk'));
+        break;
+
     case 'toggle_pin':
         $ticketId = (int)($_POST['ticket_id'] ?? 0);
         if (!$ticketId) { echo json_encode(array('error' => 'ticket_id inválido')); exit; }

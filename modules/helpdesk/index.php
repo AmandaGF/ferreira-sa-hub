@@ -9,6 +9,12 @@ require_login();
 $pageTitle = 'Helpdesk';
 $pdo = db();
 $userId = current_user_id();
+// Config da cobrança de chamados parados (só gestão+ enxerga o painel)
+$hdCobCfg = null;
+if (has_min_role('gestao')) {
+    require_once APP_ROOT . '/core/functions_helpdesk_cobranca.php';
+    $hdCobCfg = helpdesk_cobranca_cfg($pdo);
+}
 // Filtros
 $filterStatus   = $_GET['status'] ?? '';
 $filterPriority = $_GET['priority'] ?? '';
@@ -289,6 +295,42 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .hd-search input { font-size:.82rem; padding:.45rem .75rem; border:1.5px solid var(--border); border-radius:var(--radius); width:220px; }
 .hd-search input:focus { border-color:var(--rose); outline:none; }
 </style>
+
+<?php if ($hdCobCfg !== null):
+    $_hdOn = ($hdCobCfg['ativo'] === '1');
+?>
+<!-- ⚙️ Cobrança de chamados parados (gestão+) -->
+<details style="margin-bottom:1rem;border:1px solid var(--border);border-radius:10px;background:var(--bg-card);">
+    <summary style="cursor:pointer;padding:.6rem .9rem;font-size:.8rem;font-weight:700;color:var(--petrol-900);display:flex;align-items:center;gap:.5rem;">
+        ⏰ Cobrança de chamados parados
+        <span style="font-size:.62rem;font-weight:700;padding:1px 8px;border-radius:9999px;background:<?= $_hdOn ? '#dcfce7' : '#f1f5f9' ?>;color:<?= $_hdOn ? '#166534' : '#64748b' ?>;"><?= $_hdOn ? 'LIGADA' : 'desligada' ?></span>
+    </summary>
+    <form method="POST" action="<?= module_url('helpdesk', 'api.php') ?>" style="padding:.3rem .9rem 1rem;display:flex;flex-direction:column;gap:.7rem;">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="salvar_cobranca_cfg">
+        <div style="font-size:.72rem;color:var(--text-muted);">Chamado aberto sem movimento há +N horas → notifica o(s) responsável(is) + resumo no grupo do WhatsApp. Roda em horário comercial (9h–18h, seg–sex).</div>
+        <label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;font-weight:600;cursor:pointer;">
+            <input type="checkbox" name="ativo" value="1" <?= $_hdOn ? 'checked' : '' ?>> Ligar cobrança automática
+        </label>
+        <div style="display:flex;gap:.7rem;flex-wrap:wrap;">
+            <label style="font-size:.72rem;font-weight:700;">Horas sem movimento<br>
+                <input type="number" name="horas" min="1" max="720" value="<?= (int)$hdCobCfg['horas'] ?>" style="width:90px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;"></label>
+            <label style="font-size:.72rem;font-weight:700;">Canal do grupo<br>
+                <select name="grupo_canal" style="padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;">
+                    <option value="24" <?= $hdCobCfg['grupo_canal'] === '24' ? 'selected' : '' ?>>24 (CX/Operacional)</option>
+                    <option value="21" <?= $hdCobCfg['grupo_canal'] === '21' ? 'selected' : '' ?>>21 (Comercial)</option>
+                </select></label>
+            <label style="font-size:.72rem;font-weight:700;flex:1;min-width:220px;">ID do grupo WhatsApp (…@g.us)<br>
+                <input type="text" name="grupo_id" value="<?= e($hdCobCfg['grupo_id']) ?>" placeholder="opcional — sem isso, só notifica no sino/push" style="width:100%;padding:4px 8px;border:1px solid var(--border);border-radius:6px;font-size:.82rem;"></label>
+        </div>
+        <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;">
+            <button type="submit" class="btn btn-primary btn-sm" style="background:#B87333;">Salvar</button>
+            <a href="<?= url('cron/helpdesk_cobranca.php') ?>?key=fsa-hub-deploy-2026&dry=1&forcar=1" target="_blank" style="font-size:.72rem;color:#6b21a8;font-weight:700;text-decoration:none;">🧪 Simular (dry-run, não envia)</a>
+            <span style="font-size:.66rem;color:var(--text-muted);">⚠️ Ativar também exige agendar o cron no cPanel (1×/hora).</span>
+        </div>
+    </form>
+</details>
+<?php endif; ?>
 
 <!-- Abas Equipe vs Clientes -->
 <div style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:1rem;">
