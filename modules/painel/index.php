@@ -421,6 +421,30 @@ $streak = 0; $vals7 = array_values($dias7); $i7 = count($vals7) - 1;
 while ($i7 >= 0 && $vals7[$i7] === 0) $i7--;
 while ($i7 >= 0 && $vals7[$i7] > 0) { $streak++; $i7--; }
 
+// ── Totais consolidados: semana (segunda→hoje) e mês (dia 1→hoje) ──
+$dopaSomaDesde = function($pdo, $uid, $desde) {
+    $sql = "SELECT COALESCE(SUM(c),0) FROM (
+        SELECT COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? AND completed_at>=?
+        UNION ALL SELECT COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND concluido_em>=?
+        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE entity_type='agenda' AND user_id=? AND created_at>=? AND (action='AGENDA_BALCAO_REALIZADO' OR (action='AGENDA_STATUS' AND details LIKE 'Status: realizado%'))
+        UNION ALL SELECT COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido'
+        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=?
+        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? AND created_at>=?
+        UNION ALL SELECT COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='21'
+        UNION ALL SELECT COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='24'
+    ) u";
+    try {
+        $q = $pdo->prepare($sql);
+        $q->execute(array($uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde));
+        return (int)$q->fetchColumn();
+    } catch (Exception $e) { return 0; }
+};
+$inicioSemana = date('Y-m-d', strtotime('monday this week')) . ' 00:00:00';
+$inicioMes    = date('Y-m-01') . ' 00:00:00';
+$semanaTotal  = $dopaSomaDesde($pdo, $viewUserId, $inicioSemana);
+$mesTotal     = $dopaSomaDesde($pdo, $viewUserId, $inicioMes);
+$mesNome      = array(1=>'jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez')[(int)date('n')];
+
 // Nome do alvo (quando gestão olha agenda de outro)
 $dopaSelf = ($viewUserId === $userId);
 $dopaNome = $userName;
@@ -527,6 +551,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-dopa-stat .n{font-size:1.25rem;font-weight:800;}
 .pd-dopa-stat .l{font-size:.72rem;font-weight:600;opacity:.92;}
 .pd-dopa-stat.z{opacity:.5;}
+.pd-dopa-totais{display:flex;gap:.7rem;margin-top:.9rem;}
+.pd-dopa-total-card{flex:1;display:flex;align-items:center;gap:.7rem;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:14px;padding:.7rem .95rem;backdrop-filter:blur(2px);}
+.pd-dopa-total-ico{font-size:1.6rem;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.2));}
+.pd-dopa-total-info{display:flex;flex-direction:column;line-height:1.05;}
+.pd-dopa-total-num{font-size:1.85rem;font-weight:900;text-shadow:0 2px 6px rgba(0,0,0,.2);}
+.pd-dopa-total-lbl{font-size:.72rem;font-weight:600;opacity:.9;margin-top:.1rem;}
+@media(max-width:520px){.pd-dopa-totais{flex-direction:column;}}
 .pd-dopa-chart{margin-top:1rem;background:rgba(255,255,255,.10);border-radius:12px;padding:.7rem .85rem .55rem;}
 .pd-dopa-chart-head{display:flex;justify-content:space-between;align-items:center;font-size:.72rem;font-weight:700;opacity:.95;margin-bottom:.6rem;flex-wrap:wrap;gap:.4rem;}
 .pd-dopa-badges{display:flex;gap:.4rem;flex-wrap:wrap;}
@@ -881,6 +912,23 @@ function confirmarCancelamento(caseId, btn) {
             <div class="pd-dopa-stat <?= $dopa['helpdesk'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['helpdesk'] ?></span><span class="l">🎫 Chamados</span></div>
         </div>
 
+        <div class="pd-dopa-totais">
+            <div class="pd-dopa-total-card">
+                <div class="pd-dopa-total-ico">📅</div>
+                <div class="pd-dopa-total-info">
+                    <div class="pd-dopa-total-num" data-n="<?= (int)$semanaTotal ?>"><?= (int)$semanaTotal ?></div>
+                    <div class="pd-dopa-total-lbl">baixas nesta semana</div>
+                </div>
+            </div>
+            <div class="pd-dopa-total-card">
+                <div class="pd-dopa-total-ico">🗓️</div>
+                <div class="pd-dopa-total-info">
+                    <div class="pd-dopa-total-num" data-n="<?= (int)$mesTotal ?>"><?= (int)$mesTotal ?></div>
+                    <div class="pd-dopa-total-lbl">baixas em <?= $mesNome ?>.</div>
+                </div>
+            </div>
+        </div>
+
         <div class="pd-dopa-chart">
             <div class="pd-dopa-chart-head">
                 <span>📊 Últimos 7 dias</span>
@@ -919,6 +967,12 @@ function confirmarCancelamento(caseId, btn) {
         if (n > 0) { var c = 0, step = Math.max(1, Math.round(n / 18)); el.textContent = '0';
             var t = setInterval(function(){ c += step; if (c >= n) { c = n; clearInterval(t); } el.textContent = c; }, 45); }
     }
+    // Animar totais de semana/mês
+    document.querySelectorAll('.pd-dopa-total-num').forEach(function(tn){
+        var nn = parseInt(tn.dataset.n || '0', 10);
+        if (nn > 0) { var cc = 0, st = Math.max(1, Math.round(nn / 20)); tn.textContent = '0';
+            var tt = setInterval(function(){ cc += st; if (cc >= nn) { cc = nn; clearInterval(tt); } tn.textContent = cc; }, 45); }
+    });
     // Animar barras crescendo (após o paint)
     setTimeout(function(){
         var f = document.querySelector('.pd-dopa-bar-fill'); if (f && f.dataset.w != null) f.style.width = f.dataset.w + '%';
