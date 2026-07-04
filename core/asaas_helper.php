@@ -288,6 +288,23 @@ function alterar_vencimento_asaas($paymentId, $novaData) {
 }
 
 /**
+ * Alterar o VALOR de uma cobrança no Asaas (só PENDING/OVERDUE).
+ * Útil pra registrar acordo/renegociação. $novoValor em reais (float).
+ */
+function alterar_valor_asaas($paymentId, $novoValor) {
+    if (!$paymentId) return array('error' => 'ID da cobrança ausente.');
+    $novoValor = (float)$novoValor;
+    if ($novoValor <= 0) return array('error' => 'Valor deve ser maior que zero.');
+    $resp = asaas_put('/payments/' . urlencode($paymentId), array('value' => $novoValor));
+    if (isset($resp['error'])) return $resp;
+    try {
+        db()->prepare("UPDATE asaas_cobrancas SET valor=?, ultima_sync=NOW() WHERE asaas_payment_id = ?")
+           ->execute(array($novoValor, $paymentId));
+    } catch (Exception $e) {}
+    return array('ok' => true, 'id' => $paymentId, 'value' => $novoValor);
+}
+
+/**
  * Dar baixa manualmente (marcar como paga em dinheiro/transferência fora do Asaas).
  * $dataPagamento = YYYY-MM-DD; $valor = valor recebido (pode ser diferente do nominal, ex: desconto).
  */

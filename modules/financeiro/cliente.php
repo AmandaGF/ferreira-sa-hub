@@ -339,6 +339,9 @@ echo voltar_ao_processo_html();
                     <button type="button" onclick="waSenderOpen({telefone:'<?= preg_replace('/\D/', '', $client['phone']) ?>',nome:<?= e(json_encode($client['name'])) ?>,clientId:<?= (int)$client['id'] ?>,canal:'24',mensagem:<?= e(json_encode($msgCob)) ?>})" style="font-size:.7rem;background:#25D366;color:#fff;padding:3px 8px;border-radius:4px;border:none;cursor:pointer;">Enviar</button>
                     <?php endif; ?>
                     <?php if ($_podeEditarFin): ?>
+                    <button type="button" title="Alterar valor da cobrança (empurra pro Asaas)"
+                            onclick="cobAcaoSafe(<?= (int)$cob['id'] ?>, 'valor', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
+                            style="background:#fdf2e9;color:#9a5b1e;border:1px solid #f5d7b8;border-radius:4px;padding:3px 8px;font-size:.66rem;font-weight:700;cursor:pointer;">💲</button>
                     <button type="button" title="Alterar data de vencimento"
                             onclick="cobAcaoSafe(<?= (int)$cob['id'] ?>, 'vencto', '<?= e($cob['vencimento']) ?>', <?= e(json_encode($client['name'])) ?>, <?= (float)$cob['valor'] ?>)"
                             style="background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe;border-radius:4px;padding:3px 8px;font-size:.66rem;font-weight:700;cursor:pointer;">📅</button>

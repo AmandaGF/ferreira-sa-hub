@@ -131,6 +131,24 @@
                 if (!res.estagio) { alert('Escolha um estágio.'); return; }
                 _cobSendExec(cobId, res.estagio, res.observacao || '');
             });
+        } else if (tipo === 'valor') {
+            var vFmt = valorCobranca ? Number(valorCobranca).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '';
+            var inputV =
+                '<label style="display:block;font-size:.75rem;font-weight:700;color:#6b7280;margin-bottom:.25rem;">Novo valor (R$)</label>' +
+                '<input type="text" name="novo_valor" value="' + vFmt + '" placeholder="0,00" inputmode="decimal" style="width:100%;padding:.55rem .75rem;font-size:.9rem;border:1.5px solid #e5e7eb;border-radius:8px;font-family:inherit;">';
+            _cobModal({
+                title: '💲 Alterar valor da cobrança',
+                body: 'Cobrança' + nomeCli + '\nValor atual: R$ ' + (vFmt || '?') +
+                      '\n\nIsto ATUALIZA o valor no Asaas (o cliente vê o novo valor no link). Só funciona em cobrança pendente/vencida. Use pra registrar um acordo/renegociação.',
+                inputHtml: inputV,
+                buttons: [
+                    { label: 'Cancelar', bg: '#e5e7eb', color: '#374151', value: null },
+                    { label: 'Salvar no Asaas', bg: '#B87333', color: '#fff', collect: true }
+                ]
+            }).then(function(res){
+                if (!res || !res.novo_valor) return;
+                _cobSend(cobId, 'cobranca_alterar_valor', { novo_valor: res.novo_valor });
+            });
         } else if (tipo === 'baixa') {
             var hoje = new Date().toISOString().slice(0,10);
             var valorFmt = valorCobranca ? Number(valorCobranca).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2}) : '';

@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 if (!can_access_financeiro()) { redirect(url('modules/dashboard/')); }
+$_podeEditarFin = true; // página inteira já exige acesso ao financeiro
 
 require_once __DIR__ . '/../../core/asaas_helper.php';
 
@@ -78,15 +79,20 @@ if ($mesInadSel && preg_match('/^\d{4}-\d{2}$/', $mesInadSel)) {
     $paramsInad[] = $mesInadSel;
 }
 
+// Self-heal da tabela de negociação (proposta enviada + forma acordada por cliente)
+try { $pdo->exec("CREATE TABLE IF NOT EXISTS inadimplente_nego (client_id INT NOT NULL PRIMARY KEY, proposta_enviada TINYINT(1) NOT NULL DEFAULT 0, proposta_em DATETIME NULL, forma_acordada VARCHAR(120) NULL, obs VARCHAR(255) NULL, updated_by INT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"); } catch (Exception $e) {}
+
 $listaInadimplentes = array();
 $totalInadMes = 0; $valorInadMes = 0;
 try {
     $stmtInad = $pdo->prepare(
         "SELECT ac.client_id, cl.name, cl.phone, SUM(ac.valor) as valor_aberto,
          MIN(ac.vencimento) as primeiro_vencimento, DATEDIFF(CURDATE(), MIN(ac.vencimento)) as dias_atraso,
-         COUNT(*) as qtd_parcelas
+         COUNT(*) as qtd_parcelas, MIN(ac.id) as cob_id_min,
+         MAX(n.proposta_enviada) as proposta_enviada, MAX(n.forma_acordada) as forma_acordada
          FROM asaas_cobrancas ac
          LEFT JOIN clients cl ON cl.id = ac.client_id
+         LEFT JOIN inadimplente_nego n ON n.client_id = ac.client_id
          WHERE ac.status = 'OVERDUE'{$filtroMesInadSql}
          GROUP BY ac.client_id ORDER BY {$orderBy} LIMIT 50"
     );
@@ -262,21 +268,45 @@ echo voltar_ao_processo_html();
             <p style="text-align:center;color:var(--text-muted);padding:2rem;font-size:.85rem;">Nenhum inadimplente 🎉</p>
         <?php else: ?>
         <table class="fin-table">
-            <thead><tr><th>Cliente</th><th>Valor</th><th>Atraso</th><th></th></tr></thead>
+            <thead><tr><th>Cliente</th><th>Valor</th><th>Atraso</th><th>Proposta</th><th>Forma acordada</th><th></th></tr></thead>
             <tbody>
             <?php foreach ($listaInadimplentes as $inad):
                 $dias = (int)$inad['dias_atraso'];
                 $cor = $dias > 30 ? '#dc2626' : ($dias > 7 ? '#d97706' : '#f59e0b');
+                $cid = (int)$inad['client_id'];
+                $umaParcela = ((int)$inad['qtd_parcelas'] === 1);
+                $propOn = !empty($inad['proposta_enviada']);
             ?>
             <tr>
                 <td style="font-weight:600;"><?= e($inad['name'] ?: 'Sem nome') ?></td>
-                <td style="font-weight:700;color:#dc2626;">R$ <?= number_format($inad['valor_aberto'], 2, ',', '.') ?></td>
-                <td><span style="color:<?= $cor ?>;font-weight:700;"><?= $dias ?>d</span> <span style="font-size:.65rem;color:var(--text-muted);">(<?= $inad['qtd_parcelas'] ?> parc.)</span></td>
+                <td style="font-weight:700;color:#dc2626;white-space:nowrap;">
+                    R$ <?= number_format($inad['valor_aberto'], 2, ',', '.') ?>
+                    <?php if ($umaParcela && $_podeEditarFin): ?>
+                        <button type="button" title="Alterar valor no Asaas (renegociação)"
+                            onclick="cobAcaoSafe(<?= (int)$inad['cob_id_min'] ?>, 'valor', '', <?= e(json_encode($inad['name'])) ?>, <?= (float)$inad['valor_aberto'] ?>)"
+                            style="background:#fdf2e9;color:#9a5b1e;border:1px solid #f5d7b8;border-radius:4px;padding:0 5px;font-size:.62rem;font-weight:700;cursor:pointer;margin-left:2px;">💲</button>
+                    <?php endif; ?>
+                </td>
+                <td style="white-space:nowrap;"><span style="color:<?= $cor ?>;font-weight:700;"><?= $dias ?>d</span> <span style="font-size:.65rem;color:var(--text-muted);">(<?= $inad['qtd_parcelas'] ?> parc.)</span></td>
+                <td>
+                    <button type="button" onclick="inadProposta(<?= $cid ?>, this)" data-on="<?= $propOn ? '1' : '0' ?>"
+                        style="border:1px solid <?= $propOn ? '#16a34a55' : '#e5e7eb' ?>;background:<?= $propOn ? '#dcfce7' : '#f9fafb' ?>;color:<?= $propOn ? '#166534' : '#6b7280' ?>;border-radius:8px;padding:2px 8px;font-size:.66rem;font-weight:700;cursor:pointer;white-space:nowrap;">
+                        <?= $propOn ? '✓ Enviada' : '○ Enviar' ?></button>
+                </td>
+                <td>
+                    <input type="text" value="<?= e($inad['forma_acordada'] ?? '') ?>" placeholder="ex: PIX à vista"
+                        onchange="inadForma(<?= $cid ?>, this)" list="formasAcordo"
+                        style="width:130px;font-size:.72rem;padding:2px 6px;border:1px solid var(--border);border-radius:6px;background:<?= !empty($inad['forma_acordada']) ? '#eff6ff' : '#fff' ?>;">
+                </td>
                 <td><a href="<?= module_url('financeiro', 'cliente.php?id=' . $inad['client_id']) ?>" style="font-size:.72rem;">Ver →</a></td>
             </tr>
             <?php endforeach; ?>
             </tbody>
         </table>
+        <datalist id="formasAcordo">
+            <option value="PIX à vista"><option value="Boleto à vista"><option value="Parcelado 2x">
+            <option value="Parcelado 3x"><option value="Parcelado 6x"><option value="Cartão"><option value="Acordo em análise">
+        </datalist>
         <?php endif; ?>
     </div>
 </div>
@@ -639,6 +669,42 @@ function toggleParcelas() {
         }
     });
 })();
+</script>
+
+<!-- Ações sobre cobranças (editar valor no Asaas) + negociação de inadimplentes -->
+<script>
+    window._COB_CSRF = '<?= generate_csrf_token() ?>';
+    window._COB_API_URL = '<?= module_url('financeiro', 'api.php') ?>';
+</script>
+<script src="<?= url('assets/js/cobranca_acoes.js') ?>"></script>
+<script>
+function _inadPost(clientId, campo, valor, cb){
+    var fd = new FormData();
+    fd.append('action','inad_salvar_nego');
+    fd.append('client_id', clientId);
+    fd.append('campo', campo);
+    fd.append('valor', valor);
+    fd.append('csrf_token', window._COB_CSRF);
+    fetch(window._COB_API_URL, {method:'POST', body:fd, headers:{'X-Requested-With':'XMLHttpRequest'}})
+        .then(function(r){ return r.json(); })
+        .then(function(d){ if(d && d.error){ alert('⚠️ '+d.error); } else if(cb){ cb(d); } })
+        .catch(function(e){ alert('Erro de rede: '+e.message); });
+}
+function inadProposta(clientId, btn){
+    var on = btn.dataset.on === '1' ? 0 : 1;
+    _inadPost(clientId, 'proposta', on, function(){
+        btn.dataset.on = on ? '1' : '0';
+        btn.textContent = on ? '✓ Enviada' : '○ Enviar';
+        btn.style.background = on ? '#dcfce7' : '#f9fafb';
+        btn.style.color = on ? '#166534' : '#6b7280';
+        btn.style.borderColor = on ? '#16a34a55' : '#e5e7eb';
+    });
+}
+function inadForma(clientId, inp){
+    _inadPost(clientId, 'forma', inp.value.trim(), function(){
+        inp.style.background = inp.value.trim() ? '#eff6ff' : '#fff';
+    });
+}
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

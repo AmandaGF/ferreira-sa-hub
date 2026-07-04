@@ -344,6 +344,58 @@ if ($action === 'cobranca_alterar_vencimento') {
     exit;
 }
 
+// Alterar o VALOR de uma cobrança — empurra pro Asaas (renegociação/acordo).
+if ($action === 'cobranca_alterar_valor') {
+    header('Content-Type: application/json');
+    $cobId = (int)($_POST['cobranca_id'] ?? 0);
+    $cents = parse_valor_reais($_POST['novo_valor'] ?? '');
+    if (!$cobId) { echo json_encode(array('error' => 'cobranca_id obrigatório')); exit; }
+    if ($cents === null || $cents <= 0) { echo json_encode(array('error' => 'Valor inválido.')); exit; }
+    $novoValor = $cents / 100;
+    $cob = $pdo->prepare("SELECT * FROM asaas_cobrancas WHERE id = ?");
+    $cob->execute(array($cobId));
+    $cob = $cob->fetch();
+    if (!$cob) { echo json_encode(array('error' => 'Cobrança não encontrada')); exit; }
+    if (!in_array($cob['status'], array('PENDING','OVERDUE'), true)) {
+        echo json_encode(array('error' => 'Só dá pra alterar valor de cobrança pendente ou vencida. Status: ' . asaas_status_label($cob['status']))); exit;
+    }
+    $resp = alterar_valor_asaas($cob['asaas_payment_id'], $novoValor);
+    if (isset($resp['error'])) { echo json_encode(array('error' => (is_array($resp['error']) ? json_encode($resp['error']) : $resp['error']))); exit; }
+    audit_log('cobranca_valor_alterado', 'asaas_cobrancas', $cobId, 'de R$ ' . number_format((float)$cob['valor'], 2, ',', '.') . ' → R$ ' . number_format($novoValor, 2, ',', '.'));
+    echo json_encode(array('ok' => true, 'novo_valor' => $novoValor));
+    exit;
+}
+
+// Negociação de inadimplente: proposta enviada + forma acordada (por cliente).
+if ($action === 'inad_salvar_nego') {
+    header('Content-Type: application/json');
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    $campo    = $_POST['campo'] ?? '';
+    if (!$clientId) { echo json_encode(array('error' => 'client_id obrigatório')); exit; }
+    try {
+        $pdo->exec("CREATE TABLE IF NOT EXISTS inadimplente_nego (client_id INT NOT NULL PRIMARY KEY, proposta_enviada TINYINT(1) NOT NULL DEFAULT 0, proposta_em DATETIME NULL, forma_acordada VARCHAR(120) NULL, obs VARCHAR(255) NULL, updated_by INT NULL, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $uid = current_user_id();
+        if ($campo === 'proposta') {
+            $val = !empty($_POST['valor']) ? 1 : 0;
+            $pdo->prepare("INSERT INTO inadimplente_nego (client_id, proposta_enviada, proposta_em, updated_by)
+                           VALUES (?, ?, " . ($val ? "NOW()" : "NULL") . ", ?)
+                           ON DUPLICATE KEY UPDATE proposta_enviada=VALUES(proposta_enviada), proposta_em=" . ($val ? "NOW()" : "NULL") . ", updated_by=VALUES(updated_by)")
+                ->execute(array($clientId, $val, $uid));
+            echo json_encode(array('ok' => true, 'proposta_enviada' => $val)); exit;
+        } elseif ($campo === 'forma') {
+            $forma = clean_str($_POST['valor'] ?? '', 120);
+            $pdo->prepare("INSERT INTO inadimplente_nego (client_id, forma_acordada, updated_by)
+                           VALUES (?, ?, ?)
+                           ON DUPLICATE KEY UPDATE forma_acordada=VALUES(forma_acordada), updated_by=VALUES(updated_by)")
+                ->execute(array($clientId, $forma !== '' ? $forma : null, $uid));
+            echo json_encode(array('ok' => true, 'forma_acordada' => $forma)); exit;
+        }
+        echo json_encode(array('error' => 'Campo inválido.')); exit;
+    } catch (Exception $e) {
+        echo json_encode(array('error' => 'Erro: ' . $e->getMessage())); exit;
+    }
+}
+
 // 29/06/2026 Amanda: criar cobrança DIRETO no Kanban de Cobrança de Honorários,
 // sem depender do Asaas. Cenário: cliente que deve honorários mas a cobrança Asaas
 // foi cancelada (Luiz cancelava pra não pagar taxa de notificação). Também serve
