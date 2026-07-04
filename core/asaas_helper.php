@@ -327,3 +327,84 @@ function asaas_status_cor($status) {
     );
     return isset($map[$status]) ? $map[$status] : '#888';
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Vínculo cobrança ↔ MÚLTIPLOS processos (combo: 1 contrato cobre 2+ processos).
+// Tabela asaas_cobranca_cases guarda os processos EXTRAS; o primário fica em
+// asaas_cobrancas.case_id. Ver migrar_cobranca_processos.php.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Processos EXTRAS vinculados a uma cobrança (não inclui o primário case_id).
+ * @return int[] lista de case_id
+ */
+function cobranca_processos_extras($cobId) {
+    $cobId = (int)$cobId;
+    if (!$cobId) return array();
+    try {
+        $st = db()->prepare("SELECT case_id FROM asaas_cobranca_cases WHERE cobranca_id = ? ORDER BY id");
+        $st->execute(array($cobId));
+        return array_map('intval', $st->fetchAll(PDO::FETCH_COLUMN));
+    } catch (Exception $e) { return array(); }
+}
+
+/**
+ * Define os processos EXTRAS de uma cobrança (substitui os atuais).
+ * Ignora o próprio primário (não duplica) e valida que cada caso pertence ao
+ * mesmo cliente da cobrança. Retorna quantos ficaram vinculados.
+ */
+function cobranca_set_processos_extras($cobId, array $caseIds) {
+    $cobId = (int)$cobId;
+    if (!$cobId) return array('error' => 'cobranca_id inválido');
+    $pdo = db();
+    // Cliente + caso primário da cobrança
+    $st = $pdo->prepare("SELECT client_id, case_id FROM asaas_cobrancas WHERE id = ?");
+    $st->execute(array($cobId));
+    $cob = $st->fetch();
+    if (!$cob) return array('error' => 'Cobrança não encontrada');
+    $clientId = (int)$cob['client_id'];
+    $primario = (int)($cob['case_id'] ?? 0);
+
+    // Sanitiza: inteiros positivos, únicos, tira o primário, valida cliente
+    $limpos = array();
+    foreach ($caseIds as $cid) {
+        $cid = (int)$cid;
+        if ($cid <= 0 || $cid === $primario || isset($limpos[$cid])) continue;
+        $chk = $pdo->prepare("SELECT 1 FROM cases WHERE id = ? AND client_id = ?");
+        $chk->execute(array($cid, $clientId));
+        if ($chk->fetchColumn()) $limpos[$cid] = true;
+    }
+    $limpos = array_keys($limpos);
+
+    $pdo->beginTransaction();
+    try {
+        $pdo->prepare("DELETE FROM asaas_cobranca_cases WHERE cobranca_id = ?")->execute(array($cobId));
+        if ($limpos) {
+            $ins = $pdo->prepare("INSERT IGNORE INTO asaas_cobranca_cases (cobranca_id, case_id) VALUES (?, ?)");
+            foreach ($limpos as $cid) $ins->execute(array($cobId, $cid));
+        }
+        $pdo->commit();
+    } catch (Exception $e) {
+        $pdo->rollBack();
+        return array('error' => 'Erro ao salvar vínculos: ' . $e->getMessage());
+    }
+    return array('ok' => true, 'extras' => $limpos);
+}
+
+/**
+ * Aplica os processos EXTRAS a TODAS as cobranças de (cliente + caso primário).
+ * Usado na criação de combo: cobrança única = 1 linha; parcelado/recorrente = N
+ * parcelas — todas recebem os mesmos processos extras. Retorna nº de cobranças afetadas.
+ */
+function cobranca_extras_por_caso_primario($clientId, $primaryCaseId, array $extraCaseIds) {
+    $clientId = (int)$clientId; $primaryCaseId = (int)$primaryCaseId;
+    if (!$clientId || !$primaryCaseId || !$extraCaseIds) return 0;
+    try {
+        $st = db()->prepare("SELECT id FROM asaas_cobrancas WHERE client_id = ? AND case_id = ?");
+        $st->execute(array($clientId, $primaryCaseId));
+        $ids = $st->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Exception $e) { return 0; }
+    $n = 0;
+    foreach ($ids as $cobId) { cobranca_set_processos_extras((int)$cobId, $extraCaseIds); $n++; }
+    return $n;
+}

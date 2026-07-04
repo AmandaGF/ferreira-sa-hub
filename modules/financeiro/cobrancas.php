@@ -65,7 +65,9 @@ if ($formaFilt !== 'todas') {
 }
 
 if ($caseFilt > 0) {
-    $where[] = "ac.case_id = ?";
+    // Inclui cobranças de combo (asaas_cobranca_cases) vinculadas a este processo
+    $where[] = "(ac.case_id = ? OR EXISTS(SELECT 1 FROM asaas_cobranca_cases jc WHERE jc.cobranca_id = ac.id AND jc.case_id = ?))";
+    $params[] = $caseFilt;
     $params[] = $caseFilt;
 }
 

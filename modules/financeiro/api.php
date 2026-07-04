@@ -25,6 +25,22 @@ function _fin_json_echo($data, $status = null) {
     echo json_encode($data);
 }
 
+// Combo: monta o payload de processos de uma cobrança (primário + extras + todos do cliente)
+function _fin_cob_processos_payload($pdo, $cobId) {
+    $st = $pdo->prepare("SELECT client_id, case_id FROM asaas_cobrancas WHERE id = ?");
+    $st->execute(array((int)$cobId));
+    $cob = $st->fetch();
+    if (!$cob) return array('error' => 'Cobrança não encontrada');
+    $extras = cobranca_processos_extras($cobId);
+    $stAll = $pdo->prepare("SELECT id, title, case_number FROM cases WHERE client_id = ? ORDER BY id DESC");
+    $stAll->execute(array((int)$cob['client_id']));
+    return array(
+        'primario' => (int)($cob['case_id'] ?? 0),
+        'extras'   => $extras,
+        'todos'    => $stAll->fetchAll(),
+    );
+}
+
 // Capturador de erro fatal — loga em uploads/financeiro_last_error.log
 // pra rastrear o 500 que aparece pra Amanda em produção.
 register_shutdown_function(function() {
@@ -196,6 +212,40 @@ if ($action === 'vincular_case') {
         exit;
     } catch (Exception $e) {
         @error_log('[vincular_case] ' . $e->getMessage() . ' cob=' . $cobId . ' case=' . $caseId);
+        _fin_json_echo(array('error' => 'Erro: ' . $e->getMessage()), 500);
+        exit;
+    }
+}
+
+// Combo: vincular UMA cobrança a MÚLTIPLOS processos (extras). O primário
+// continua em asaas_cobrancas.case_id; os extras vão pra asaas_cobranca_cases.
+if ($action === 'vincular_cobranca_processos') {
+    try {
+        $cobId = (int)($_POST['cobranca_id'] ?? 0);
+        if (!$cobId) { _fin_json_echo(array('error' => 'cobranca_id obrigatório')); exit; }
+        $ids = $_POST['case_ids'] ?? array();
+        if (!is_array($ids)) $ids = ($ids === '' ? array() : explode(',', $ids));
+        $res = cobranca_set_processos_extras($cobId, $ids);
+        if (isset($res['error'])) { _fin_json_echo($res, 400); exit; }
+        audit_log('cobranca_processos_vinculados', 'asaas_cobrancas', $cobId, 'extras=' . implode(',', $res['extras']));
+        _fin_json_echo(array_merge(array('ok' => true), _fin_cob_processos_payload($pdo, $cobId)));
+        exit;
+    } catch (Exception $e) {
+        _fin_json_echo(array('error' => 'Erro: ' . $e->getMessage()), 500);
+        exit;
+    }
+}
+
+// Combo: lista os processos vinculados (primário + extras) + todos do cliente (pro picker)
+if ($action === 'listar_cobranca_processos') {
+    try {
+        $cobId = (int)($_POST['cobranca_id'] ?? 0);
+        if (!$cobId) { _fin_json_echo(array('error' => 'cobranca_id obrigatório')); exit; }
+        $pay = _fin_cob_processos_payload($pdo, $cobId);
+        if (isset($pay['error'])) { _fin_json_echo($pay, 404); exit; }
+        _fin_json_echo($pay);
+        exit;
+    } catch (Exception $e) {
         _fin_json_echo(array('error' => 'Erro: ' . $e->getMessage()), 500);
         exit;
     }
@@ -894,6 +944,16 @@ switch ($action) {
             $linkMsg = '';
             if (isset($resp['invoiceUrl'])) $linkMsg = "\n\nLink: " . $resp['invoiceUrl'];
             flash_set('success', "Cobrança criada! R$ " . number_format($valor, 2, ',', '.') . " vencimento " . date('d/m/Y', strtotime($vencimento)) . $linkMsg);
+        }
+
+        // Combo: processos EXTRAS selecionados no modal (1 contrato cobre 2+ processos).
+        // Aplica a todas as cobranças recém-criadas deste caso primário.
+        $extrasSel = $_POST['case_ids_extra'] ?? array();
+        if (!is_array($extrasSel)) $extrasSel = ($extrasSel === '' ? array() : explode(',', $extrasSel));
+        $extrasSel = array_values(array_filter(array_map('intval', $extrasSel)));
+        if ($extrasSel && $caseId) {
+            $nAfet = cobranca_extras_por_caso_primario($clientId, $caseId, $extrasSel);
+            if ($nAfet) audit_log('cobranca_combo_extras', 'financeiro', $clientId, "caso={$caseId} extras=" . implode(',', $extrasSel) . " cobrancas={$nAfet}");
         }
 
         audit_log('cobranca_criada', 'financeiro', $clientId, "R$ " . number_format($valor, 2, ',', '.') . " - $descricao");

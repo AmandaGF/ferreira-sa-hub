@@ -137,10 +137,12 @@ $stmtT = $pdo->prepare(
      -- cobranças daquele caso (case_id); senão, cai pro cliente inteiro (comportamento antigo).
      -- Resolve o bug do cliente com 2ª demanda mostrando SIM indevidamente.
      (SELECT COUNT(*) FROM asaas_cobrancas ac
-        WHERE (pl.linked_case_id IS NOT NULL AND ac.case_id = pl.linked_case_id)
+        WHERE (pl.linked_case_id IS NOT NULL AND (ac.case_id = pl.linked_case_id
+               OR EXISTS(SELECT 1 FROM asaas_cobranca_cases jc WHERE jc.cobranca_id = ac.id AND jc.case_id = pl.linked_case_id)))
            OR (pl.linked_case_id IS NULL AND ac.client_id = c.id)) AS asaas_total_cobrancas,
      (SELECT COUNT(*) FROM asaas_cobrancas ac
-        WHERE ((pl.linked_case_id IS NOT NULL AND ac.case_id = pl.linked_case_id)
+        WHERE ((pl.linked_case_id IS NOT NULL AND (ac.case_id = pl.linked_case_id
+                OR EXISTS(SELECT 1 FROM asaas_cobranca_cases jc WHERE jc.cobranca_id = ac.id AND jc.case_id = pl.linked_case_id)))
             OR (pl.linked_case_id IS NULL AND ac.client_id = c.id))
           AND ac.status NOT IN ('CANCELED','REFUNDED','REFUND_REQUESTED','REFUND_IN_PROGRESS')) AS asaas_cobrancas_ativas
      FROM pipeline_leads pl

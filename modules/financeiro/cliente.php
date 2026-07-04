@@ -64,9 +64,12 @@ if ($asaasId) { sync_cobrancas_cliente($clientId, $asaasId); }
 $cobrancas = array();
 try {
     if ($fromCaseId) {
-        $sqlCob = "SELECT * FROM asaas_cobrancas WHERE client_id = ? AND case_id = ? ORDER BY vencimento DESC";
+        // Inclui cobranças de combo vinculadas a este processo (asaas_cobranca_cases)
+        $sqlCob = "SELECT * FROM asaas_cobrancas ac WHERE ac.client_id = ?
+                     AND (ac.case_id = ? OR EXISTS(SELECT 1 FROM asaas_cobranca_cases jc WHERE jc.cobranca_id = ac.id AND jc.case_id = ?))
+                   ORDER BY ac.vencimento DESC";
         $stmtCob = $pdo->prepare($sqlCob);
-        $stmtCob->execute(array($clientId, $fromCaseId));
+        $stmtCob->execute(array($clientId, $fromCaseId, $fromCaseId));
     } else {
         $sqlCob = "SELECT * FROM asaas_cobrancas WHERE client_id = ? ORDER BY vencimento DESC";
         $stmtCob = $pdo->prepare($sqlCob);
@@ -82,6 +85,19 @@ try {
     $stmtProc->execute(array($clientId));
     $processosCliente = $stmtProc->fetchAll();
 } catch (Exception $e) {}
+// Mapa id→título curto e processos EXTRAS de cada cobrança (combo)
+$procNome = array();
+foreach ($processosCliente as $pr) { $procNome[(int)$pr['id']] = $pr['title'] ?: ('Processo #' . $pr['id']); }
+$cobExtrasMap = array();
+if (!empty($cobrancas)) {
+    $idsCob = array_map(function($c){ return (int)$c['id']; }, $cobrancas);
+    $inCob = implode(',', array_fill(0, count($idsCob), '?'));
+    try {
+        $stEx = $pdo->prepare("SELECT cobranca_id, case_id FROM asaas_cobranca_cases WHERE cobranca_id IN ($inCob)");
+        $stEx->execute($idsCob);
+        foreach ($stEx->fetchAll() as $r) { $cobExtrasMap[(int)$r['cobranca_id']][] = (int)$r['case_id']; }
+    } catch (Exception $e) {}
+}
 
 // ═══ Pré-preencher modal Nova Cobrança ═══
 // Busca lead mais recente do cliente pra trazer: valor, forma_pagamento, num_parcelas, vencimento, case_type
@@ -289,6 +305,22 @@ echo voltar_ao_processo_html();
                     <span style="font-size:.68rem;color:<?= $cob['case_id'] ? '#1e40af' : '#94a3b8' ?>;font-weight:<?= $cob['case_id'] ? '600' : '400' ?>;"><?= e($_pNome) ?></span>
                     <?php endif; ?>
                 </div>
+                <?php
+                // Combo: processos EXTRAS desta cobrança (1 contrato cobre 2+ processos)
+                $_extras = $cobExtrasMap[(int)$cob['id']] ?? array();
+                if (($_podeEditarFin && count($processosCliente) > 1) || $_extras):
+                ?>
+                <div style="margin-top:3px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+                    <span style="font-size:.62rem;color:var(--text-muted);">➕ Combo:</span>
+                    <?php if ($_extras): foreach ($_extras as $_ex): ?>
+                        <span style="font-size:.6rem;background:#ede9fe;color:#6b21a8;padding:1px 6px;border-radius:8px;font-weight:600;"><?= e(mb_substr($procNome[$_ex] ?? ('#' . $_ex), 0, 22)) ?></span>
+                    <?php endforeach; else: ?>
+                        <span style="font-size:.6rem;color:#cbd5e1;">só o processo principal</span>
+                    <?php endif; ?>
+                    <?php if ($_podeEditarFin && count($processosCliente) > 1): ?>
+                    <button type="button" onclick="abrirComboProcessos(<?= (int)$cob['id'] ?>)" style="font-size:.58rem;background:#f3e8ff;color:#6b21a8;border:1px solid #e9d5ff;border-radius:8px;padding:1px 7px;cursor:pointer;font-weight:700;">✏️ editar</button>
+                    <?php endif; ?>
+                </div>
                 <?php endif; ?>
             </div>
             <div style="text-align:right;">
@@ -457,7 +489,7 @@ echo voltar_ao_processo_html();
                 <div style="padding:.55rem .75rem;background:#fef3c7;color:#92400e;border-radius:8px;font-size:.78rem;font-weight:600;">⚠️ Este cliente ainda não tem processo cadastrado. Crie um processo antes de gerar cobrança.</div>
                 <input type="hidden" name="case_id" value="">
             <?php else: ?>
-                <select name="case_id" class="form-select" required>
+                <select name="case_id" id="cobCasePrimary2" class="form-select" required onchange="syncComboExtras2()">
                     <option value="">— Selecione o processo —</option>
                     <?php foreach ($processosCliente as $pr): ?>
                         <option value="<?= (int)$pr['id'] ?>" <?= $preFill['case_id'] === (int)$pr['id'] ? 'selected' : '' ?>><?= e($pr['title'] ?: 'Processo #' . $pr['id']) ?><?= $pr['case_number'] ? ' (' . e($pr['case_number']) . ')' : '' ?></option>
@@ -465,6 +497,33 @@ echo voltar_ao_processo_html();
                 </select>
             <?php endif; ?>
         </div>
+        <?php if (count($processosCliente) > 1): ?>
+        <!-- Combo: 1 contrato/orçamento cobrindo 2+ processos (ex: alimentos + divórcio) -->
+        <div style="margin-bottom:.6rem;">
+            <label style="font-size:.72rem;font-weight:700;color:#6b7280;">🔗 Combo — esta cobrança também cobre outros processos? <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
+            <div id="comboExtras2" style="display:flex;flex-direction:column;gap:.2rem;margin-top:.3rem;max-height:120px;overflow:auto;border:1px solid #eef2f7;border-radius:8px;padding:.4rem .55rem;background:#fafbfc;">
+                <?php foreach ($processosCliente as $pr): ?>
+                <label class="combo-extra-lbl" data-caseid="<?= (int)$pr['id'] ?>" style="font-size:.75rem;display:flex;align-items:center;gap:.4rem;cursor:pointer;">
+                    <input type="checkbox" name="case_ids_extra[]" value="<?= (int)$pr['id'] ?>">
+                    <span><?= e(mb_substr($pr['title'] ?: ('Processo #' . $pr['id']), 0, 50)) ?><?= $pr['case_number'] ? ' (' . e(substr($pr['case_number'], 0, 20)) . ')' : '' ?></span>
+                </label>
+                <?php endforeach; ?>
+            </div>
+            <div style="font-size:.65rem;color:#9ca3af;margin-top:.2rem;">O processo principal já entra automático — marque só os <b>demais</b> processos do mesmo contrato.</div>
+        </div>
+        <script>
+        // Esconde do "combo" o processo que já é o principal (evita marcar ele mesmo)
+        function syncComboExtras2(){
+            var prim = (document.getElementById('cobCasePrimary2')||{}).value || '';
+            document.querySelectorAll('#comboExtras2 .combo-extra-lbl').forEach(function(lbl){
+                var isPrim = (lbl.dataset.caseid === prim);
+                lbl.style.display = isPrim ? 'none' : 'flex';
+                if (isPrim){ var cb = lbl.querySelector('input'); if (cb) cb.checked = false; }
+            });
+        }
+        syncComboExtras2();
+        </script>
+        <?php endif; ?>
         <div style="margin-bottom:.6rem;"><label style="font-size:.75rem;font-weight:700;">Descrição</label><input type="text" name="descricao" class="form-input" value="<?= e($preFill['descricao']) ?>"></div>
         <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:.75rem;padding-top:.75rem;border-top:1px solid var(--border);">
             <button type="button" onclick="document.getElementById('modalNovaCob').style.display='none';" class="btn btn-outline btn-sm">Cancelar</button>
@@ -573,6 +632,66 @@ function vincularTodasAoProcesso(clientId) {
             alert('Falha: ' + (res.body.error || ('HTTP ' + res.status)));
         }
     }).catch(function(e){ alert('Erro de rede: ' + e.message); });
+}
+
+// ── Combo: vincular UMA cobrança a MÚLTIPLOS processos ──
+function abrirComboProcessos(cobId) {
+    var csrf = window._FSA_CSRF || '<?= generate_csrf_token() ?>';
+    var fd = new FormData();
+    fd.append('action', 'listar_cobranca_processos');
+    fd.append('cobranca_id', cobId);
+    fd.append('csrf_token', csrf);
+    fetch('<?= module_url('financeiro', 'api.php') ?>', {
+        method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    }).then(function(r){ return r.json(); }).then(function(d){
+        if (!d || d.error) { alert('⚠️ ' + ((d && d.error) || 'Erro')); return; }
+        _renderComboModal(cobId, d);
+    }).catch(function(e){ alert('Erro de rede: ' + e.message); });
+}
+function _renderComboModal(cobId, d) {
+    var extras = d.extras || [];
+    var prim = parseInt(d.primario || 0, 10);
+    var linhas = (d.todos || []).map(function(c){
+        var id = parseInt(c.id, 10);
+        if (id === prim) return ''; // o principal não entra
+        var num = c.case_number ? ' (' + c.case_number + ')' : '';
+        var ck = extras.indexOf(id) !== -1 ? 'checked' : '';
+        var titulo = (c.title || ('Processo #' + id)).replace(/</g,'&lt;');
+        return '<label style="display:flex;align-items:center;gap:.5rem;font-size:.82rem;padding:.35rem .2rem;cursor:pointer;">'
+             + '<input type="checkbox" class="combo-ck" value="' + id + '" ' + ck + '>'
+             + '<span>' + titulo + num + '</span></label>';
+    }).join('');
+    if (!linhas.trim()) linhas = '<div style="font-size:.8rem;color:#6b7280;padding:.5rem 0;">Este cliente só tem 1 processo — nada pra combinar.</div>';
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100000;display:flex;align-items:center;justify-content:center;';
+    ov.innerHTML = '<div style="background:#fff;border-radius:12px;padding:1.3rem;max-width:420px;width:94%;box-shadow:0 20px 40px rgba(0,0,0,.25);">'
+        + '<h3 style="font-size:1rem;margin:0 0 .3rem;">🔗 Combo — processos desta cobrança</h3>'
+        + '<div style="font-size:.72rem;color:#6b7280;margin-bottom:.6rem;">Marque os <b>outros</b> processos que esta mesma cobrança/contrato cobre. O processo principal já entra automático.</div>'
+        + '<div style="max-height:240px;overflow:auto;border:1px solid #eef2f7;border-radius:8px;padding:.3rem .55rem;background:#fafbfc;">' + linhas + '</div>'
+        + '<div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;">'
+        + '<button type="button" class="btn btn-outline btn-sm" id="comboCancel">Cancelar</button>'
+        + '<button type="button" class="btn btn-primary btn-sm" id="comboSave" style="background:#6b21a8;">Salvar</button>'
+        + '</div></div>';
+    document.body.appendChild(ov);
+    var fechar = function(){ ov.remove(); };
+    ov.addEventListener('click', function(e){ if (e.target === ov) fechar(); });
+    ov.querySelector('#comboCancel').onclick = fechar;
+    ov.querySelector('#comboSave').onclick = function(){
+        var ids = Array.prototype.slice.call(ov.querySelectorAll('.combo-ck:checked')).map(function(x){ return x.value; });
+        var btn = this; btn.disabled = true; btn.textContent = 'Salvando...';
+        var csrf = window._FSA_CSRF || '<?= generate_csrf_token() ?>';
+        var fd = new FormData();
+        fd.append('action', 'vincular_cobranca_processos');
+        fd.append('cobranca_id', cobId);
+        if (ids.length === 0) fd.append('case_ids', ''); else ids.forEach(function(v){ fd.append('case_ids[]', v); });
+        fd.append('csrf_token', csrf);
+        fetch('<?= module_url('financeiro', 'api.php') ?>', {
+            method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function(r){ return r.json(); }).then(function(res){
+            if (res && res.ok) { fechar(); location.reload(); }
+            else { alert('Falha: ' + ((res && res.error) || 'erro')); btn.disabled = false; btn.textContent = 'Salvar'; }
+        }).catch(function(e){ alert('Erro de rede: ' + e.message); btn.disabled = false; btn.textContent = 'Salvar'; });
+    };
 }
 
 function vincularCobrancaProcesso(cobId, caseId) {

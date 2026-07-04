@@ -408,6 +408,32 @@ echo voltar_ao_processo_html();
                 });
                 sel.innerHTML = html;
             }
+            // Combo: checkboxes dos outros processos (só se o cliente tem 2+)
+            var wrap = document.getElementById('comboExtras1Wrap');
+            var box = document.getElementById('comboExtras1');
+            if (wrap && box) {
+                if (casos.length > 1) {
+                    box.innerHTML = casos.map(function(c){
+                        var num = c.number ? ' (' + c.number + ')' : '';
+                        return '<label class="combo-extra-lbl" data-caseid="' + c.id + '" style="font-size:.75rem;display:flex;align-items:center;gap:.4rem;cursor:pointer;">'
+                             + '<input type="checkbox" name="case_ids_extra[]" value="' + c.id + '">'
+                             + '<span>' + c.title + num + '</span></label>';
+                    }).join('');
+                    wrap.style.display = 'block';
+                    syncComboExtras1();
+                } else {
+                    box.innerHTML = ''; wrap.style.display = 'none';
+                }
+            }
+        }
+        // Esconde do "combo" o processo que já é o principal
+        function syncComboExtras1(){
+            var prim = (document.getElementById('cobCaseSelect')||{}).value || '';
+            document.querySelectorAll('#comboExtras1 .combo-extra-lbl').forEach(function(lbl){
+                var isPrim = (lbl.dataset.caseid === prim);
+                lbl.style.display = isPrim ? 'none' : 'flex';
+                if (isPrim){ var cb = lbl.querySelector('input'); if (cb) cb.checked = false; }
+            });
         }
         // Fecha dropdown ao clicar fora
         document.addEventListener('click', function(e){
@@ -537,10 +563,16 @@ echo voltar_ao_processo_html();
 
         <div style="margin-bottom:.6rem;">
             <label style="font-size:.75rem;font-weight:700;display:block;margin-bottom:.15rem;">Processo vinculado <span style="color:#dc2626;">*</span></label>
-            <select name="case_id" id="cobCaseSelect" class="form-select" required>
+            <select name="case_id" id="cobCaseSelect" class="form-select" required onchange="syncComboExtras1()">
                 <option value="">— Selecione primeiro o cliente acima —</option>
             </select>
             <div style="font-size:.64rem;color:var(--text-muted);margin-top:.2rem;">Selecione o cliente acima — os processos dele vão aparecer aqui automaticamente.</div>
+        </div>
+        <!-- Combo: 1 contrato cobrindo 2+ processos (ex: alimentos + divórcio) -->
+        <div id="comboExtras1Wrap" style="display:none;margin-bottom:.6rem;">
+            <label style="font-size:.72rem;font-weight:700;color:#6b7280;">🔗 Combo — esta cobrança também cobre outros processos? <span style="font-weight:400;color:#9ca3af;">(opcional)</span></label>
+            <div id="comboExtras1" style="display:flex;flex-direction:column;gap:.2rem;margin-top:.3rem;max-height:120px;overflow:auto;border:1px solid #eef2f7;border-radius:8px;padding:.4rem .55rem;background:#fafbfc;"></div>
+            <div style="font-size:.65rem;color:#9ca3af;margin-top:.2rem;">O processo principal já entra automático — marque só os <b>demais</b> processos do mesmo contrato.</div>
         </div>
 
         <div style="display:flex;gap:.5rem;justify-content:flex-end;margin-top:1rem;padding-top:.75rem;border-top:1px solid var(--border);">
