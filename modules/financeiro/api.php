@@ -706,14 +706,25 @@ if ($action === 'criar_cobranca_lead') {
         }
         $asaasId = $resp['id'] ?? null;
         $invoiceUrl = $resp['invoiceUrl'] ?? ($resp['invoiceUrl'] ?? null);
+        // case_id do lead: vincula a cobrança à DEMANDA (não só ao cliente), pra coluna
+        // Asaas do Kanban contar por demanda e não marcar SIM em 2ª demanda sem cobrança.
+        $caseIdLead = !empty($lead['linked_case_id']) ? (int)$lead['linked_case_id'] : null;
 
         // Persiste em asaas_cobrancas se for cobrança única (subscriptions geram payments automaticamente no webhook)
         if (!$recorrente && $asaasId) {
             try {
                 $pdo->prepare(
-                    "INSERT IGNORE INTO asaas_cobrancas (client_id, asaas_payment_id, asaas_customer_id, descricao, valor, vencimento, status, forma_pagamento, invoice_url, ultima_sync)
-                     VALUES (?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, NOW())"
-                )->execute(array($lead['client_id_real'], $asaasId, $asaasCustomerId, $descBase, $valor, $vencIso, $billingType, $invoiceUrl));
+                    "INSERT IGNORE INTO asaas_cobrancas (client_id, case_id, asaas_payment_id, asaas_customer_id, descricao, valor, vencimento, status, forma_pagamento, invoice_url, ultima_sync)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, NOW())"
+                )->execute(array($lead['client_id_real'], $caseIdLead, $asaasId, $asaasCustomerId, $descBase, $valor, $vencIso, $billingType, $invoiceUrl));
+            } catch (Exception $e) {}
+        } elseif ($recorrente && $caseIdLead) {
+            // Assinatura: as parcelas nascem via webhook/sync. Sincroniza agora e vincula
+            // ao caso do lead as que ainda não têm case_id (mesmo padrão do fluxo do financeiro).
+            try {
+                sync_cobrancas_cliente($lead['client_id_real'], $asaasCustomerId);
+                $pdo->prepare("UPDATE asaas_cobrancas SET case_id = ? WHERE client_id = ? AND case_id IS NULL")
+                    ->execute(array($caseIdLead, $lead['client_id_real']));
             } catch (Exception $e) {}
         }
 

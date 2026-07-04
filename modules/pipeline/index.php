@@ -133,8 +133,16 @@ $stmtT = $pdo->prepare(
      c.asaas_customer_id AS asaas_customer_id,
      DATEDIFF(NOW(), pl.created_at) as days_in_pipeline,
      cs.drive_folder_url,
-     (SELECT COUNT(*) FROM asaas_cobrancas ac WHERE ac.client_id = c.id) AS asaas_total_cobrancas,
-     (SELECT COUNT(*) FROM asaas_cobrancas ac WHERE ac.client_id = c.id AND ac.status NOT IN ('CANCELED','REFUNDED','REFUND_REQUESTED','REFUND_IN_PROGRESS')) AS asaas_cobrancas_ativas
+     -- Cobranças contadas POR DEMANDA: se o lead já tem caso vinculado, conta só as
+     -- cobranças daquele caso (case_id); senão, cai pro cliente inteiro (comportamento antigo).
+     -- Resolve o bug do cliente com 2ª demanda mostrando SIM indevidamente.
+     (SELECT COUNT(*) FROM asaas_cobrancas ac
+        WHERE (pl.linked_case_id IS NOT NULL AND ac.case_id = pl.linked_case_id)
+           OR (pl.linked_case_id IS NULL AND ac.client_id = c.id)) AS asaas_total_cobrancas,
+     (SELECT COUNT(*) FROM asaas_cobrancas ac
+        WHERE ((pl.linked_case_id IS NOT NULL AND ac.case_id = pl.linked_case_id)
+            OR (pl.linked_case_id IS NULL AND ac.client_id = c.id))
+          AND ac.status NOT IN ('CANCELED','REFUNDED','REFUND_REQUESTED','REFUND_IN_PROGRESS')) AS asaas_cobrancas_ativas
      FROM pipeline_leads pl
      LEFT JOIN users u ON u.id = pl.assigned_to
      LEFT JOIN clients c ON c.id = pl.client_id
@@ -774,25 +782,27 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     </td>
     <td style="text-align:center;min-width:150px;">
         <?php
-            $_asaasId = $lead['asaas_customer_id'] ?? '';
             $_totalCob = (int)($lead['asaas_total_cobrancas'] ?? 0);
             $_cobAtivas = (int)($lead['asaas_cobrancas_ativas'] ?? 0);
             $_manual = $lead['asaas_manual'] ?? '';
+            $_temCaso = !empty($lead['linked_case_id']);
             // Risco / Pro bono não geram cobrança no Asaas — puxa do forma_pagamento (cadastro do comercial)
             $_formaUp = mb_strtoupper($lead['forma_pagamento'] ?? '');
             $_isRisco = (strpos($_formaUp, 'RISCO') !== false);
             $_isProBono = (strpos($_formaUp, 'PRO BONO') !== false || strpos($_formaUp, 'PROBONO') !== false || strpos($_formaUp, 'PRÓ BONO') !== false);
-            // Badge AUTOMÁTICO (sem override) — guardado em data-attrs pro JS restaurar ao voltar pra "auto"
-            if (empty($_asaasId) && $_isRisco) {
+            // Badge AUTOMÁTICO — baseado nas cobranças DESTA demanda (por caso; ver query).
+            // Guardado em data-attrs pro JS restaurar ao voltar pra "auto".
+            $_escopo = $_temCaso ? 'desta demanda' : 'deste cliente';
+            if ($_cobAtivas > 0) {
+                $_aE='✓ SIM'; $_aC='#166534'; $_aB='#dcfce7'; $_aTtl='Esta demanda tem ' . $_cobAtivas . ' cobrança(s) ativa(s) no Asaas.';
+            } elseif ($_totalCob > 0) {
+                $_aE='⊘ CANCELADA'; $_aC='#92400e'; $_aB='#fef3c7'; $_aTtl='As ' . $_totalCob . ' cobrança(s) ' . $_escopo . ' estão todas canceladas. Crie uma nova pra reativar.';
+            } elseif ($_isRisco) {
                 $_aE='⚖️ À RISCO'; $_aC='#3730a3'; $_aB='#e0e7ff'; $_aTtl='Contrato de risco — honorários só no êxito, não gera cobrança no Asaas.';
-            } elseif (empty($_asaasId) && $_isProBono) {
+            } elseif ($_isProBono) {
                 $_aE='🤝 PRO BONO'; $_aC='#6b21a8'; $_aB='#f3e8ff'; $_aTtl='Atendimento pro bono (gratuito) — sem cobrança no Asaas.';
-            } elseif (empty($_asaasId)) {
-                $_aE='✕ NÃO'; $_aC='#991b1b'; $_aB='#fef2f2'; $_aTtl='Cliente ainda não cadastrado no Asaas.';
-            } elseif ($_totalCob > 0 && $_cobAtivas === 0) {
-                $_aE='⊘ CANCELADA'; $_aC='#92400e'; $_aB='#fef3c7'; $_aTtl='Cliente no Asaas, mas todas as ' . $_totalCob . ' cobrança(s) estão canceladas.';
             } else {
-                $_aE='✓ SIM'; $_aC='#166534'; $_aB='#dcfce7'; $_aTtl='Cliente cadastrado no Asaas (' . $_asaasId . ') — ' . $_cobAtivas . ' cobrança(s) ativa(s). ⚠️ Conta o cliente inteiro, não este contrato específico.';
+                $_aE='✕ NÃO'; $_aC='#991b1b'; $_aB='#fef2f2'; $_aTtl='Esta demanda ainda não tem cobrança no Asaas.' . ($_temCaso ? '' : ' (lead ainda sem caso vinculado — conta o cliente inteiro)');
             }
             // Override manual (resolve cliente duplicado E 2ª demanda do mesmo cliente)
             if ($_manual === 'sim')      { $_dE='✓ SIM ✋'; $_dC='#166534'; $_dB='#dcfce7'; $_dTtl='SIM forçado manualmente (ex: cliente duplicado já cadastrado). Clique: SIM → NÃO → automático.'; $_dDash=true; }
