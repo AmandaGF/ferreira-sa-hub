@@ -17,11 +17,9 @@ require_once APP_ROOT . '/templates/sidebar.php';
 
         <?php
         // ═══════════════════════════════════════════════════════
-        // 🇧🇷 TEMA COPA — Amanda 29/06/2026: Brasil x Japão (vitória!)
-        // Bandeirinha fixa no topo + pop-up de celebração 1x por sessão.
-        // Pra desligar quando o Brasil for eliminado/campeão: trocar TEMA_COPA = false abaixo.
+        // 🇧🇷 TEMA COPA — Amanda 29/06/2026 → removido em 05/07/2026 (Brasil desclassificado 😢)
         // ═══════════════════════════════════════════════════════
-        $TEMA_COPA = true;
+        $TEMA_COPA = false;
         if ($TEMA_COPA):
         ?>
         <style>
