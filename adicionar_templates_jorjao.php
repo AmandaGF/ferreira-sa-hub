@@ -88,23 +88,26 @@ $novos = array(
 
 );
 
-// Idempotência: compara pelos primeiros 60 chars pra evitar duplicar em rodadas
-$stExiste = $pdo->prepare("SELECT COUNT(*) FROM jorjao_templates WHERE tocada = ? AND LEFT(template, 60) = ?");
-$stInsert = $pdo->prepare("INSERT INTO jorjao_templates (tocada, template, ativo, ordem) VALUES (?, ?, 1, ?)");
+// Pré-carrega TODAS as chaves existentes de uma vez (evita unbuffered query)
+$existentes = array();
+foreach ($pdo->query("SELECT tocada, LEFT(template, 60) AS k FROM jorjao_templates")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    $existentes[$r['tocada'] . '||' . $r['k']] = true;
+}
 
 $maxOrdem = array();
 foreach ($pdo->query("SELECT tocada, MAX(ordem) AS m FROM jorjao_templates GROUP BY tocada")->fetchAll(PDO::FETCH_ASSOC) as $r) {
     $maxOrdem[$r['tocada']] = (int)$r['m'];
 }
 
+$stInsert = $pdo->prepare("INSERT INTO jorjao_templates (tocada, template, ativo, ordem) VALUES (?, ?, 1, ?)");
 $ins = 0; $pulou = 0;
 foreach ($novos as $n) {
     list($tocada, $tpl) = $n;
-    $chave = mb_substr($tpl, 0, 60);
-    $stExiste->execute(array($tocada, $chave));
-    if ((int)$stExiste->fetchColumn() > 0) { $pulou++; continue; }
+    $chave = $tocada . '||' . mb_substr($tpl, 0, 60);
+    if (isset($existentes[$chave])) { $pulou++; continue; }
     $maxOrdem[$tocada] = isset($maxOrdem[$tocada]) ? $maxOrdem[$tocada] + 1 : 100;
     $stInsert->execute(array($tocada, $tpl, $maxOrdem[$tocada]));
+    $existentes[$chave] = true; // pra caso venha dup no mesmo array
     $ins++;
 }
 
