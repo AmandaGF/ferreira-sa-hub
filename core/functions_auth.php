@@ -98,6 +98,7 @@ function _permission_defaults()
         'salavip'             => $todos,
         'salavip_ged'         => $todos,
         'treinamento'         => $todos,
+        'agendar_msg'         => array('admin','gestao','comercial','cx','operacional','estagiario'),
     );
 }
 

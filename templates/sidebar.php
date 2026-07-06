@@ -14,11 +14,12 @@ try {
 } catch (Exception $e) {}
 
 // Contar mensagens WhatsApp não lidas por canal
-$_waNaoLidas21 = 0; $_waNaoLidas24 = 0; $_waFilaPendente = 0;
+$_waNaoLidas21 = 0; $_waNaoLidas24 = 0; $_waFilaPendente = 0; $_waAgendaPend = 0;
 try {
     $_waNaoLidas21 = (int)db()->query("SELECT IFNULL(SUM(nao_lidas),0) FROM zapi_conversas WHERE canal='21' AND status != 'arquivado'")->fetchColumn();
     $_waNaoLidas24 = (int)db()->query("SELECT IFNULL(SUM(nao_lidas),0) FROM zapi_conversas WHERE canal='24' AND status != 'arquivado'")->fetchColumn();
     $_waFilaPendente = (int)db()->query("SELECT COUNT(*) FROM zapi_fila_envio WHERE status='pendente'")->fetchColumn();
+    $_waAgendaPend = (int)db()->query("SELECT COUNT(*) FROM wa_agendamentos WHERE status='pendente'")->fetchColumn();
 } catch (Exception $e) {}
 
 // Onboarding vinculado ao usuario logado (match por email institucional)
@@ -111,6 +112,7 @@ $menuItems = array(
     array('label' => 'Comercial (21)',    'icon' => '💬', 'href' => url('modules/whatsapp/?canal=21'),   'id' => 'whatsapp_21',     'roles' => $all, 'badge' => $_waNaoLidas21),
     array('label' => 'CX / Operac. (24)', 'icon' => '💬', 'href' => url('modules/whatsapp/?canal=24'),   'id' => 'whatsapp_24',     'roles' => $all, 'badge' => $_waNaoLidas24),
     array('label' => 'Caixa de Envios',   'icon' => '📬', 'href' => url('modules/whatsapp/fila.php'),    'id' => 'whatsapp_fila',   'roles' => $all, 'badge' => $_waFilaPendente, 'badgeCor' => '#b45309'),
+    array('label' => 'Agendar Mensagem',  'icon' => '📅', 'href' => url('modules/agendar_msg/'),         'id' => 'agendar_msg',     'roles' => array('admin','gestao','comercial','cx','operacional','estagiario'), 'badge' => $_waAgendaPend, 'badgeCor' => '#0891b2'),
     array('label' => 'Dashboard WhatsApp', 'icon' => '📊', 'href' => url('modules/whatsapp/dashboard.php'), 'id' => 'whatsapp_dashboard', 'roles' => array('admin','gestao')),
     array('label' => 'Relatórios - CPA',  'icon' => '📈', 'href' => url('modules/whatsapp/conversas_novas.php'), 'id' => 'whatsapp_convnovas', 'roles' => array('admin','gestao')),
     array('label' => 'Configurações',     'icon' => '⚙️', 'href' => url('modules/whatsapp/central.php'),  'id' => 'whatsapp_config', 'roles' => array('admin','gestao')),
