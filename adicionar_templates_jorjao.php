@@ -8,6 +8,14 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
 ini_set('display_errors', '1');
 error_reporting(E_ALL);
+while (ob_get_level() > 0) { ob_end_clean(); }
+register_shutdown_function(function() {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR))) {
+        echo "\n[FATAL] {$e['message']} em {$e['file']}:{$e['line']}\n";
+    }
+});
+set_time_limit(300);
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
