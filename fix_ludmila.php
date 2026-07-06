@@ -36,11 +36,11 @@ $CPF_LUDMILA   = '13906390705';
 
 // 1) Confere o estado atual antes de mexer
 echo "── Estado ANTES ──\n";
-$st = $pdo->prepare("SELECT id, name, linked_client_id FROM form_submissions WHERE id = ?");
+$st = $pdo->prepare("SELECT id, client_name, linked_client_id FROM form_submissions WHERE id = ?");
 $st->execute(array($SUBMISSION_ID));
 $sub = $st->fetch(PDO::FETCH_ASSOC);
 if (!$sub) { die("✕ Submission #{$SUBMISSION_ID} nao encontrada. Abortando.\n"); }
-echo "  Submission #{$SUBMISSION_ID} vinculada a cliente #{$sub['linked_client_id']}\n";
+echo "  Submission #{$SUBMISSION_ID} ({$sub['client_name']}) vinculada a cliente #{$sub['linked_client_id']}\n";
 
 $st = $pdo->prepare("SELECT id, name, client_id, stage FROM pipeline_leads WHERE id = ?");
 $st->execute(array($LEAD_ID));
