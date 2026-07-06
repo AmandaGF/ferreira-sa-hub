@@ -107,15 +107,18 @@ $seeds = array(
     array('novidade_hub', "🎊 *NOVA FUNÇÃO NA ÁREA!* 🎊\n\n🆕 *[titulo]*\n\n[descricao]\n\n🎓 Vem estudar aqui: [link]\n\n_Treinamento rápido, ponto no ranking, produtividade lá em cima!_ 🚀🏆"),
 );
 
-// Idempotência: se ja tem seeds pra essa tocada, não duplica
-$stCount = $pdo->prepare("SELECT COUNT(*) FROM jorjao_templates WHERE tocada = ?");
+// Idempotência: se ja tem seeds pra essa tocada, não duplica.
+// Pré-conta uma vez pra evitar unbuffered query dentro do loop de inserts.
+$contagens = array();
+foreach ($pdo->query("SELECT tocada, COUNT(*) AS n FROM jorjao_templates GROUP BY tocada")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+    $contagens[$r['tocada']] = (int)$r['n'];
+}
 $stInsert = $pdo->prepare("INSERT INTO jorjao_templates (tocada, template, ordem) VALUES (?, ?, ?)");
 $ordemPorTocada = array();
 $insN = 0;
 foreach ($seeds as $s) {
     list($tocada, $template) = $s;
-    $stCount->execute(array($tocada));
-    if ((int)$stCount->fetchColumn() >= 3) continue; // ja tem pelo menos 3 variações
+    if (isset($contagens[$tocada]) && $contagens[$tocada] >= 3) continue; // ja tem pelo menos 3 variações
     if (!isset($ordemPorTocada[$tocada])) $ordemPorTocada[$tocada] = 0;
     $stInsert->execute(array($tocada, $template, $ordemPorTocada[$tocada]++));
     $insN++;
