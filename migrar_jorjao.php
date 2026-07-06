@@ -129,5 +129,5 @@ echo "\n=== FIM ===\n";
 echo "\nProximos passos:\n";
 echo "  1. Ativar tocadas em /admin/comemorar_contrato.php (todas OFF por default)\n";
 echo "  2. Configurar 2 cronjobs novos no cPanel:\n";
-echo "     */10 * * * *  curl -s https://ferreiraesa.com.br/conecta/cron/jorjao_tick.php?key=fsa-hub-deploy-2026\n";
+echo "     */10 * * * *  curl -s https://ferreiraesa.com.br/conecta/cron/jorjao_sinos.php?key=fsa-hub-deploy-2026\n";
 echo "     0 19 * * *    curl -s https://ferreiraesa.com.br/conecta/cron/jorjao_resumo_diario.php?key=fsa-hub-deploy-2026\n";

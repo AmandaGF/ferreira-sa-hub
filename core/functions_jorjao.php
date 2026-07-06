@@ -4,7 +4,7 @@
  *
  * Tocadas suportadas:
  *   1. contrato_assinado     — trigger no pipeline (JÁ existente, mantém)
- *   2. peticao_distribuida   — cron/jorjao_tick.php varre cases novos
+ *   2. peticao_distribuida   — cron/jorjao_sinos.php varre cases novos
  *   3. prazo_cumprido        — hook no UPDATE prazos_processuais.concluido=1
  *   4. novidade_hub          — botão manual em /admin/comemorar_contrato.php
  *   5. resumo_diario         — cron 19h, gera com Claude Haiku
