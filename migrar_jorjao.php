@@ -12,9 +12,18 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
 ini_set('display_errors', '1');
 error_reporting(E_ALL);
+while (ob_get_level() > 0) { ob_end_clean(); }
+register_shutdown_function(function() {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR))) {
+        echo "\n[FATAL] {$e['message']} em {$e['file']}:{$e['line']}\n";
+    }
+});
+set_time_limit(300);
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
+function _flush($msg = '') { if ($msg !== '') echo $msg; @ob_flush(); @flush(); }
 
 echo "=== Migração Jorjão (expansão pra 5 tocadas) ===\n\n";
 
@@ -29,12 +38,12 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS jorjao_templates (
     criado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_tocada_ativo (tocada, ativo)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
-echo "✓ Tabela jorjao_templates criada/verificada\n";
+_flush("✓ Tabela jorjao_templates criada/verificada\n");
 
 // 2) Coluna trava anti-duplicidade em cases (petição distribuída)
 try {
     $pdo->exec("ALTER TABLE cases ADD COLUMN jorjao_distribuicao_tocado TINYINT(1) NOT NULL DEFAULT 0");
-    echo "✓ Coluna cases.jorjao_distribuicao_tocado adicionada\n";
+    _flush("✓ Coluna cases.jorjao_distribuicao_tocado adicionada\n");
 } catch (Exception $e) {
     if (strpos($e->getMessage(), 'Duplicate column') !== false) {
         echo "  [SKIP] cases.jorjao_distribuicao_tocado ja existe\n";
@@ -46,7 +55,7 @@ try {
 $pdo->exec("UPDATE cases SET jorjao_distribuicao_tocado = 1
             WHERE jorjao_distribuicao_tocado = 0
               AND (case_number IS NOT NULL AND case_number <> '' OR stage = 'em_andamento')");
-echo "✓ Cases historicos marcados como tocado (só dispara pra novos daqui pra frente)\n";
+_flush("✓ Cases historicos marcados como tocado (só dispara pra novos daqui pra frente)\n");
 
 // 3) Killswitches por tocada
 $switches = array(
@@ -61,7 +70,7 @@ foreach ($switches as $chave => $valor) {
     $pdo->prepare("INSERT IGNORE INTO configuracoes (chave, valor) VALUES (?, ?)")
         ->execute(array($chave, $valor));
 }
-echo "✓ Killswitches criados (todos DESLIGADOS por default — voce ativa quando quiser)\n";
+_flush("✓ Killswitches criados (todos DESLIGADOS por default — voce ativa quando quiser)\n");
 
 // 4) Seeds — templates engraçados por tocada
 // Variáveis suportadas por tocada:
@@ -111,7 +120,7 @@ foreach ($seeds as $s) {
     $stInsert->execute(array($tocada, $template, $ordemPorTocada[$tocada]++));
     $insN++;
 }
-echo "✓ {$insN} templates inseridos como seed\n";
+_flush("✓ {$insN} templates inseridos como seed\n");
 
 echo "\n=== FIM ===\n";
 echo "\nProximos passos:\n";
