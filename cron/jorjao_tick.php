@@ -17,20 +17,21 @@ $isCli = php_sapi_name() === 'cli';
 if (!$isCli && ($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') {
     http_response_code(403); die('Acesso negado.');
 }
+if (!$isCli) { header('Content-Type: text/plain; charset=utf-8'); }
 ini_set('display_errors', '1'); error_reporting(E_ALL);
+while (ob_get_level() > 0) { ob_end_clean(); }
 register_shutdown_function(function() {
     $e = error_get_last();
     if ($e && in_array($e['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR))) {
         echo "\n[FATAL] {$e['message']} em {$e['file']}:{$e['line']}\n";
     }
 });
+echo "boot ok\n"; @flush();
 
-require_once __DIR__ . '/../core/config.php';
-require_once __DIR__ . '/../core/database.php';
-require_once __DIR__ . '/../core/functions.php';
-require_once __DIR__ . '/../core/functions_jorjao.php';
-
-if (!$isCli) { header('Content-Type: text/plain; charset=utf-8'); }
+require_once __DIR__ . '/../core/config.php'; echo "config ok\n"; @flush();
+require_once __DIR__ . '/../core/database.php'; echo "database ok\n"; @flush();
+require_once __DIR__ . '/../core/functions.php'; echo "functions ok\n"; @flush();
+require_once __DIR__ . '/../core/functions_jorjao.php'; echo "functions_jorjao ok\n"; @flush();
 $pdo = db();
 $inicio = microtime(true);
 echo "[" . date('Y-m-d H:i:s') . "] === jorjao_tick ===\n";
