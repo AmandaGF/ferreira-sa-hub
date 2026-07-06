@@ -151,6 +151,14 @@ if ($filtro === 'todos') {
             LEFT JOIN clients c ON c.id = ae.client_id
             LEFT JOIN cases cs ON cs.id = ae.case_id
             WHERE ae.tipo = 'prazo'
+              -- Amanda 06/07/2026: dedup — salvar_prazo insere na agenda +
+              -- prazos_processuais (o insert na agenda faz aparecer na Agenda
+              -- diaria). Sem esse filtro, cada prazo aparecia 2x aqui.
+              AND NOT EXISTS (
+                  SELECT 1 FROM prazos_processuais p2
+                  WHERE p2.case_id = ae.case_id
+                    AND p2.prazo_fatal = DATE(ae.data_inicio)
+              )
         ) un
         ORDER BY concluido ASC, prazo_fatal ASC"
     )->fetchAll();
@@ -182,6 +190,13 @@ if ($filtro === 'todos') {
             LEFT JOIN cases cs ON cs.id = ae.case_id
             WHERE ae.tipo = 'prazo'
               AND ae.status NOT IN ('cancelado','realizado','concluido')
+              -- dedup: idem query 'todos' acima
+              AND NOT EXISTS (
+                  SELECT 1 FROM prazos_processuais p2
+                  WHERE p2.case_id = ae.case_id
+                    AND p2.prazo_fatal = DATE(ae.data_inicio)
+                    AND p2.concluido = 0
+              )
         ) un
         ORDER BY prazo_fatal ASC"
     )->fetchAll();
