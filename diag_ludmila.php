@@ -138,14 +138,73 @@ if ($subs) {
     echo "\n";
 }
 
-// 6) Payload das últimas submissões (pra ver se dados úteis chegaram)
+// 6) Payload COMPLETO da submission mais recente (pra ver quais campos vieram)
 if ($subs) {
-    echo "── 6) Payload da submission mais recente (primeiros 800 chars) ──\n";
-    $latest = $subs[0];
+    echo "── 6) Payload COMPLETO da submission #{$subs[0]['id']} ──\n";
     $st = $pdo->prepare("SELECT payload_json FROM form_submissions WHERE id = ?");
-    $st->execute(array($latest['id']));
+    $st->execute(array($subs[0]['id']));
     $payload = (string)$st->fetchColumn();
-    echo substr($payload, 0, 800) . (strlen($payload) > 800 ? "\n… (truncado, tamanho total " . strlen($payload) . ")" : "") . "\n";
+    $arr = json_decode($payload, true);
+    if (is_array($arr)) {
+        foreach ($arr as $k => $v) {
+            $vs = is_scalar($v) ? (string)$v : json_encode($v, JSON_UNESCAPED_UNICODE);
+            echo "  {$k}: " . mb_substr($vs, 0, 200) . "\n";
+        }
+    } else {
+        echo "  (payload não é JSON válido)\n";
+        echo substr($payload, 0, 1200) . "\n";
+    }
+    echo "\n";
+}
+
+// 7) QUEM É o cliente #462 (o vinculado pelas outras tabelas)
+$vinculadoId = null;
+if ($subs) $vinculadoId = (int)$subs[0]['linked_client_id'];
+if (!$vinculadoId && !empty($leads)) $vinculadoId = (int)$leads[0]['client_id'];
+
+if ($vinculadoId) {
+    echo "── 7) CLIENTE #{$vinculadoId} (o que foi vinculado) ──\n";
+    $st = $pdo->prepare("SELECT * FROM clients WHERE id = ?");
+    $st->execute(array($vinculadoId));
+    $c = $st->fetch(PDO::FETCH_ASSOC);
+    if ($c) {
+        foreach ($c as $k => $v) {
+            $vs = is_scalar($v) ? (string)$v : json_encode($v, JSON_UNESCAPED_UNICODE);
+            if ($v === null || $v === '') continue;
+            echo "  {$k}: " . mb_substr($vs, 0, 200) . "\n";
+        }
+    } else {
+        echo "  ✕ CLIENTE #{$vinculadoId} NÃO EXISTE MAIS (deletado?)\n";
+    }
+    echo "\n";
+
+    // 8) Outros leads/cases desse cliente #462
+    echo "── 8) Outros leads/cases do cliente #{$vinculadoId} ──\n";
+    $st = $pdo->prepare("SELECT id, name, stage, phone, case_type, created_at FROM pipeline_leads WHERE client_id = ? ORDER BY created_at DESC");
+    $st->execute(array($vinculadoId));
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
+        echo "  LEAD #{$l['id']} · {$l['name']} · stage={$l['stage']} · ação={$l['case_type']} · {$l['created_at']}\n";
+    }
+    $st = $pdo->prepare("SELECT id, title, stage FROM cases WHERE client_id = ? ORDER BY created_at DESC");
+    $st->execute(array($vinculadoId));
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $ca) {
+        echo "  CASE #{$ca['id']} · {$ca['title']} · stage={$ca['stage']}\n";
+    }
+    echo "\n";
+}
+
+// 9) Todos os leads criados hoje pra ver se algum outro tem os dados que faltam
+echo "── 9) Leads criados hoje (últimas 10, stage elaboracao_docs) ──\n";
+$st = $pdo->query("SELECT id, name, phone, case_type, valor_acao, honorarios_cents,
+                          forma_pagamento, client_id, created_at
+                   FROM pipeline_leads
+                   WHERE DATE(created_at) = CURDATE() AND stage='elaboracao_docs'
+                   ORDER BY created_at DESC LIMIT 10");
+foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $l) {
+    $temDados = ($l['case_type'] || $l['valor_acao'] || $l['honorarios_cents'] > 0);
+    $marker = $temDados ? '✓' : '✕';
+    echo "  {$marker} #{$l['id']} · {$l['name']} · ação=" . ($l['case_type'] ?: 'VAZIO') .
+         " · honor=" . ($l['honorarios_cents'] ?: 0) . "c · " . $l['created_at'] . "\n";
 }
 
 echo "\n=== FIM ===\n";
