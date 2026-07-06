@@ -48,14 +48,14 @@ try {
     // ligar, o proximo tick pega tudo que acumulou. Isso pode gerar spam
     // repentino. Como salvaguarda: só considera cases dos ULTIMOS 30 DIAS.
     $stCandidatos = $pdo->query("
-        SELECT cs.id, cs.title, cs.stage, cs.case_number, cs.case_type,
+        SELECT cs.id, cs.title, cs.status, cs.case_number, cs.case_type,
                cs.client_id, cs.responsible_user_id, cs.created_at, cs.updated_at,
                c.name AS client_name
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         WHERE cs.jorjao_distribuicao_tocado = 0
           AND ((cs.case_number IS NOT NULL AND cs.case_number <> '')
-               OR cs.stage = 'em_andamento')
+               OR cs.status = 'em_andamento')
           AND cs.updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         ORDER BY cs.updated_at DESC
         LIMIT 20

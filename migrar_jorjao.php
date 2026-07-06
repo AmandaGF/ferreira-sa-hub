@@ -54,7 +54,7 @@ try {
 // não bombardear o grupo com anos de historico ao ligar a feature.
 $pdo->exec("UPDATE cases SET jorjao_distribuicao_tocado = 1
             WHERE jorjao_distribuicao_tocado = 0
-              AND (case_number IS NOT NULL AND case_number <> '' OR stage = 'em_andamento')");
+              AND (case_number IS NOT NULL AND case_number <> '' OR status = 'em_andamento')");
 _flush("✓ Cases historicos marcados como tocado (só dispara pra novos daqui pra frente)\n");
 
 // 3) Killswitches por tocada
