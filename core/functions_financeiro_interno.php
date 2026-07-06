@@ -44,6 +44,13 @@ function fin_int_ensure_schema($pdo)
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         KEY idx_ativo (ativo)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    // Upgrade: colunas de importação de extrato bancário (OFX). Idempotente.
+    $alters = array(
+        "ALTER TABLE fin_lancamentos ADD COLUMN fitid VARCHAR(120) NULL",
+        "ALTER TABLE fin_lancamentos ADD COLUMN origem VARCHAR(20) NOT NULL DEFAULT 'manual'",
+        "ALTER TABLE fin_lancamentos ADD INDEX idx_fitid (fitid)",
+    );
+    foreach ($alters as $sql) { try { $pdo->exec($sql); } catch (Exception $e) {} }
     $ok = true;
 }
 
@@ -108,4 +115,70 @@ function fin_int_gerar_recorrentes($pdo, $uid)
         $upd->execute(array($mesAtual, $r['id']));
     }
     return $n;
+}
+
+/** Extrai o valor de uma tag OFX (SGML — normalmente sem tag de fechamento). */
+function _fin_ofx_tag($block, $tag)
+{
+    if (preg_match('/<' . $tag . '>([^<\r\n]*)/i', $block, $m)) return trim($m[1]);
+    return '';
+}
+
+/**
+ * Faz o parse de um extrato bancário OFX e devolve as transações normalizadas:
+ * cada uma com fitid, data (Y-m-d), tipo (entrada/saida), valor_cents (abs),
+ * descricao. Aguenta OFX em UTF-8 ou Latin-1.
+ */
+function fin_int_parse_ofx($raw)
+{
+    if ($raw === '' || $raw === null) return array();
+    // Normaliza encoding pra UTF-8
+    if (!mb_check_encoding($raw, 'UTF-8')) {
+        $raw = mb_convert_encoding($raw, 'UTF-8', 'ISO-8859-1');
+    }
+    $raw = str_replace(array("\r\n", "\r"), "\n", $raw);
+
+    $txs = array();
+    if (!preg_match_all('/<STMTTRN>(.*?)<\/STMTTRN>/is', $raw, $blocks)) return $txs;
+    foreach ($blocks[1] as $b) {
+        $amtRaw = _fin_ofx_tag($b, 'TRNAMT');
+        $dt     = preg_replace('/[^0-9]/', '', _fin_ofx_tag($b, 'DTPOSTED'));
+        $fitid  = _fin_ofx_tag($b, 'FITID');
+        $memo   = _fin_ofx_tag($b, 'MEMO');
+        $name   = _fin_ofx_tag($b, 'NAME');
+        if ($amtRaw === '' || strlen($dt) < 8) continue;
+
+        // Valor: OFX usa ponto decimal; sinal indica entrada(+)/saída(-)
+        $amt   = (float) str_replace(',', '.', preg_replace('/[^\d,.\-]/', '', $amtRaw));
+        $cents = (int) round(abs($amt) * 100);
+        if ($cents === 0) continue;
+
+        $desc = trim($memo !== '' ? $memo : $name);
+        if ($desc === '') $desc = 'Movimentação bancária';
+
+        $txs[] = array(
+            'fitid'      => $fitid !== '' ? $fitid : md5($dt . $amtRaw . $desc),
+            'data'       => substr($dt, 0, 4) . '-' . substr($dt, 4, 2) . '-' . substr($dt, 6, 2),
+            'tipo'       => ($amt < 0) ? 'saida' : 'entrada',
+            'valor_cents' => $cents,
+            'descricao'  => mb_substr($desc, 0, 255),
+        );
+    }
+    return $txs;
+}
+
+/**
+ * Procura um lançamento em aberto (não pago) que combine com uma transação do
+ * extrato — mesmo tipo, mesmo valor, vencimento perto da data (±7 dias).
+ * Retorna o lançamento candidato (ou null) pra sugerir conciliação.
+ */
+function fin_int_sugerir_conciliacao($pdo, $tipo, $valorCents, $data)
+{
+    $st = $pdo->prepare("SELECT id, descricao, vencimento, categoria FROM fin_lancamentos
+        WHERE pago = 0 AND tipo = ? AND valor_cents = ?
+          AND vencimento BETWEEN DATE_SUB(?, INTERVAL 7 DAY) AND DATE_ADD(?, INTERVAL 7 DAY)
+        ORDER BY ABS(DATEDIFF(vencimento, ?)) ASC, id ASC LIMIT 1");
+    $st->execute(array($tipo, $valorCents, $data, $data, $data));
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    return $row ?: null;
 }

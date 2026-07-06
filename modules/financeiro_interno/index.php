@@ -199,7 +199,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div class="fi-section">
         <h2>
             <span>🧾 Contas a pagar / receber — <?= htmlspecialchars($ML[$mesNum]) ?></span>
-            <button class="fi-btn fi-btn-pri" onclick="fiAbrirLanc()">+ Novo lançamento</button>
+            <span style="display:flex;gap:8px;">
+                <a class="fi-btn fi-btn-sm" style="text-decoration:none;display:inline-flex;align-items:center;" href="<?= url('modules/financeiro_interno/importar_ofx.php') ?>">⬆️ Importar extrato</a>
+                <button class="fi-btn fi-btn-pri" onclick="fiAbrirLanc()">+ Novo lançamento</button>
+            </span>
         </h2>
         <?php if (!$lancamentos): ?>
             <div class="fi-empty">Nenhum lançamento neste mês. Clique em <strong>+ Novo lançamento</strong> pra começar.</div>
@@ -220,6 +223,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <td>
                         <strong><?= htmlspecialchars($l['descricao']) ?></strong>
                         <?php if (!empty($l['recorrente_id'])): ?><span class="fi-tag" title="Gerado por despesa fixa">🔁 fixa</span><?php endif; ?>
+                        <?php if (isset($l['origem']) && $l['origem'] === 'ofx'): ?><span class="fi-tag" title="Importado do extrato bancário">🏦 extrato</span><?php endif; ?>
                         <?php if (!empty($l['observacao'])): ?><br><span style="font-size:.75rem;color:var(--text-muted,#6b7280);"><?= htmlspecialchars($l['observacao']) ?></span><?php endif; ?>
                     </td>
                     <td><span class="fi-tag"><?= htmlspecialchars($l['categoria']) ?></span></td>
