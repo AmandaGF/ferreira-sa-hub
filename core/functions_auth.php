@@ -122,6 +122,19 @@ function can_access_financeiro()
 }
 
 /**
+ * Setor Financeiro INTERNO (finanças do escritório: contas a pagar/receber,
+ * fluxo de caixa, despesas fixas). Whitelist mais restrita que o financeiro
+ * de clientes — só Amanda (1) e Luiz Eduardo (6). Amanda 05/07/2026.
+ */
+function can_access_financeiro_interno()
+{
+    $uid = current_user_id();
+    if (!$uid) return false;
+    $autorizados = array(1, 6); // Amanda, Luiz Eduardo
+    return in_array((int)$uid, $autorizados, true);
+}
+
+/**
  * Acesso ao financeiro DE UM CLIENTE específico (financeiro/cliente.php).
  * Mais permissivo: qualquer usuário com acesso ao módulo clientes vê,
  * porque dívida de cliente afeta acompanhamento de todos (operacional cobra,

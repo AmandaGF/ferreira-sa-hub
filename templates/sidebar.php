@@ -157,6 +157,7 @@ $menuItems = array(
     array('label' => 'Agenda de Contatos','icon' => '👥', 'href' => url('modules/clientes/'),       'id' => 'clientes',        'roles' => $all),
 
     array('section' => '💰 Financeiro'),
+    array('label' => 'Setor Financeiro', 'icon' => '🏦', 'href' => url('modules/financeiro_interno/'), 'id' => 'financeiro_interno', 'roles' => array('admin'), 'check' => 'can_access_financeiro_interno'),
     array('label' => 'Financeiro',      'icon' => '💰', 'href' => url('modules/financeiro/'),       'id' => 'financeiro',      'roles' => array('admin','gestao','comercial')),
     array('label' => 'Cobrança Honor.', 'icon' => '⚠️', 'href' => url('modules/cobranca_honorarios/'), 'id' => 'cobranca_honorarios', 'roles' => array('admin','gestao')),
 

@@ -46,7 +46,7 @@ function validar_digitos_cnpj($cnpj)
 
 // ─── Busca CPF ─────────────────────────────────────────
 
-function buscar_cpf($cpf)
+function buscar_cpf($cpf, $pacoteForcado = null)
 {
     $cpf = preg_replace('/\D/', '', $cpf);
 
@@ -54,6 +54,13 @@ function buscar_cpf($cpf)
     if (!validar_digitos_cpf($cpf)) {
         return array('erro' => 'CPF inválido');
     }
+
+    // Amanda 03/07: pacote pode ser forçado ('1' = só nome, R$0,17 |
+    // '7' = nome + nascimento, R$0,25). Se null, usa o default do banco.
+    // Serve pra queimar créditos remanescentes do pacote 1 antes de partir
+    // pro 7 (cotas separadas no plano CPFCNPJ da Amanda).
+    $pacoteAtivo = $pacoteForcado ? preg_replace('/\D/', '', (string)$pacoteForcado) : _cpfcnpj_pacote();
+    if (!$pacoteAtivo) $pacoteAtivo = '7';
 
     $pdo = db();
 
