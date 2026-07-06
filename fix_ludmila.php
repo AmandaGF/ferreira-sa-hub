@@ -12,10 +12,20 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
 ini_set('display_errors', '1');
 error_reporting(E_ALL);
+while (ob_get_level() > 0) { ob_end_clean(); }
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
-require_once __DIR__ . '/core/functions.php';
 $pdo = db();
+set_error_handler(function($errno, $errstr, $errfile, $errline) {
+    echo "\n[PHP ERROR $errno] $errstr em $errfile:$errline\n"; @flush();
+    return false;
+});
+register_shutdown_function(function() {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR))) {
+        echo "\n[FATAL] {$e['message']} em {$e['file']}:{$e['line']}\n";
+    }
+});
 
 echo "=== FIX LUDMILA ===\n\n";
 
@@ -133,13 +143,16 @@ $a = $st->fetch(PDO::FETCH_ASSOC);
 echo "  Cliente Ana Maria (#{$a['id']}) — INTACTA:\n";
 echo "    nome: {$a['name']} · cpf: {$a['cpf']}\n";
 
-// 6) Audit log
-if (function_exists('audit_log')) {
-    try {
-        audit_log('fix_ludmila_dedup', 'clients', $CLIENT_NOVO,
-                  "Criou cliente novo Ludmila #{$CLIENT_NOVO} (CPF {$CPF_LUDMILA}), revinculou lead #{$LEAD_ID} e submission #{$SUBMISSION_ID}. Bug: dedup por email tinha colado no cliente #{$CLIENT_ERRADO} (Ana Maria, mae).");
-    } catch (Exception $e) { echo "  (audit_log falhou: " . $e->getMessage() . ")\n"; }
-}
+// 6) Log leve no audit_log (sem depender de current_user)
+try {
+    $pdo->prepare("INSERT INTO audit_log (user_id, action, entity_type, entity_id, description, created_at)
+                   VALUES (NULL, ?, 'clients', ?, ?, NOW())")
+        ->execute(array(
+            'fix_ludmila_dedup', $CLIENT_NOVO,
+            "Criou cliente novo Ludmila #{$CLIENT_NOVO} (CPF {$CPF_LUDMILA}), revinculou lead #{$LEAD_ID} e submission #{$SUBMISSION_ID}. Bug: dedup por email tinha colado no cliente #{$CLIENT_ERRADO} (Ana Maria)."
+        ));
+    echo "  ✓ Audit log gravado\n";
+} catch (Exception $e) { echo "  (audit_log falhou: " . $e->getMessage() . ")\n"; }
 
 echo "\n=== FIM ===\n";
 echo "Agora abra o Kanban Comercial e a Maria consegue gerar procuracao no nome certo.\n";
