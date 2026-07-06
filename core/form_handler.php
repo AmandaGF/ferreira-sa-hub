@@ -106,6 +106,9 @@ function process_form_submission($formType, $clientData, $payloadJson)
             // Fallback: CPF (mais seguro) → email → nome (só se sem CPF).
             // Amanda 29/06: telefone fora do dedup — dois clientes podem
             // dividir celular (caso do Cosme x Yasmim).
+            // Amanda 06/07/2026: se veio CPF, dedup APENAS por CPF. Se não
+            // achou, cria novo mesmo com email igual. Email é compartilhado
+            // (filha cadastra mãe usando o próprio email etc). Caso Ludmila.
             $existingClient = null;
             if ($cpf) {
                 $cpfDigits = preg_replace('/\D/', '', $cpf);
@@ -114,16 +117,19 @@ function process_form_submission($formType, $clientData, $payloadJson)
                     $check->execute(array($cpfDigits));
                     $existingClient = $check->fetch();
                 }
-            }
-            if (!$existingClient && $email) {
-                $check = $pdo->prepare("SELECT id FROM clients WHERE email = ? LIMIT 1");
-                $check->execute(array($email));
-                $existingClient = $check->fetch();
-            }
-            if (!$existingClient && $name && !$cpf) {
-                $check = $pdo->prepare("SELECT id FROM clients WHERE name = ? AND (cpf IS NULL OR cpf = '') LIMIT 1");
-                $check->execute(array($name));
-                $existingClient = $check->fetch();
+                // Veio CPF mas não achou — SAI pra criar novo (não cai em email/nome).
+            } else {
+                // Sem CPF no form: dedup por email/nome como antes.
+                if ($email) {
+                    $check = $pdo->prepare("SELECT id FROM clients WHERE email = ? LIMIT 1");
+                    $check->execute(array($email));
+                    $existingClient = $check->fetch();
+                }
+                if (!$existingClient && $name) {
+                    $check = $pdo->prepare("SELECT id FROM clients WHERE name = ? AND (cpf IS NULL OR cpf = '') LIMIT 1");
+                    $check->execute(array($name));
+                    $existingClient = $check->fetch();
+                }
             }
 
             if ($existingClient) {

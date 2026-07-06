@@ -79,6 +79,14 @@ function find_or_create_client(array $data): int
     // dois clientes podem dividir celular (família, casal etc.) e estavam
     // colando o segundo cadastro no primeiro silenciosamente. Caso do Cosme.
 
+    // Amanda 06/07/2026: se veio CPF, dedup APENAS por CPF. Se não achou por
+    // CPF, cria cliente novo mesmo com email/nome iguais. Email é compartilhado
+    // por familia (filha usa email do proprio pra cadastrar mãe, marido usa
+    // email da esposa etc). Caso Ludmila: filha (CPF 139.063.907-05) tinha
+    // cadastrado a mãe (CPF 657.873.077-04) usando o próprio email dela; ao
+    // preencher form pra si, dedup por email colou o lead na ficha da mãe e a
+    // Fábrica gerava procuração no nome errado.
+
     // 1. Buscar por CPF (normaliza os 2 lados pra ignorar mascara)
     if ($cpf) {
         $cpfDigits = preg_replace('/\D/', '', $cpf);
@@ -88,23 +96,24 @@ function find_or_create_client(array $data): int
             $row = $stmt->fetch();
             if ($row) return (int)$row['id'];
         }
-    }
-
-    // 2. Buscar por email
-    if ($email) {
-        $stmt = $pdo->prepare("SELECT id FROM clients WHERE email = ? LIMIT 1");
-        $stmt->execute(array($email));
-        $row = $stmt->fetch();
-        if ($row) return (int)$row['id'];
-    }
-
-    // 3. Buscar por nome EXATO — só se não tem CPF (último recurso). Se já
-    //    tem CPF e não bateu acima, é cliente novo mesmo com nome igual.
-    if ($name && !$cpf) {
-        $stmt = $pdo->prepare("SELECT id FROM clients WHERE name = ? AND (cpf IS NULL OR cpf = '') LIMIT 1");
-        $stmt->execute(array($name));
-        $row = $stmt->fetch();
-        if ($row) return (int)$row['id'];
+        // Veio CPF mas não achou — SAI pra criar novo (não cai em email/nome).
+    } else {
+        // Sem CPF no input: dedup por email/nome como antes.
+        // 2. Buscar por email
+        if ($email) {
+            $stmt = $pdo->prepare("SELECT id FROM clients WHERE email = ? LIMIT 1");
+            $stmt->execute(array($email));
+            $row = $stmt->fetch();
+            if ($row) return (int)$row['id'];
+        }
+        // 3. Buscar por nome EXATO — só se não tem CPF preenchido no cliente
+        //    encontrado (último recurso).
+        if ($name) {
+            $stmt = $pdo->prepare("SELECT id FROM clients WHERE name = ? AND (cpf IS NULL OR cpf = '') LIMIT 1");
+            $stmt->execute(array($name));
+            $row = $stmt->fetch();
+            if ($row) return (int)$row['id'];
+        }
     }
 
     // 4. Não encontrou — criar novo (com proteção contra duplicatas)
