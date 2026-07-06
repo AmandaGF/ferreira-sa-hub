@@ -162,7 +162,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <a class="fi-atalho" href="<?= url('modules/financeiro/') ?>">
         <span class="ic">💳</span>
         <span>
-            <span class="tt">Financeiro de clientes →</span><br>
+            <span class="tt">Cobrança Clientes →</span><br>
             <span class="ds">Cobranças Asaas, inadimplentes e fluxo de honorários</span>
         </span>
         <span class="go">→</span>

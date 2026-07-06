@@ -10,7 +10,7 @@ $_podeEditarFin = true; // página inteira já exige acesso ao financeiro
 
 require_once __DIR__ . '/../../core/asaas_helper.php';
 
-$pageTitle = 'Financeiro';
+$pageTitle = 'Cobrança Clientes';
 $pdo = db();
 
 // Seletor de mês — permite navegar no histórico (default: mês atual)
