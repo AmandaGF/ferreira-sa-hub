@@ -10,9 +10,11 @@ if (($_GET['key'] ?? '') !== 'fsa-hub-deploy-2026') { die('Acesso negado.'); }
 header('Content-Type: text/plain; charset=utf-8');
 ini_set('display_errors', '1');
 error_reporting(E_ALL);
+while (ob_get_level() > 0) { ob_end_clean(); }
 require_once __DIR__ . '/core/config.php';
 require_once __DIR__ . '/core/database.php';
 $pdo = db();
+function _flushnow($msg = '') { if ($msg) echo $msg; echo "\n"; @ob_flush(); @flush(); }
 
 echo "=== DIAG LUDMILA ===\n\n";
 
@@ -84,11 +86,16 @@ if (!$leads) {
 }
 
 // 4) cases (pastas)
-echo "── 4) cases (título contém 'Ludmila') ──\n";
-$st = $pdo->prepare("SELECT id, title, case_number, stage, client_id, status, created_at
-                     FROM cases WHERE title LIKE ? ORDER BY created_at DESC LIMIT 5");
-$st->execute(array('%udmila%'));
-$cases = $st->fetchAll(PDO::FETCH_ASSOC);
+_flushnow("── 4) cases (título contém 'Ludmila') ──");
+try {
+    $st = $pdo->prepare("SELECT id, title, case_number, stage, client_id, status, created_at
+                         FROM cases WHERE title LIKE ? ORDER BY created_at DESC LIMIT 5");
+    $st->execute(array('%udmila%'));
+    $cases = $st->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {
+    echo "  ERRO na query cases: " . $e->getMessage() . "\n";
+    $cases = array();
+}
 if (!$cases) {
     echo "  ✕ NENHUMA PASTA ENCONTRADA COM 'LUDMILA' NO TÍTULO\n\n";
 } else {
