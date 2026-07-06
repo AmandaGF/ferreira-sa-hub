@@ -8,6 +8,7 @@ require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 if (!can_access_financeiro_interno()) { redirect(url('modules/dashboard/')); }
 require_once __DIR__ . '/../../core/functions_financeiro_interno.php';
+require_once __DIR__ . '/../../core/cora_helper.php';
 
 $pageTitle = 'Importar Extrato';
 $pdo = db();
@@ -70,19 +71,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'confirm') {
     }
 }
 
-// ─── PREVIEW: leu o arquivo, monta a tela de conferência ───
+// ─── PREVIEW: leu o extrato (arquivo OFX ou Cora ao vivo), monta a conferência ───
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'preview') {
     if (!validate_csrf()) {
         $erro = 'Sessão expirada — recarregue a página e tente de novo.';
-    } elseif (empty($_FILES['arquivo']) || ($_FILES['arquivo']['error'] ?? 1) !== UPLOAD_ERR_OK) {
-        $erro = 'Não recebi o arquivo. Selecione um .ofx exportado do banco.';
     } else {
-        $raw = file_get_contents($_FILES['arquivo']['tmp_name']);
-        $txs = fin_int_parse_ofx($raw);
-        if (!$txs) {
-            $erro = 'Não achei transações nesse arquivo. Confirme que é um extrato no formato OFX.';
+        $source = ($_POST['source'] ?? 'ofx');
+        $txs = array();
+        if ($source === 'cora') {
+            if (!cora_configurado()) {
+                $erro = 'A Cora ainda não está conectada (falta client_id/certificado).';
+            } else {
+                $start = (string)($_POST['start'] ?? '');
+                $end   = (string)($_POST['end'] ?? '');
+                if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $end)) {
+                    $erro = 'Informe o período (data inicial e final).';
+                } elseif ($end < $start) {
+                    $erro = 'A data final tem que ser igual ou depois da inicial.';
+                } else {
+                    $res = cora_extrato($start, $end);
+                    if (!$res['ok']) $erro = $res['error'];
+                    else $txs = $res['txs'];
+                }
+            }
         } else {
-            // Ordena por data
+            if (empty($_FILES['arquivo']) || ($_FILES['arquivo']['error'] ?? 1) !== UPLOAD_ERR_OK) {
+                $erro = 'Não recebi o arquivo. Selecione um .ofx exportado do banco.';
+            } else {
+                $raw = file_get_contents($_FILES['arquivo']['tmp_name']);
+                $txs = fin_int_parse_ofx($raw);
+                if (!$txs) $erro = 'Não achei transações nesse arquivo. Confirme que é um extrato no formato OFX.';
+            }
+        }
+        if (!$erro && !$txs) {
+            $erro = 'Nenhuma transação encontrada no período/arquivo.';
+        } elseif (!$erro) {
             usort($txs, function ($a, $b) { return strcmp($a['data'], $b['data']); });
             $chk = $pdo->prepare("SELECT COUNT(*) FROM fin_lancamentos WHERE fitid = ?");
             foreach ($txs as &$t) {
@@ -154,9 +177,35 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
     <div class="oi-card">
         <div class="oi-help">
-            <strong>Como pegar o OFX:</strong> no app/site do seu banco, vá em <em>Extrato</em> → <em>Exportar / Baixar</em> e escolha o formato <strong>OFX</strong> (às vezes aparece como "OFX Money", "Financial" ou "OFX 1.0/2.0"). Baixe o período que quer e suba aqui.<br><br>
+            <strong>Como pegar o OFX:</strong> no app/site do seu banco (Itaú, Nubank…), vá em <em>Extrato</em> → <em>Exportar / Baixar</em> e escolha o formato <strong>OFX</strong> (às vezes aparece como "OFX Money", "Financial" ou "OFX 1.0/2.0"). Baixe o período que quer e suba aqui.<br><br>
             Cada transação tem um código único do banco (FITID), então <strong>importar o mesmo arquivo 2× não duplica nada</strong> — o sistema pula o que já entrou.
         </div>
+    </div>
+
+    <!-- Cora ao vivo -->
+    <div class="oi-card" style="border-top:4px solid #ff005a;">
+        <p style="font-weight:800;margin:0 0 4px;display:flex;align-items:center;gap:8px;">🟣 Cora — extrato ao vivo</p>
+        <?php if (cora_configurado()):
+            $saldoCora = cora_saldo();
+        ?>
+            <?php if ($saldoCora !== null): ?>
+                <p style="margin:0 0 12px;">Saldo atual na Cora: <strong style="font-size:1.15rem;"><?= fin_int_fmt($saldoCora) ?></strong></p>
+            <?php else: ?>
+                <p class="oi-help" style="margin:0 0 12px;color:#b45309;">⚠️ Não consegui ler o saldo agora (cheque as credenciais/certificado da Cora).</p>
+            <?php endif; ?>
+            <form method="post" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+                <?= csrf_input() ?>
+                <input type="hidden" name="step" value="preview">
+                <input type="hidden" name="source" value="cora">
+                <div><label style="display:block;font-size:.75rem;font-weight:700;color:var(--text-muted,#6b7280);">De</label>
+                    <input type="date" name="start" value="<?= date('Y-m-01') ?>" class="oi-sel"></div>
+                <div><label style="display:block;font-size:.75rem;font-weight:700;color:var(--text-muted,#6b7280);">Até</label>
+                    <input type="date" name="end" value="<?= date('Y-m-d') ?>" class="oi-sel"></div>
+                <button type="submit" class="oi-btn">Puxar extrato da Cora</button>
+            </form>
+        <?php else: ?>
+            <p class="oi-help" style="margin:0;">Ainda não conectada. Pra ligar: assinar o <strong>CoraPro</strong>, gerar o <strong>client_id</strong> + <strong>certificado</strong> no painel da Cora e me enviar. Enquanto isso, use o OFX acima. 😉</p>
+        <?php endif; ?>
     </div>
     <?php endif; ?>
 

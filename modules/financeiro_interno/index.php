@@ -9,6 +9,7 @@ require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 if (!can_access_financeiro_interno()) { redirect(url('modules/dashboard/')); }
 require_once __DIR__ . '/../../core/functions_financeiro_interno.php';
+require_once __DIR__ . '/../../core/cora_helper.php';
 
 $pageTitle = 'Setor Financeiro';
 $pdo = db();
@@ -156,6 +157,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div class="big <?= $saldoPrev >= 0 ? 'fi-blue' : 'fi-red' ?>"><?= fin_int_fmt($saldoPrev) ?></div>
             <div class="sub">Realizado (pago × recebido): <strong class="<?= $saldoReal >= 0 ? 'fi-green' : 'fi-red' ?>"><?= fin_int_fmt($saldoReal) ?></strong></div>
         </div>
+        <?php if (cora_configurado()): $saldoCora = cora_saldo(); ?>
+        <div class="fi-card" style="border-top:4px solid #ff005a;">
+            <div class="lbl">🟣 Saldo Cora <span style="font-weight:600;text-transform:none;">(ao vivo)</span></div>
+            <div class="big"><?= $saldoCora !== null ? fin_int_fmt($saldoCora) : '—' ?></div>
+            <div class="sub"><a href="<?= url('modules/financeiro_interno/importar_ofx.php') ?>" style="color:inherit;">Puxar extrato da Cora →</a></div>
+        </div>
+        <?php endif; ?>
     </div>
 
     <!-- Atalho pro financeiro de clientes -->
