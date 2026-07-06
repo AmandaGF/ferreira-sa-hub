@@ -573,12 +573,29 @@ function zapi_send_audio($ddd, $telefone, $audio, $asPtt = true) {
     if (is_string($audio) && file_exists($audio) && is_readable($audio)) {
         $bin = @file_get_contents($audio);
         if ($bin !== false && strlen($bin) > 0) {
+            $ext = strtolower(pathinfo($audio, PATHINFO_EXTENSION));
             $logCtx['input_type'] = 'arquivo_local';
             $logCtx['tamanho']    = strlen($bin);
-            $logCtx['extensao']   = strtolower(pathinfo($audio, PATHINFO_EXTENSION));
+            $logCtx['extensao']   = $ext;
             $logCtx['mime_detectado'] = function_exists('mime_content_type') ? @mime_content_type($audio) : '';
             $logCtx['modo']       = 'base64';
-            $audio = 'data:audio/ogg;base64,' . base64_encode($bin);
+            // Amanda 06/07/2026: mime DEVE bater com formato real do arquivo.
+            // Antes forcava 'audio/ogg' pra qualquer coisa — quebrava iOS (m4a/AAC),
+            // Z-API respondia HTTP 400 "Fail to convert audio in nebraska-cairo"
+            // porque tentava decodar AAC como Opus.
+            $mimeMap = array(
+                'ogg'  => 'audio/ogg; codecs=opus',
+                'oga'  => 'audio/ogg; codecs=opus',
+                'opus' => 'audio/ogg; codecs=opus',
+                'webm' => 'audio/webm; codecs=opus',
+                'm4a'  => 'audio/mp4',
+                'mp4'  => 'audio/mp4',
+                'aac'  => 'audio/aac',
+                'mp3'  => 'audio/mpeg',
+                'wav'  => 'audio/wav',
+            );
+            $mimeAudio = isset($mimeMap[$ext]) ? $mimeMap[$ext] : 'audio/ogg; codecs=opus';
+            $audio = 'data:' . $mimeAudio . ';base64,' . base64_encode($bin);
         } else {
             $logCtx['input_type'] = 'arquivo_local_vazio';
             $logCtx['modo']       = 'url_fallback';
