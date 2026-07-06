@@ -449,4 +449,21 @@ return array(
     'missao' => 'Cliente novo chegou aqui com processo Cível ajuizado em outro escritório, com número CNJ e vara em Volta Redonda. Cadastre no Hub: (1) cliente novo (cadastre antes pelo Pipeline ou direto pelo módulo Clientes), (2) processo com número CNJ + vara + comarca, (3) cliente como Autor + parte contrária como Réu, (4) status "Em andamento". Depois abra a pasta criada e confirme que está tudo lá.',
 ),
 
+'agendar-mensagem-wa' => array(
+    'por_que' => 'Você combinou de dar retorno pro cliente na próxima segunda, mas não vai lembrar sábado à noite de programar isso. Ou tem audiência de manhã cedo e precisa mandar um check-in um dia antes. **Agendar Mensagem** deixa você escrever a mensagem agora e escolher exatamente quando ela sai — o Hub manda automaticamente no horário marcado, sem precisar deixar aba aberta nem lembrar.',
+    'passos' => array(
+        'Menu lateral **💬 WhatsApp → 📅 Agendar Mensagem**. A bolinha azul do lado do nome mostra quantas mensagens estão na fila.',
+        '**Cliente** — comece a digitar o nome. O Hub sugere da agenda; ao clicar, o **telefone é preenchido sozinho** (pode editar se estiver desatualizado).',
+        '**Canal** — 24 (CX/Operacional) é o padrão; 21 pra cliente do Comercial. Não troque de canal se cliente já conversa por um deles — número diferente confunde.',
+        '**Data e hora** — quando você quer que a mensagem saia (horário de Brasília, mesmo do servidor).',
+        '**Mensagem** — escreva o texto. Pra personalizar sem digitar, clique nas chips laranjas: `{{primeiro_nome}}` vira **Maria**, `{{nome}}` vira **Maria da Silva**, `{{data_hoje}}` vira **15/07/2026** (a data em que a mensagem sair).',
+        'Botão **Agendar** — mensagem entra na aba **Pendentes** (badge amarela).',
+        'Enquanto está pendente, botão **✕ Cancelar** desfaz. Depois de enviada, vai pra aba **Histórico** como ✓ verde.',
+        'Se falhar 3 vezes (número inválido, WhatsApp fora do ar), fica marcada em **vermelho** com o erro que a Z-API devolveu.',
+    ),
+    'atencao' => '**Nunca** coloque CPF completo, número de processo com dados sensíveis, senha ou código de acesso na mensagem — a lista é visível pra toda a equipe. Assine sempre **"Equipe Ferreira & Sá Advocacia"**, nunca "Dra. Amanda" ou nome pessoal — mensagens agendadas saem em nome do escritório, não da pessoa que agendou.',
+    'dica' => 'Não dá pra editar depois de salvar. Se errou uma palavra, **cancela e cria de novo** — é rápido, o botão vermelho na linha já faz. E antes de agendar cobrança pra um cliente, dá uma olhada na conversa dele no WhatsApp normal — se ele já respondeu algo importante, você não vê nesta tela e pode mandar sem contexto.',
+    'missao' => 'Agende uma mensagem de teste pra você mesma (seu próprio WhatsApp), pra daqui a 3 minutos, usando pelo menos uma variável tipo `{{primeiro_nome}}`. Confira: (1) chegou no horário, (2) a variável foi substituída pelo seu nome, (3) sumiu de Pendentes e apareceu em Histórico como ✓ Enviado.',
+),
+
 );

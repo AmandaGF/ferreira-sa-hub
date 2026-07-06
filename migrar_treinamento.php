@@ -87,6 +87,7 @@ $modulos = array(
     array('ranking','Ranking e Gamificação','Como funciona o sistema de pontos, níveis e premiações','🏆','["todos"]',21,30),
     array('links-tribunais','Portal de Links e Tribunais','Acessando todos os tribunais e portais jurídicos em um clique','🔗','["todos"]',22,30),
     array('aniversarios','Aniversários e Relacionamento','Como o sistema parabeniza clientes automaticamente','🎂','["cx","admin","gestao"]',23,30),
+    array('agendar-mensagem-wa','Agendar Mensagem WhatsApp','Programe uma mensagem pra sair automaticamente em data/hora específica','📅','["todos"]',24,50),
 );
 
 $stmt = $pdo->prepare("INSERT INTO treinamento_modulos (slug, titulo, descricao, icone, perfis_alvo, ordem, pontos) VALUES (?,?,?,?,?,?,?)
@@ -191,6 +192,12 @@ $quizzes = array(
 
     // DOCUMENTOS
     array('documentos','Quando preencho os dados pra gerar uma procuração, onde eles ficam salvos?','Nenhum lugar — é gerado e esquecido','Na tabela document_history com params_json (backup crítico)','Só no arquivo .docx','Na agenda','b','document_history.params_json é backup crítico — útil pra recuperar valores que se perderam.',1),
+
+    // AGENDAR MENSAGEM WA
+    array('agendar-mensagem-wa','Qual a diferença entre "Agendar Mensagem" e "Msg diária p/ clientes"?','Nenhuma — são sinônimos','Agendar é UMA mensagem em data/hora específica; Msg diária manda todo dia útil no mesmo horário','Agendar é só pra Comercial; Msg diária é só pra Operacional','Agendar é manual; Msg diária precisa de aprovação','b','Agendar Mensagem é envio único em data/hora exata. Msg diária p/ clientes é recorrente todo dia útil no mesmo horário.',1),
+    array('agendar-mensagem-wa','Depois de agendada, dá pra editar a mensagem?','Sim, botão Editar na linha','Sim, mas só até 1h antes do envio','Não — só cancelar e criar uma nova','Sim, só quem criou','c','Agendamentos não podem ser editados — se errou, cancela e cria de novo.',2),
+    array('agendar-mensagem-wa','Como assinar uma mensagem agendada pra cliente?','Assinar com seu próprio nome (ex: "Camila")','Assinar como "Dra. Amanda" (autoridade)','Assinar como "Equipe Ferreira & Sá Advocacia"','Não precisa assinar','c','Padrão da casa: mensagens agendadas saem em nome do escritório, não da pessoa que agendou nem da Dra. Amanda pessoalmente.',3),
+    array('agendar-mensagem-wa','Se o envio falhar 3 vezes seguidas, o que o Hub faz?','Tenta pra sempre até dar certo','Marca como Falhou em vermelho, mostra o erro e para de tentar','Manda pra caixa de envios pra revisão manual','Deleta o agendamento silenciosamente','b','Retry até 3 tentativas antes de marcar como Falhou — evita loop infinito quando número está desativado.',4),
 );
 
 $stmt = $pdo->prepare("INSERT INTO treinamento_quiz (modulo_slug, pergunta, opcao_a, opcao_b, opcao_c, opcao_d, resposta_correta, explicacao, ordem) VALUES (?,?,?,?,?,?,?,?,?)");
