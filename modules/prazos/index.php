@@ -63,6 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         if ($id > 0) {
             $pdo->prepare("UPDATE prazos_processuais SET concluido = 1, concluido_em = NOW() WHERE id = ?")
                 ->execute(array($id));
+            // 🔔 Jorjão toca sino (silencioso — feature flag decide se envia)
+            try {
+                require_once APP_ROOT . '/core/functions_jorjao.php';
+                jorjao_prazo_cumprido_by_id($id, current_user_id());
+            } catch (Exception $e) {}
             flash_set('success', 'Prazo concluído!');
         } elseif ($id < 0) {
             // id negativo = agenda_eventos (visto que a tela unifica as 2 fontes)

@@ -105,6 +105,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
 <a href="<?= url('modules/dashboard/index.php') ?>" class="btn btn-outline btn-sm mb-2">&larr; Voltar</a>
+<a href="<?= url('modules/admin/jorjao.php') ?>" class="btn btn-primary btn-sm mb-2" style="margin-left:8px;">🐻 Outras tocadas do Jorjão &rarr;</a>
 
 <div class="card mb-2">
     <div class="card-header">

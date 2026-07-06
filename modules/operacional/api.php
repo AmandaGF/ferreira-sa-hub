@@ -3332,6 +3332,12 @@ switch ($action) {
                 // 1. Concluir o prazo
                 $pdo->prepare("UPDATE prazos_processuais SET concluido = 1, concluido_em = NOW() WHERE id = ?")->execute(array($prazoId));
 
+                // 🔔 Jorjão toca sino (silencioso)
+                try {
+                    require_once APP_ROOT . '/core/functions_jorjao.php';
+                    jorjao_prazo_cumprido_by_id((int)$prazoId, current_user_id());
+                } catch (Exception $e) {}
+
                 // 2. Buscar descrição do prazo + case_id (banner global passa case_id=0)
                 $stmtPz = $pdo->prepare("SELECT descricao_acao, case_id FROM prazos_processuais WHERE id = ?");
                 $stmtPz->execute(array($prazoId));

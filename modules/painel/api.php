@@ -338,6 +338,11 @@ if ($action === 'baixar_atrasada') {
             $rowPz = $stPz->fetch(PDO::FETCH_ASSOC);
             if (!$rowPz) { echo json_encode(array('error' => 'Prazo nao encontrado ou ja concluido')); exit; }
             $pdo->prepare("UPDATE prazos_processuais SET concluido=1, concluido_em=NOW() WHERE id=?")->execute(array($id));
+            // 🔔 Jorjão toca sino (silencioso)
+            try {
+                require_once APP_ROOT . '/core/functions_jorjao.php';
+                jorjao_prazo_cumprido_by_id((int)$id, current_user_id());
+            } catch (Exception $e) {}
             $descPrazo = $rowPz['descricao_acao'] ?: '';
             $caseId = (int)($rowPz['case_id'] ?? 0);
             if ($caseId && $descPrazo) {

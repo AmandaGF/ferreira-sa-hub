@@ -338,6 +338,11 @@ if ($action === 'mover') {
             if ($t['prazo_id']) {
                 try { $pdo->prepare("UPDATE prazos_processuais SET concluido=1, cumprido_em=NOW() WHERE id=?")
                     ->execute(array($t['prazo_id'])); } catch (Exception $e) {}
+                // 🔔 Jorjão toca sino (silencioso)
+                try {
+                    require_once APP_ROOT . '/core/functions_jorjao.php';
+                    jorjao_prazo_cumprido_by_id((int)$t['prazo_id'], current_user_id());
+                } catch (Exception $e) {}
             }
             if ($t['agenda_id']) {
                 try { $pdo->prepare("UPDATE agenda_eventos SET status='realizado', updated_at=NOW() WHERE id=?")
