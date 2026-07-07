@@ -100,6 +100,12 @@ function create_drive_folder($clientName, $caseType, $caseId, $caseTitle = '') {
         return array('success' => false, 'error' => 'GOOGLE_APPS_SCRIPT_URL não configurado no config.php');
     }
 
+    // Bloqueio PJE: travessão (—/–) recusado em nome de arquivo/pasta.
+    // Aplica antes de enviar pro Apps Script (pasta + subpastas ficam limpas)
+    $clientName = _drive_sanitize_filename($clientName);
+    $caseType   = _drive_sanitize_filename($caseType);
+    $caseTitle  = _drive_sanitize_filename($caseTitle);
+
     $payload = json_encode(array(
         'folderName'  => $clientName,
         'clientName'  => $clientName,

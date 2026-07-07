@@ -285,3 +285,43 @@ function paginate(int $total, int $perPage = 20, int $currentPage = 1): array
         'offset'      => $offset,
     ];
 }
+
+// ─── Sanitização de nome de arquivo pro PJe ─────────────
+/**
+ * Remove caracteres que o PJe (e outros tribunais) recusam em nomes de anexo.
+ * Amanda 07/07/2026: PJe recusa upload de arquivo com travessão "—" no nome.
+ *
+ * Substitui:
+ *   —  U+2014 EM DASH        → -
+ *   –  U+2013 EN DASH        → -
+ *   ‒  U+2012 FIGURE DASH    → -
+ *   ―  U+2015 HORIZONTAL BAR → -
+ *   −  U+2212 MINUS SIGN     → -
+ *   " " U+00A0 NBSP          → espaço normal
+ *   caracteres de controle   → removidos
+ *
+ * Preserva: acentos (á é ç ñ etc), espaços, hífen normal, ponto, underscore.
+ *
+ * Chame ANTES de mandar pro Drive/download/protocolar. Não substitui
+ * sanitização mais agressiva (tipo baixar_docx que translitera tudo) —
+ * cobre só o caso do PJe recusar caracteres exóticos.
+ */
+function sanitize_filename_pje($nome) {
+    $nome = (string)$nome;
+    if ($nome === '') return $nome;
+    // Troca todos os "travessões unicode" por hífen ASCII
+    $nome = strtr($nome, array(
+        "\xE2\x80\x94" => '-',  // — em dash
+        "\xE2\x80\x93" => '-',  // – en dash
+        "\xE2\x80\x92" => '-',  // ‒ figure dash
+        "\xE2\x80\x95" => '-',  // ― horizontal bar
+        "\xE2\x88\x92" => '-',  // − minus sign
+        "\xC2\xA0"     => ' ',  // NBSP -> espaço normal
+    ));
+    // Remove caracteres de controle (0x00-0x1F e 0x7F) que corrompem upload
+    $nome = preg_replace('/[\x00-\x1F\x7F]/u', '', $nome);
+    // Colapsa múltiplos espaços/hífens que a substituição possa ter gerado
+    $nome = preg_replace('/\s+/', ' ', $nome);
+    $nome = preg_replace('/-{2,}/', '-', $nome);
+    return trim($nome);
+}
