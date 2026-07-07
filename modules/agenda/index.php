@@ -596,6 +596,10 @@ if ($voltarCaso > 0): ?>
                     <input type="checkbox" class="agBvMotChk" data-text="PEDIDO DE PRISÃO" onchange="bvMotivosAtualizar()">
                     <span>PEDIDO DE PRISÃO</span>
                 </label>
+                <label style="display:flex;align-items:center;gap:.45rem;cursor:pointer;">
+                    <input type="checkbox" class="agBvMotChk" data-text="PEDIDO DE HABILITAÇÃO/DESARQUIVAMENTO" onchange="bvMotivosAtualizar()">
+                    <span>PEDIDO DE HABILITAÇÃO / DESARQUIVAMENTO</span>
+                </label>
                 <label style="display:flex;align-items:flex-start;gap:.45rem;cursor:pointer;margin-top:.2rem;">
                     <input type="checkbox" class="agBvMotChk" data-text="" data-custom="1" onchange="bvMotivosAtualizar()" style="margin-top:7px;">
                     <span style="flex:1;">
