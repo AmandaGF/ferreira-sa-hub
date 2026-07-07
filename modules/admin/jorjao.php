@@ -414,6 +414,10 @@ foreach ($tocadaInfo as $tocKey => $info): ?>
           <a href="#" onclick="event.preventDefault();novLimparEscolha()" style="color:#B87333;font-weight:700;">aqui pra voltar ao sorteio aleatório</a>.
         </div>
 
+        <div style="background:#fef3c7;border-left:3px solid #d97706;border-radius:0 8px 8px 0;padding:.55rem .75rem;margin-bottom:.7rem;font-size:.76rem;color:#78350f;line-height:1.5;">
+          💡 <strong>Como funciona:</strong> a variação escolhida é o <em>jeito de falar</em> do Jorjão (a embalagem cheia de emojis e brincadeira). Você preenche o QUE ele vai anunciar (título + descrição) e ele encaixa nos <code style="background:rgba(184,115,51,.15);padding:1px 5px;border-radius:3px;">[titulo]</code> e <code style="background:rgba(184,115,51,.15);padding:1px 5px;border-radius:3px;">[descricao]</code> automaticamente.
+        </div>
+
         <div style="display:grid;gap:.6rem;">
           <div>
             <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#78350f;">Título</label>
@@ -432,6 +436,12 @@ foreach ($tocadaInfo as $tocKey => $info): ?>
             <?php if (!$flagNovidade): ?><small style="color:#991b1b;font-size:.75rem;">⚠ Killswitch OFF — ligue no painel acima primeiro.</small><?php endif; ?>
           </div>
         </div>
+
+        <div style="margin-top:.85rem;">
+          <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#78350f;">Prévia do que vai chegar no grupo</label>
+          <pre id="nov-preview" style="background:#052228;color:#e5e7eb;padding:.85rem 1rem;border-radius:8px;font-family:'JetBrains Mono',ui-monospace,Consolas,monospace;font-size:.76rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;margin:.3rem 0 0;min-height:80px;">Digite o título e a descrição pra ver como o Jorjão vai anunciar…</pre>
+          <small style="color:#8b7a68;font-size:.7rem;">A prévia atualiza sozinha enquanto você digita. Se não escolheu variação, mostra a #1 pra referência (no envio real, ele sorteia).</small>
+        </div>
       </form>
     <?php elseif (in_array($tocKey, array('peticao_distribuida','prazo_cumprido'))): ?>
       <form method="POST" style="margin-bottom:.75rem;">
@@ -446,7 +456,7 @@ foreach ($tocadaInfo as $tocKey => $info): ?>
 
     <div class="jz-tpl-list">
       <?php foreach ($tpls[$tocKey] as $t): ?>
-      <div class="jz-tpl <?= $t['ativo'] ? '' : 'off' ?>">
+      <div class="jz-tpl <?= $t['ativo'] ? '' : 'off' ?>" data-template-text="<?= e($t['template']) ?>">
         <div class="jz-tpl-body">
           <pre><?= e($t['template']) ?></pre>
           <?php if (!$t['ativo']): ?><small style="color:#991b1b;font-size:.7rem;">DESATIVADO</small><?php endif; ?>
@@ -550,15 +560,13 @@ function novUsarEssa(id, btn) {
   hidden.value = id;
   num.textContent = id;
   badge.style.display = 'block';
-  // Marca visualmente qual está escolhida
   document.querySelectorAll('.jz-tpl.escolhida-nov').forEach(function(el){ el.classList.remove('escolhida-nov'); });
   document.querySelectorAll('.jz-btn-usar.escolhida').forEach(function(el){ el.classList.remove('escolhida'); el.textContent = '⬆️ Usar essa'; });
   var card = btn.closest('.jz-tpl');
   if (card) card.classList.add('escolhida-nov');
   btn.classList.add('escolhida');
   btn.textContent = 'Escolhida';
-  // Scroll pro form do topo
-  var form = document.getElementById('form-novidade_hub');
+  novAtualizarPreview();
   var alvo = badge.closest('form');
   if (alvo) alvo.scrollIntoView({behavior:'smooth', block:'center'});
 }
@@ -569,7 +577,53 @@ function novLimparEscolha() {
   if (badge) badge.style.display = 'none';
   document.querySelectorAll('.jz-tpl.escolhida-nov').forEach(function(el){ el.classList.remove('escolhida-nov'); });
   document.querySelectorAll('.jz-btn-usar.escolhida').forEach(function(el){ el.classList.remove('escolhida'); el.textContent = '⬆️ Usar essa'; });
+  novAtualizarPreview();
 }
+
+// Renderiza a prévia com título + descrição substituídos na variação escolhida (ou #1 se nenhuma)
+function novAtualizarPreview() {
+  var preview = document.getElementById('nov-preview');
+  if (!preview) return;
+  var titulo = (document.querySelector('input[name="nov_titulo"]') || {}).value || '';
+  var desc   = (document.querySelector('textarea[name="nov_desc"]') || {}).value || '';
+  var link   = (document.querySelector('input[name="nov_link"]') || {}).value || '(sem link)';
+  var tplId  = (document.getElementById('nov-tpl-id') || {}).value || '';
+
+  var abaNov = document.querySelector('.jz-tab-content[data-aba="novidade_hub"]');
+  if (!abaNov) return;
+  var cards = abaNov.querySelectorAll('.jz-tpl[data-template-text]');
+  var tplText = '';
+  if (tplId) {
+    // procura o card com id específico (via botão que tem onclick com esse id)
+    for (var i=0; i<cards.length; i++) {
+      var btnU = cards[i].querySelector('.jz-btn-usar');
+      if (btnU && btnU.getAttribute('onclick') && btnU.getAttribute('onclick').indexOf('(' + tplId + ',') >= 0) {
+        tplText = cards[i].getAttribute('data-template-text') || ''; break;
+      }
+    }
+  }
+  if (!tplText && cards.length) tplText = cards[0].getAttribute('data-template-text') || '';
+
+  if (!tplText) { preview.textContent = '(nenhuma variação disponível)'; return; }
+
+  var hoje = new Date().toLocaleDateString('pt-BR');
+  var msg = tplText
+    .replace(/\[titulo\]/g, titulo || '[preencha o título acima]')
+    .replace(/\[descricao\]/g, desc || '[preencha a descrição acima]')
+    .replace(/\[link\]/g, link || '(sem link)')
+    .replace(/\[hoje\]/g, hoje);
+  preview.textContent = msg;
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+  var t = document.querySelector('input[name="nov_titulo"]');
+  var d = document.querySelector('textarea[name="nov_desc"]');
+  var l = document.querySelector('input[name="nov_link"]');
+  if (t) t.addEventListener('input', novAtualizarPreview);
+  if (d) d.addEventListener('input', novAtualizarPreview);
+  if (l) l.addEventListener('input', novAtualizarPreview);
+  novAtualizarPreview();
+});
 
 // Copia o texto do template pro clipboard
 function jzCopiar(btn) {
