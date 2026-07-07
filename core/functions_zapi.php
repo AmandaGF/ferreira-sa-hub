@@ -1376,13 +1376,19 @@ function zapi_salvar_mensagem_recebida($conversaId, $payload, $tipo, $conteudo, 
     // várias chegam em rajada (ordem de inserção != ordem de envio do cliente).
     try { db()->exec("ALTER TABLE zapi_mensagens ADD COLUMN momment_ms BIGINT NULL"); } catch (Exception $e) {}
     try { db()->exec("CREATE INDEX idx_msgs_momment ON zapi_mensagens(conversa_id, momment_ms)"); } catch (Exception $e) {}
+    // Amanda 06/07/2026: sender_name = nome do participante que enviou a msg.
+    // Em conversas 1:1 é o mesmo do nome_contato da conversa; em GRUPOS varia
+    // por msg (cada membro tem seu senderName). Necessário pro Jorjão fazer
+    // resumo diário do grupo atribuindo quem falou o quê.
+    try { db()->exec("ALTER TABLE zapi_mensagens ADD COLUMN sender_name VARCHAR(150) NULL"); } catch (Exception $e) {}
 
     $momment = isset($payload['momment']) ? (int)$payload['momment'] : null;
+    $senderName = trim((string)($payload['senderName'] ?? '')) ?: null;
 
     db()->prepare(
         "INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, direcao, tipo, conteudo,
-            arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, status, momment_ms)
-         VALUES (?, ?, 'recebida', ?, ?, ?, ?, ?, ?, 'recebida', ?)"
+            arquivo_url, arquivo_nome, arquivo_mime, arquivo_tamanho, status, momment_ms, sender_name)
+         VALUES (?, ?, 'recebida', ?, ?, ?, ?, ?, ?, 'recebida', ?, ?)"
     )->execute(array(
         $conversaId,
         $zapiMsgId,
@@ -1393,6 +1399,7 @@ function zapi_salvar_mensagem_recebida($conversaId, $payload, $tipo, $conteudo, 
         $arquivo['mime']    ?? null,
         $arquivo['tamanho'] ?? null,
         $momment,
+        $senderName,
     ));
     return (int)db()->lastInsertId();
 }

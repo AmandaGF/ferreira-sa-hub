@@ -82,11 +82,10 @@ if (!$convId) { echo "Conversa do grupo não encontrada no DB. O grupo teve movi
 echo "  Conversa do grupo: #{$convId}\n";
 
 // Msgs do dia (últimas 500 pra proteger token).
-// zapi_mensagens NÃO tem coluna autor_nome (grupos WhatsApp: o nome do
-// participante que enviou msg não é guardado). Distinguimos só quem é
-// da equipe (via users.name) vs 'Alguém do grupo' pras msgs recebidas.
+// sender_name (Z-API pushName do participante do grupo) foi adicionado em
+// 06/07/2026 — msgs anteriores ficam NULL e caem no fallback genérico.
 $stMsg = $pdo->prepare("SELECT m.direcao, m.tipo, m.conteudo, m.created_at,
-                              u.name AS user_nome
+                              m.sender_name, u.name AS user_nome
                        FROM zapi_mensagens m
                        LEFT JOIN users u ON u.id = m.enviado_por_id
                        WHERE m.conversa_id = ? AND DATE(m.created_at) = ?
@@ -108,7 +107,17 @@ $autoresVistos = array();
 foreach ($msgs as $m) {
     if ($m['tipo'] !== 'texto' || !$m['conteudo']) continue;
     $hora = date('H:i', strtotime($m['created_at']));
-    $quem = $m['user_nome'] ?: ($m['direcao'] === 'enviada' ? 'Equipe' : 'Alguém do grupo');
+    if ($m['user_nome']) {
+        // Equipe — usa primeiro nome pra ficar limpo na transcrição
+        $partes = preg_split('/\s+/', $m['user_nome']);
+        $quem = $partes[0] ?: $m['user_nome'];
+    } elseif ($m['sender_name']) {
+        // Participante do grupo (nome que o WhatsApp exibe)
+        $partes = preg_split('/\s+/', trim($m['sender_name']));
+        $quem = $partes[0] ?: $m['sender_name'];
+    } else {
+        $quem = ($m['direcao'] === 'enviada') ? 'Equipe' : 'Alguém do grupo';
+    }
     $autoresVistos[$quem] = true;
     $txt = mb_substr(preg_replace('/\s+/', ' ', $m['conteudo']), 0, 400);
     $transcricao .= "[{$hora}] {$quem}: {$txt}\n";
