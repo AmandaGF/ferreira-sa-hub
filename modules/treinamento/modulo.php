@@ -228,6 +228,51 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tm-mock-calc-result b { color:#f5ede3; font-family:'Cormorant Garamond',serif; font-size:1.15rem; font-weight:600; }
 .tm-mock-calc-result .aviso { color:#fbbf24; font-size:.72rem; margin-top:.35rem; display:block; }
 
+/* Documentos — grid de tipos */
+.tm-mock-docs-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(140px, 1fr)); gap:.5rem; }
+.tm-mock-doc-card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:.7rem; text-align:center; font-size:.72rem; }
+.tm-mock-doc-card.hi { border-color:#B87333; background:#faf7f2; }
+.tm-mock-doc-card .ico { font-size:1.5rem; margin-bottom:.3rem; }
+.tm-mock-doc-card .n { font-weight:700; color:#052228; }
+
+/* Fabrica petições — chat com IA */
+.tm-mock-ia { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:.85rem 1rem; max-width:520px; margin:0 auto; }
+.tm-mock-ia-bolha { padding:.55rem .8rem; border-radius:10px; margin-bottom:.5rem; font-size:.78rem; line-height:1.5; }
+.tm-mock-ia-bolha.user { background:#f0f9ff; border-left:3px solid #0284c7; }
+.tm-mock-ia-bolha.bot { background:#faf7f2; border-left:3px solid #B87333; }
+.tm-mock-ia-bolha .who { font-size:.62rem; text-transform:uppercase; letter-spacing:.08em; font-weight:700; margin-bottom:.2rem; opacity:.7; }
+
+/* Tarefas — lista com prioridade */
+.tm-mock-tarefas { background:#fff; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden; }
+.tm-mock-tarefa { display:flex; align-items:center; gap:.6rem; padding:.6rem .85rem; border-bottom:1px solid #f3f0ea; font-size:.8rem; }
+.tm-mock-tarefa:last-child { border-bottom:0; }
+.tm-mock-tarefa.hi { background:#fef2f2; }
+.tm-mock-tarefa .pri { padding:1px 7px; border-radius:5px; font-size:.6rem; font-weight:700; text-transform:uppercase; }
+.tm-mock-tarefa .pri.alta { background:#fee2e2; color:#991b1b; }
+.tm-mock-tarefa .pri.media { background:#fef3c7; color:#78350f; }
+.tm-mock-tarefa .pri.baixa { background:#e0f2fe; color:#075985; }
+.tm-mock-tarefa .txt { flex:1; color:#052228; }
+.tm-mock-tarefa .quando { font-size:.68rem; color:#8b7a68; }
+
+/* Agenda — mini calendário */
+.tm-mock-cal { display:grid; grid-template-columns:repeat(7, 1fr); gap:1px; background:#e5e7eb; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden; }
+.tm-mock-cal-hd { background:#052228; color:#fff; padding:.35rem; text-align:center; font-size:.62rem; font-weight:700; text-transform:uppercase; }
+.tm-mock-cal-day { background:#fff; padding:.35rem .4rem; min-height:52px; font-size:.7rem; }
+.tm-mock-cal-day.hoje { background:#f5ede3; box-shadow:inset 0 0 0 2px #B87333; }
+.tm-mock-cal-day.tem { background:#fef3c7; }
+.tm-mock-cal-day .num { font-weight:700; color:#052228; }
+.tm-mock-cal-day .ev { display:block; font-size:.58rem; color:#78350f; margin-top:.15rem; overflow:hidden; text-overflow:ellipsis; }
+
+/* Financeiro — cards de valores */
+.tm-mock-fin-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:.6rem; }
+.tm-mock-fin-card { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:.75rem .85rem; }
+.tm-mock-fin-card.pos { border-left:4px solid #059669; }
+.tm-mock-fin-card.neg { border-left:4px solid #dc2626; }
+.tm-mock-fin-card.warn { border-left:4px solid #d97706; }
+.tm-mock-fin-card .k { font-size:.62rem; text-transform:uppercase; letter-spacing:.08em; color:#8b7a68; font-weight:700; }
+.tm-mock-fin-card .v { font-family:'Cormorant Garamond',serif; font-size:1.4rem; font-weight:600; color:#052228; }
+.tm-mock-fin-card .sub { font-size:.68rem; color:#8b7a68; }
+
 /* Procuração — comparativo lado a lado */
 .tm-mock-procuracao { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; }
 @media (max-width:640px) { .tm-mock-procuracao { grid-template-columns:1fr; } }

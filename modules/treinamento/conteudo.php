@@ -329,6 +329,27 @@ HTML,
 ),
 
 'documentos' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/documentos/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-docs-grid">
+      <div class="tm-mock-doc-card hi"><div class="ico">📝</div><div class="n">Procuração</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">💼</div><div class="n">Contrato Honor.</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">↔️</div><div class="n">Substabelec.</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">📉</div><div class="n">Hipossuficiência</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">📮</div><div class="n">Citação WhatsApp</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">✉️</div><div class="n">Ofício</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">📄</div><div class="n">Declaração</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">📋</div><div class="n">Termo Renúncia</div></div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — 15 templates prontos. Escolhe o tipo, o sistema pré-preenche com dados do cliente + caso. Baixa .doc com timbrado F&S 2026. Backup em document_history pra sempre recuperar valores usados.</p>
+</figure>
+HTML,
     'por_que' => 'Geração automática de 15 templates estáticos — procuração, contrato de honorários, substabelecimento, hipossuficiência, citação por WhatsApp (CPC 246, V), etc. Tudo preenchido em segundos a partir dos dados do cadastro.',
     'passos' => array(
         'Menu **Documentos** ou botão na pasta do caso.',
@@ -417,6 +438,30 @@ HTML,
 ),
 
 'fabrica-peticoes' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/peticoes/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-ia">
+      <div class="tm-mock-ia-bolha user">
+        <div class="who">Você</div>
+        Gerar petição inicial de <strong>alimentos</strong> pra Maria da Silva (autora, mãe) x José Pereira (réu, pai). Filho: Lucas, 8 anos. Renda comprovada do réu: R$ 4.500. Pedido: 30% do salário.
+      </div>
+      <div class="tm-mock-ia-bolha bot">
+        <div class="who">🤖 Claude Sonnet</div>
+        <strong>EXCELENTÍSSIMO SENHOR DOUTOR JUIZ DE DIREITO DA VARA DE FAMÍLIA…</strong><br><br>
+        LUCAS DA SILVA PEREIRA, brasileiro, menor impúbere, representado por sua genitora <strong>MARIA DA SILVA</strong>, vem à presença de V. Exa. propor a presente <strong>AÇÃO DE ALIMENTOS</strong> em face de <strong>JOSÉ PEREIRA</strong>…
+        <br><br>
+        <em>[texto completo — 6 páginas geradas em 34 segundos]</em>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Você descreve o caso em linguagem natural, o Claude Sonnet gera petição completa em segundos. Sempre revise antes de protocolar!</p>
+</figure>
+HTML,
     'por_que' => 'Geração de petições completas com IA — Claude Sonnet 4.6. 14 tipos de ação × 12 tipos de peça = 168 combinações. Com Visual Law, logo embutido, papel timbrado e prompt caching (economia de 90% no input).',
     'passos' => array(
         'Acessa a **Fábrica de Petições** direto da pasta do caso (botão).',
@@ -432,6 +477,39 @@ HTML,
 ),
 
 'tarefas' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/tarefas/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-tarefas">
+      <div class="tm-mock-tarefa hi">
+        <span class="pri alta">ALTA</span>
+        <span class="txt">⏰ PRAZO: Contestação Gildson Faria (fatal 09/07)</span>
+        <span class="quando">Hoje</span>
+      </div>
+      <div class="tm-mock-tarefa">
+        <span class="pri media">MÉD</span>
+        <span class="txt">Ligar pra cliente Ana confirmando audiência</span>
+        <span class="quando">Amanhã</span>
+      </div>
+      <div class="tm-mock-tarefa">
+        <span class="pri media">MÉD</span>
+        <span class="txt">Revisar procuração Vagner Nunes</span>
+        <span class="quando">Amanhã</span>
+      </div>
+      <div class="tm-mock-tarefa">
+        <span class="pri baixa">BAIXA</span>
+        <span class="txt">Atualizar planilha de honorários</span>
+        <span class="quando">Sexta</span>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Tarefas ordenadas por prioridade. Prazos processuais viram tarefa automaticamente com prioridade ALTA vermelha. Concluir aqui destrava o prazo (e o Jorjão toca sino no grupo se ativado 🐻).</p>
+</figure>
+HTML,
     'por_que' => 'Kanban de Tarefas é onde o operacional organiza o trabalho diário. Cada peça a peticionar, cada ofício a escrever, cada prazo — vira uma tarefa. 4 colunas: A Fazer · Em Andamento · Aguardando · Concluído.',
     'passos' => array(
         '6 tipos: Peticionar · Juntar Documento · Prazo Processual · Ofício · Acordo/Conciliação · Outros.',
@@ -671,6 +749,34 @@ HTML,
 ),
 
 'distribuir-peticao-inicial' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Do PJe/PROJUDI/e-SAJ de volta pro Hub</span>
+  </div>
+  <div class="tm-screen-body">
+    <div style="display:flex;flex-direction:column;gap:.7rem;">
+      <div style="background:#fef3c7;border-left:3px solid #d97706;padding:.7rem 1rem;border-radius:0 8px 8px 0;font-size:.82rem;">
+        <strong>1.</strong> Protocola no <strong>PJe</strong> (ou tribunal apropriado)
+      </div>
+      <div style="background:#fef3c7;border-left:3px solid #d97706;padding:.7rem 1rem;border-radius:0 8px 8px 0;font-size:.82rem;">
+        <strong>2.</strong> Copia o <strong>número CNJ</strong> gerado
+      </div>
+      <div style="background:#f0f9ff;border-left:3px solid #0284c7;padding:.7rem 1rem;border-radius:0 8px 8px 0;font-size:.82rem;">
+        <strong>3.</strong> Volta pro Hub → pasta do processo → cola <strong>número CNJ</strong> no campo
+      </div>
+      <div style="background:#ecfdf5;border-left:3px solid #059669;padding:.7rem 1rem;border-radius:0 8px 8px 0;font-size:.82rem;">
+        <strong>4.</strong> Sistema faz automaticamente:<br>
+        &nbsp;&nbsp;• Move card pra "Em Andamento"<br>
+        &nbsp;&nbsp;• Ativa DataJud pra puxar andamentos<br>
+        &nbsp;&nbsp;• 🐻 Jorjão toca sino no grupo comemorando
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Fluxo — Protocolar no PJe é só metade do trabalho. A outra metade é registrar o CNJ no Hub pra ativar toda a cadeia de automação (sync, Jorjão, agenda de prazos).</p>
+</figure>
+HTML,
     'por_que' => 'Quando a petição inicial está pronta e protocolada no tribunal, o caso precisa subir pra **Processo Distribuído** no Kanban Operacional. É essa movimentação que: (1) registra o número CNJ no sistema, (2) gera andamento automático no histórico do processo, (3) avisa o cliente pelo WhatsApp + Sala VIP que o processo foi ajuizado.',
     'passos' => array(
         'Abra **Kanban Operacional** na sidebar.',
@@ -735,6 +841,46 @@ HTML,
 //   • Pedido de Reconsideração
 
 'cadastrar-processo-existente' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/operacional/caso_novo.php</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-form">
+      <div class="tm-mock-form-title">➕ Cadastrar processo existente</div>
+      <div class="tm-mock-grid">
+        <div class="tm-mock-field full">
+          <label>Cliente ★ (busca por nome/CPF)</label>
+          <div class="tm-mock-input">Maria da Silva Santos — 139.***.***-05</div>
+        </div>
+        <div class="tm-mock-field full">
+          <label>Título da pasta ★ (padrão da casa)</label>
+          <div class="tm-mock-input focus">MARIA SILVA x Alimentos</div>
+        </div>
+        <div class="tm-mock-field">
+          <label>Nº CNJ</label>
+          <div class="tm-mock-input">0817952-56.2025.8.19.0202</div>
+        </div>
+        <div class="tm-mock-field">
+          <label>Sistema</label>
+          <div class="tm-mock-input">PJe</div>
+        </div>
+        <div class="tm-mock-field">
+          <label>Vara</label>
+          <div class="tm-mock-input">2ª Vara Família</div>
+        </div>
+        <div class="tm-mock-field">
+          <label>Status</label>
+          <div class="tm-mock-input">Em andamento</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Cadastro direto no Operacional (pra processos que já tramitam). Nomeie sempre <strong>"NOME x AÇÃO"</strong>. Se o cliente é novo, cadastre antes pelo Pipeline pra manter métrica do funil.</p>
+</figure>
+HTML,
     'por_que' => 'Tem casos onde o processo **já está em andamento** quando o cliente chega pra cá: cliente migrou de outro escritório, recurso de processo antigo, pasta herdada, etc. O fluxo do Pipeline Comercial assume processo NOVO (vai cadastrar lead → mover até "Contrato Assinado" → criar pasta automaticamente). Pra esses casos onde já existe número CNJ, vara, andamentos, etc, faz mais sentido cadastrar **direto no Operacional** já com tudo preenchido.',
     'passos' => array(
         'Abra **Kanban Operacional** ou **Processos** (lista) na sidebar.',
