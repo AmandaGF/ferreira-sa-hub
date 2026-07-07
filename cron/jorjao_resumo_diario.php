@@ -30,6 +30,13 @@ require_once __DIR__ . '/../core/functions_comemoracao.php';
 require_once __DIR__ . '/../core/functions_jorjao.php';
 
 if (!$isCli) { header('Content-Type: text/plain; charset=utf-8'); }
+ini_set('display_errors', '1'); error_reporting(E_ALL);
+register_shutdown_function(function() {
+    $e = error_get_last();
+    if ($e && in_array($e['type'], array(E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR))) {
+        echo "\n[FATAL] {$e['message']} em {$e['file']}:{$e['line']}\n";
+    }
+});
 $pdo = db();
 $hoje = date('Y-m-d');
 echo "[" . date('Y-m-d H:i:s') . "] === jorjao_resumo_diario ===\n";
