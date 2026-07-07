@@ -273,6 +273,35 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tm-mock-fin-card .v { font-family:'Cormorant Garamond',serif; font-size:1.4rem; font-weight:600; color:#052228; }
 .tm-mock-fin-card .sub { font-size:.68rem; color:#8b7a68; }
 
+/* Mockup — Cards do Pipeline/Operacional com badge de cliques */
+.tm-mock-pipe-card { background:#fff; border:1px solid #e5e7eb; border-left:4px solid #B87333; border-radius:8px; padding:.65rem .8rem; max-width:250px; margin:0 auto; box-shadow:0 2px 6px rgba(0,0,0,.06); }
+.tm-mock-pipe-card .n { font-weight:700; color:#052228; font-size:.85rem; }
+.tm-mock-pipe-card .m { font-size:.7rem; color:#6b7280; margin-top:.2rem; display:flex; gap:.55rem; }
+.tm-mock-pipe-card .cnj { font-size:.62rem; color:#15803d; font-family:'Courier New',monospace; margin-top:.2rem; }
+.tm-mock-pipe-card .click-badge { font-size:.6rem; color:#0369a1; font-weight:700; margin-top:.3rem; background:#e0f2fe; display:inline-block; padding:1px 6px; border-radius:5px; }
+
+/* Comparativo antes/depois (chat WhatsApp) */
+.tm-mock-antes-depois { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; }
+@media (max-width:640px) { .tm-mock-antes-depois { grid-template-columns:1fr; } }
+.tm-mock-ad-card { background:#fff; border:2px solid; border-radius:10px; padding:.8rem .9rem; }
+.tm-mock-ad-card.antes { border-color:#94a3b8; }
+.tm-mock-ad-card.depois { border-color:#059669; background:#ecfdf5; }
+.tm-mock-ad-card h5 { margin:0 0 .5rem; font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; font-weight:800; }
+.tm-mock-ad-card.antes h5 { color:#475569; }
+.tm-mock-ad-card.depois h5 { color:#047857; }
+.tm-mock-ad-card .bolha { background:#dcfce7; padding:.5rem .75rem; border-radius:8px; font-size:.78rem; color:#052228; line-height:1.5; word-break:break-all; }
+.tm-mock-ad-card.antes .bolha { background:#f1f5f9; }
+.tm-mock-ad-card .obs { font-size:.68rem; color:#8b7a68; margin-top:.4rem; font-style:italic; }
+
+/* Fluxo do clique — 3 caixas horizontais */
+.tm-mock-fluxo-cliente { display:grid; grid-template-columns:1fr auto 1fr auto 1fr; gap:.5rem; align-items:center; }
+@media (max-width:640px) { .tm-mock-fluxo-cliente { grid-template-columns:1fr; } .tm-mock-fluxo-cliente .seta { display:none; } }
+.tm-mock-fluxo-cliente .caixa { background:#fff; border:2px solid #B87333; border-radius:10px; padding:.7rem .8rem; text-align:center; font-size:.78rem; }
+.tm-mock-fluxo-cliente .caixa .ico { font-size:1.6rem; margin-bottom:.25rem; display:block; }
+.tm-mock-fluxo-cliente .caixa .titulo { font-weight:700; color:#052228; }
+.tm-mock-fluxo-cliente .caixa .sub { font-size:.66rem; color:#8b7a68; margin-top:.15rem; }
+.tm-mock-fluxo-cliente .seta { font-size:1.5rem; color:#B87333; text-align:center; }
+
 /* Procuração — comparativo lado a lado */
 .tm-mock-procuracao { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; }
 @media (max-width:640px) { .tm-mock-procuracao { grid-template-columns:1fr; } }

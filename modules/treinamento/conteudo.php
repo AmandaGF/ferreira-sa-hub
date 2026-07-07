@@ -1281,6 +1281,104 @@ HTML,
     'missao' => 'Cliente novo chegou aqui com processo Cível ajuizado em outro escritório, com número CNJ e vara em Volta Redonda. Cadastre no Hub: (1) cliente novo (cadastre antes pelo Pipeline ou direto pelo módulo Clientes), (2) processo com número CNJ + vara + comarca, (3) cliente como Autor + parte contrária como Réu, (4) status "Em andamento". Depois abra a pasta criada e confirme que está tudo lá.',
 ),
 
+'rastreio-cliques-wa' => array(
+    'por_que' => 'Antes: você mandava um link pro lead pelo WhatsApp e nunca sabia se ele abriu — ficava adivinhando "será que viu?". Agora: o Hub **substitui automaticamente** todo link por um encurtador rastreável. Sempre que o cliente clica, um badge **🔗 N cliques · há Xh** aparece no card dele no Kanban. Você descobre em minutos quem tá engajado e quem tá frio.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">O que muda na hora do envio</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-antes-depois">
+      <div class="tm-mock-ad-card antes">
+        <h5>👀 O que você digita</h5>
+        <div class="bolha">Oi Maria! Segue o contrato pra assinar: https://ferreiraesa.com.br/contrato/2026-3382</div>
+        <div class="obs">Link normal, como sempre.</div>
+      </div>
+      <div class="tm-mock-ad-card depois">
+        <h5>✨ O que sai no WhatsApp</h5>
+        <div class="bolha">Oi Maria! Segue o contrato pra assinar: https://ferreiraesa.com.br/conecta/l/A7bK9m</div>
+        <div class="obs">Hub trocou o link automaticamente. Cliente clica → 302 pro real (imperceptível).</div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela 1 — Substituição automática. Você NÃO precisa fazer nada: continua digitando URLs normais e o Hub substitui na hora do envio.</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Como o clique é registrado</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-fluxo-cliente">
+      <div class="caixa">
+        <span class="ico">📱</span>
+        <div class="titulo">Cliente clica no link</div>
+        <div class="sub">no WhatsApp dele</div>
+      </div>
+      <div class="seta">→</div>
+      <div class="caixa" style="border-color:#059669;background:#ecfdf5;">
+        <span class="ico">📊</span>
+        <div class="titulo">Hub registra</div>
+        <div class="sub">IP + horário + qual link</div>
+      </div>
+      <div class="seta">→</div>
+      <div class="caixa">
+        <span class="ico">🌐</span>
+        <div class="titulo">Cliente cai no destino</div>
+        <div class="sub">imperceptível (302)</div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela 2 — Fluxo do clique. Cliente clica no shortlink → Hub registra (invisível) → redirect 302 pro link real. Do lado do cliente, nada muda.</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Onde você vê que o cliente clicou</span>
+  </div>
+  <div class="tm-screen-body">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.7rem;max-width:600px;margin:0 auto;">
+      <div>
+        <div style="text-align:center;font-size:.68rem;color:#8b7a68;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:.4rem;">Sem clique</div>
+        <div class="tm-mock-pipe-card">
+          <div class="n">João Ferreira Lima</div>
+          <div class="m"><span>📱 21 99754-1122</span></div>
+          <div class="m"><span>📁 Divórcio</span></div>
+          <div class="cnj">⚖️ Aguardando resposta</div>
+        </div>
+      </div>
+      <div>
+        <div style="text-align:center;font-size:.68rem;color:#0369a1;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:.4rem;">🔥 Cliente clicou!</div>
+        <div class="tm-mock-pipe-card">
+          <div class="n">Maria da Silva</div>
+          <div class="m"><span>📱 24 99289-9663</span></div>
+          <div class="m"><span>📁 Alimentos</span></div>
+          <div class="cnj">⚖️ Contrato enviado</div>
+          <div class="click-badge">🔗 3 cliques · há 2h</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela 3 — Card do Pipeline (e do Operacional). Badge azul só aparece quando o cliente clicou nos links dos últimos 7 dias. Cliente da direita tá quente — bora fechar!</p>
+</figure>
+HTML,
+    'passos' => array(
+        'Você continua **digitando URLs normalmente** nas mensagens do WhatsApp — do jeito que sempre fez.',
+        'Antes de enviar, o Hub **substitui automaticamente** cada URL por um shortlink rastreável (`ferreiraesa.com.br/conecta/l/A7bK9m`).',
+        'Cliente recebe a mensagem e clica → Hub **registra o clique** (IP + horário) → redirect **302** pro link real. Cliente não percebe nada.',
+        'Nos cards do **Kanban Comercial** e do **Kanban Operacional/CX**, aparece badge **🔗 N cliques · há Xh** quando o cliente clicou nos últimos 7 dias.',
+        'Vale pros 3 pontos de envio WhatsApp: conversa aberta, **envio rápido** (botões de cobrança/ficha), e **Agendar Mensagem** — funciona em todos.',
+        'Links do **Sala VIP e Asaas** já eram rastreados via portal próprio. Newsletter já era via Brevo. Esta feature fecha a lacuna do WhatsApp.',
+    ),
+    'atencao' => 'URLs internas do Hub logado (ex: `/modules/whatsapp/`) **não são encurtadas** — cliente sem login nem consegue abrir mesmo. **Exceção:** links de `/modules/treinamento/` SÃO encurtados (útil pra saber se a equipe clicou no link que o Jorjão anunciou). Se precisar mandar link do Hub logado pra outro colaborador, use o botão "🔗 Copiar link" do próprio treinamento — ele já monta a URL certa.',
+    'dica' => 'O badge só aparece se teve clique nos **últimos 7 dias**. Se sumiu do card do lead que você mandou link há 2 semanas, é porque ele não clicou recentemente (ou o dado saiu da janela). Considere clicar duas vezes = 2 acessos: **contamos todos os cliques**, não pessoas únicas — se o cliente abriu e fechou 3 vezes, badge mostra `🔗 3 cliques`.',
+    'missao' => 'Manda um link pra você mesma pelo WhatsApp (agenda uma mensagem no módulo Agendar Mensagem com um link qualquer, tipo `https://www.google.com`). Ao chegar, clica no link. Confere se o badge azul apareceu no seu card no Pipeline em uns minutos.',
+),
+
 'agendar-mensagem-wa' => array(
     'por_que' => 'Você combinou de dar retorno pro cliente na próxima segunda, mas não vai lembrar sábado à noite de programar isso. Ou tem audiência de manhã cedo e precisa mandar um check-in um dia antes. **Agendar Mensagem** deixa você escrever a mensagem agora e escolher exatamente quando ela sai — o Hub manda automaticamente no horário marcado, sem precisar deixar aba aberta nem lembrar.',
     'telas_html' => <<<'HTML'

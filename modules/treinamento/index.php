@@ -61,6 +61,7 @@ $catMap = array(
     'whatsapp-crm'                 => 'comunicacao',
     'newsletter'                   => 'comunicacao',
     'agendar-mensagem-wa'          => 'comunicacao',
+    'rastreio-cliques-wa'          => 'comunicacao',
     // 🛠️ Ferramentas Internas
     'helpdesk'                     => 'internas',
     'wiki'                         => 'internas',

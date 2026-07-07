@@ -88,6 +88,7 @@ $modulos = array(
     array('links-tribunais','Portal de Links e Tribunais','Acessando todos os tribunais e portais jurídicos em um clique','🔗','["todos"]',22,30),
     array('aniversarios','Aniversários e Relacionamento','Como o sistema parabeniza clientes automaticamente','🎂','["cx","admin","gestao"]',23,30),
     array('agendar-mensagem-wa','Agendar Mensagem WhatsApp','Programe uma mensagem pra sair automaticamente em data/hora específica','📅','["todos"]',24,50),
+    array('rastreio-cliques-wa','Rastreio de Cliques no WhatsApp','Descubra quando o cliente abriu o link que você mandou','🔗','["todos"]',25,50),
 );
 
 $stmt = $pdo->prepare("INSERT INTO treinamento_modulos (slug, titulo, descricao, icone, perfis_alvo, ordem, pontos) VALUES (?,?,?,?,?,?,?)
@@ -198,6 +199,12 @@ $quizzes = array(
     array('agendar-mensagem-wa','Depois de agendada, dá pra editar a mensagem?','Sim, botão Editar na linha','Sim, mas só até 1h antes do envio','Não — só cancelar e criar uma nova','Sim, só quem criou','c','Agendamentos não podem ser editados — se errou, cancela e cria de novo.',2),
     array('agendar-mensagem-wa','Como assinar uma mensagem agendada pra cliente?','Assinar com seu próprio nome (ex: "Camila")','Assinar como "Dra. Amanda" (autoridade)','Assinar como "Equipe Ferreira & Sá Advocacia"','Não precisa assinar','c','Padrão da casa: mensagens agendadas saem em nome do escritório, não da pessoa que agendou nem da Dra. Amanda pessoalmente.',3),
     array('agendar-mensagem-wa','Se o envio falhar 3 vezes seguidas, o que o Hub faz?','Tenta pra sempre até dar certo','Marca como Falhou em vermelho, mostra o erro e para de tentar','Manda pra caixa de envios pra revisão manual','Deleta o agendamento silenciosamente','b','Retry até 3 tentativas antes de marcar como Falhou — evita loop infinito quando número está desativado.',4),
+
+    // RASTREIO DE CLIQUES WA
+    array('rastreio-cliques-wa','O que acontece com a URL quando você manda um link no WhatsApp pelo Hub?','Nada — sai igual você digitou','Hub substitui automaticamente por um link curto tipo /l/A7bK9m que rastreia o clique','Precisa gerar manualmente antes de mandar','Só links de treinamento são encurtados','b','Substituição é automática antes do envio. Você digita a URL normal, Hub troca por shortlink transparente pro cliente.',1),
+    array('rastreio-cliques-wa','Onde aparece se o cliente clicou no link que você mandou?','Chega uma notificação push no seu celular','Badge azul "🔗 N cliques · há Xh" no card do lead (Pipeline) e no card do case (Operacional)','Só em relatório mensal por e-mail','Só se o cliente responder na conversa','b','Badge azul no CARD do Kanban aparece em minutos. Considera cliques dos últimos 7 dias.',2),
+    array('rastreio-cliques-wa','Quais URLs NÃO são encurtadas pelo Hub?','Todas as URLs são encurtadas sempre','Só as URLs internas do Hub logado (ex: /modules/whatsapp/) — cliente nem consegue acessar','Só links de sites do escritório','Só links de vídeos do YouTube','b','URLs internas do Hub logado ficam intactas (cliente sem login nem consegue abrir). Exceção: links de treinamento são encurtados sim, pra rastrear clique da equipe.',3),
+    array('rastreio-cliques-wa','O cliente percebe alguma diferença ao clicar no shortlink?','Sim, vê uma tela do Hub antes do redirect','Sim, precisa se cadastrar','Não — redirect 302 imediato, chega no destino sem interrupção','Sim, aparece propaganda','c','Redirect 302 é instantâneo. Cliente clica e cai direto no link real. Do lado dele não muda nada.',4),
 );
 
 $stmt = $pdo->prepare("INSERT INTO treinamento_quiz (modulo_slug, pergunta, opcao_a, opcao_b, opcao_c, opcao_d, resposta_correta, explicacao, ordem) VALUES (?,?,?,?,?,?,?,?,?)");
