@@ -117,6 +117,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect($_SERVER['REQUEST_URI'] . '#novidade_hub');
     }
 
+    if ($act === 'template_disparar_agora') {
+        $templateId = (int)($_POST['template_id'] ?? 0);
+        $tocada = $_POST['tocada'] ?? '';
+        if (!$templateId || !in_array($tocada, array('peticao_distribuida','prazo_cumprido','contrato_assinado','novidade_hub'), true)) {
+            flash_set('error', 'Parâmetros inválidos'); redirect($_SERVER['REQUEST_URI']);
+        }
+        // Busca a variação específica escolhida
+        $st = $pdo->prepare("SELECT template FROM jorjao_templates WHERE id = ? AND tocada = ?");
+        $st->execute(array($templateId, $tocada));
+        $tplText = (string)$st->fetchColumn();
+        if ($tplText === '') { flash_set('error', 'Template não encontrado'); redirect($_SERVER['REQUEST_URI']); }
+
+        // Vars demo (mesmo do testar_tocada)
+        $varsDemo = array(
+            'contrato_assinado' => array(
+                'cliente' => 'Cliente Teste da Silva', 'comercial' => 'Duda',
+                'tipo_caso' => 'Divórcio Consensual', 'valor' => '5.000,00',
+                'hoje' => date('d/m/Y'),
+            ),
+            'peticao_distribuida' => array(
+                'cliente' => 'Cliente Teste da Silva', 'operacional' => 'Duda',
+                'tipo_caso' => 'Divórcio Consensual', 'numero_processo' => '0817952-56.2025.8.19.0202',
+                'hoje' => date('d/m/Y'),
+            ),
+            'prazo_cumprido' => array(
+                'cliente' => 'Cliente Teste da Silva', 'operacional' => 'Amanda',
+                'tipo_prazo' => 'Contestação — 15 dias', 'processo' => '0817952-56.2025.8.19.0202',
+                'hoje' => date('d/m/Y'),
+            ),
+        );
+        $vars = $varsDemo[$tocada] ?? array('hoje' => date('d/m/Y'));
+        $mensagem = jorjao_render($tplText, $vars);
+
+        $g = jorjao_grupo_config();
+        if (!$g['grupo_id']) { flash_set('error', 'Grupo não configurado.'); redirect($_SERVER['REQUEST_URI'] . '#' . $tocada); }
+
+        require_once APP_ROOT . '/core/functions_zapi.php';
+        $r = zapi_send_text($g['canal'], $g['grupo_id'], $mensagem);
+        if (!empty($r['ok'])) {
+            jorjao_marcar_usado($templateId);
+            flash_set('success', '🐻 Jorjão mandou essa variação no grupo! Confere lá.');
+        } else {
+            flash_set('error', '⚠️ Falhou envio: ' . ($r['erro'] ?? 'erro desconhecido'));
+        }
+        redirect($_SERVER['REQUEST_URI'] . '#' . $tocada);
+    }
+
     if ($act === 'testar_tocada') {
         $tocada = $_POST['tocada'] ?? '';
         if (!in_array($tocada, array('peticao_distribuida','prazo_cumprido'), true)) {
@@ -222,6 +269,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .jz-btn-del { background:#fee2e2; color:#991b1b; border-color:#fecaca; }
 .jz-btn-off { background:#f3f4f6; color:#4b5563; border-color:#e5e7eb; }
 .jz-btn-on { background:#d1fae5; color:#065f46; border-color:#a7f3d0; }
+.jz-btn-copy { background:#fff; color:#052228; border-color:#e5e7eb; }
+.jz-btn-copy:hover { border-color:#B87333; color:#B87333; }
+.jz-btn-copy.copiado { background:#d1fae5; color:#065f46; border-color:#a7f3d0; }
+.jz-btn-send { background:#fef3c7; color:#78350f; border-color:#fcd34d; }
+.jz-btn-send:hover { background:#fde68a; }
 
 .jz-add-form { margin-top: 1rem; padding: 1rem; background:#f5faff; border:1px dashed #93c5fd; border-radius:8px; }
 .jz-add-form textarea { width:100%; min-height:110px; padding:.7rem; border:1.5px solid #e5e7eb; border-radius:7px; font-family:inherit; font-size:.85rem; box-sizing:border-box; }
@@ -386,6 +438,16 @@ foreach ($tocadaInfo as $tocKey => $info): ?>
           <?php if (!$t['ativo']): ?><small style="color:#991b1b;font-size:.7rem;">DESATIVADO</small><?php endif; ?>
         </div>
         <div class="jz-tpl-actions">
+          <button type="button" class="btn-mini jz-btn-copy" onclick="jzCopiar(this)" title="Copiar o texto pra colar em outro lugar">📋 Copiar</button>
+          <?php if (in_array($tocKey, array('peticao_distribuida','prazo_cumprido','contrato_assinado'), true)): ?>
+          <form method="POST" style="display:inline;" onsubmit="return confirm('Enviar essa variação AGORA no grupo? Vai chegar como mensagem real com valores de demo.')">
+            <?= csrf_input() ?>
+            <input type="hidden" name="action" value="template_disparar_agora">
+            <input type="hidden" name="template_id" value="<?= (int)$t['id'] ?>">
+            <input type="hidden" name="tocada" value="<?= $tocKey ?>">
+            <button type="submit" class="btn-mini jz-btn-send" title="Testar essa variação específica no grupo">🐻 Enviar</button>
+          </form>
+          <?php endif; ?>
           <button type="button" class="btn-mini jz-btn-edit" onclick="jzEdit(<?= (int)$t['id'] ?>, this)">✎ Editar</button>
           <form method="POST" style="display:inline;" onsubmit="return confirm('Excluir esse template?')">
             <?= csrf_input() ?>
@@ -460,6 +522,24 @@ function jzEdit(id, btn) {
   form.querySelector('button[type=submit]').textContent = 'Atualizar template #' + id;
   form.querySelector('label').textContent = 'Editando template #' + id;
   form.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+// Copia o texto do template pro clipboard
+function jzCopiar(btn) {
+  var tpl = btn.closest('.jz-tpl');
+  var texto = tpl.querySelector('pre').textContent;
+  var textoOriginal = btn.textContent;
+  var sucesso = function(){ btn.classList.add('copiado'); btn.textContent = '✓ Copiado!'; setTimeout(function(){ btn.classList.remove('copiado'); btn.textContent = textoOriginal; }, 1800); };
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(texto).then(sucesso).catch(fallback);
+  } else { fallback(); }
+  function fallback() {
+    var ta = document.createElement('textarea');
+    ta.value = texto; ta.style.position='fixed'; ta.style.left='-9999px';
+    document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); sucesso(); } catch(e) { alert(texto); }
+    document.body.removeChild(ta);
+  }
 }
 </script>
 
