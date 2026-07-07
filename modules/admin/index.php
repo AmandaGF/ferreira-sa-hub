@@ -16,6 +16,7 @@ $pageTitle = 'Central Admin';
 $grupos = array(
     '🔔 WhatsApp & Comunicação' => array(
         array('jorjao.php',              '🐻', 'Jorjão — Sinos WhatsApp',       'Configurar tocadas automáticas no grupo (petição distribuída, prazo cumprido, novidade no Hub, resumo diário)'),
+        array('shortlinks.php',          '🔗', 'Rastreio de Cliques',           'Ver quem clicou nos links enviados via WhatsApp (últimos 200 links + estatísticas)'),
         array('comemorar_contrato.php',  '🔔', 'Comemorar Contrato',            'Configuração original do sino de contrato assinado'),
         array('wa_pendentes.php',        '📞', 'WA Backup Pendente',            'Arquivos WhatsApp sem cliente/case pra vincular manualmente'),
         array('diag_wa.php',             '🩺', 'WhatsApp Saúde',                'Diagnóstico da instância Z-API'),
