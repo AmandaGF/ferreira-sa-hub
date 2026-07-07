@@ -65,20 +65,51 @@ if ($busca !== '') {
 
 $sql = "SELECT sl.id, sl.codigo, sl.url_original, sl.canal, sl.cliques_total,
                sl.ultimo_clique_em, sl.criado_em, sl.criado_por,
-               sl.client_id, sl.lead_id, sl.case_id,
+               sl.client_id, sl.lead_id, sl.case_id, sl.conversa_id,
                c.name AS client_name, c.phone AS client_phone,
                u.name AS criador_name,
+               co.telefone AS conversa_telefone,
+               co.nome_contato AS conversa_nome,
                (SELECT title FROM cases WHERE id = sl.case_id) AS case_title,
                (SELECT name FROM pipeline_leads WHERE id = sl.lead_id) AS lead_name
         FROM short_links sl
         LEFT JOIN clients c ON c.id = sl.client_id
         LEFT JOIN users u ON u.id = sl.criado_por
+        LEFT JOIN zapi_conversas co ON co.id = sl.conversa_id
         {$where}
         ORDER BY " . ($filtro === 'sem_clique' ? 'sl.criado_em DESC' : 'sl.ultimo_clique_em DESC, sl.criado_em DESC') . "
         LIMIT 200";
 $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $links = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Fallback: pra links "sem vínculo" mas COM conversa/telefone, tentar achar
+// lead ativo por match dos últimos 8 dígitos do telefone. Amanda 07/07/2026:
+// links criados via conversa aberta no WA nao guardam lead_id, mas ainda vale
+// mostrar quem é (o comercial precisa saber pra fechar contrato).
+$_leadsPorTel = array(); // sufixo_8 => ['id' => N, 'name' => X, 'stage' => S]
+try {
+    $telefonesParaBuscar = array();
+    foreach ($links as $l) {
+        if (empty($l['client_id']) && empty($l['lead_id']) && empty($l['case_id']) && !empty($l['conversa_telefone'])) {
+            $suf = substr(preg_replace('/\D/', '', $l['conversa_telefone']), -8);
+            if ($suf) $telefonesParaBuscar[$suf] = true;
+        }
+    }
+    if ($telefonesParaBuscar) {
+        // Pega leads ATIVOS (nao arquivados/perdidos) com telefone terminando nos sufixos
+        $st = $pdo->query("SELECT id, name, stage, phone FROM pipeline_leads
+                           WHERE stage NOT IN ('arquivado','perdido','cancelado')
+                             AND phone IS NOT NULL AND phone <> ''
+                           ORDER BY updated_at DESC LIMIT 2000");
+        foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $pl) {
+            $suf = substr(preg_replace('/\D/', '', $pl['phone']), -8);
+            if ($suf && isset($telefonesParaBuscar[$suf]) && !isset($_leadsPorTel[$suf])) {
+                $_leadsPorTel[$suf] = array('id' => (int)$pl['id'], 'name' => $pl['name'], 'stage' => $pl['stage']);
+            }
+        }
+    }
+} catch (Exception $e) {}
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -195,6 +226,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
   ?>
     <tr class="<?= $hot ? 'hot' : '' ?>">
       <td>
+        <?php
+        // Match por telefone quando sem vínculo direto
+        $_leadFallback = null;
+        if (empty($l['client_name']) && empty($l['lead_name']) && empty($l['case_title']) && !empty($l['conversa_telefone'])) {
+            $_sufTel = substr(preg_replace('/\D/', '', $l['conversa_telefone']), -8);
+            if ($_sufTel && isset($_leadsPorTel[$_sufTel])) $_leadFallback = $_leadsPorTel[$_sufTel];
+        }
+        ?>
         <?php if ($l['client_name']): ?>
           <strong><?= e($l['client_name']) ?></strong>
           <?php if ($l['client_phone']): ?><div class="meta">📱 <?= e($l['client_phone']) ?></div><?php endif; ?>
@@ -202,6 +241,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
           <strong><?= e($l['lead_name']) ?></strong> <span class="meta">(lead)</span>
         <?php elseif ($l['case_title']): ?>
           <strong><?= e($l['case_title']) ?></strong> <span class="meta">(pasta)</span>
+        <?php elseif ($_leadFallback): ?>
+          <strong><?= e($_leadFallback['name']) ?></strong> <span class="meta">(lead · <?= e($_leadFallback['stage']) ?>)</span>
+          <?php if ($l['conversa_telefone']): ?><div class="meta">📱 <?= e($l['conversa_telefone']) ?></div><?php endif; ?>
+        <?php elseif ($l['conversa_nome']): ?>
+          <span style="color:#052228;"><?= e($l['conversa_nome']) ?></span>
+          <div class="meta">📱 <?= e($l['conversa_telefone'] ?: '—') ?> <span style="opacity:.7;">(contato WA, sem lead)</span></div>
+        <?php elseif ($l['conversa_telefone']): ?>
+          <span style="color:#052228;">📱 <?= e($l['conversa_telefone']) ?></span>
+          <div class="meta">(contato WA, sem lead)</div>
         <?php else: ?>
           <span class="meta">Sem vínculo</span>
         <?php endif; ?>
@@ -257,6 +305,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
           <a href="<?= url('modules/operacional/caso_ver.php?id=' . (int)$l['case_id']) ?>" title="Abrir pasta">👉</a>
         <?php elseif ($l['client_id']): ?>
           <a href="<?= url('modules/clientes/ver.php?id=' . (int)$l['client_id']) ?>" title="Abrir cliente">👉</a>
+        <?php elseif (!empty($_leadFallback)): ?>
+          <a href="<?= url('modules/pipeline/lead_ver.php?id=' . (int)$_leadFallback['id']) ?>" title="Abrir lead (achado por telefone)">👉</a>
         <?php endif; ?>
       </td>
     </tr>
