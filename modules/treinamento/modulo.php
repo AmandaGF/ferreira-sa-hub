@@ -206,6 +206,39 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tm-mock-bolha.env { background:#dcfce7; align-self:flex-end; border-bottom-right-radius:3px; color:#052228; }
 .tm-mock-bolha .h { display:block; font-size:.62rem; color:#8b7a68; margin-top:.2rem; text-align:right; }
 
+/* Kanban mock — colunas + cards */
+.tm-mock-kanban { display:flex; gap:.6rem; overflow-x:auto; padding-bottom:.5rem; }
+.tm-mock-kb-col { flex:0 0 190px; background:#f4f2ed; border-radius:8px; padding:.6rem; min-width:0; }
+.tm-mock-kb-col.destaque { background:#f5ede3; box-shadow:0 0 0 2px #B87333; }
+.tm-mock-kb-col h6 { margin:0 0 .5rem; font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; color:#052228; font-weight:700; display:flex; align-items:center; gap:.35rem; }
+.tm-mock-kb-col h6 .cnt { background:#052228; color:#fff; padding:1px 7px; border-radius:9px; font-size:.62rem; }
+.tm-mock-kb-card { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:.5rem .6rem; margin-bottom:.4rem; font-size:.72rem; }
+.tm-mock-kb-card.destaque { border-color:#B87333; box-shadow:0 2px 6px rgba(184,115,51,.15); }
+.tm-mock-kb-card .nome { font-weight:700; color:#052228; }
+.tm-mock-kb-card .sub { color:#8b7a68; font-size:.66rem; margin-top:.15rem; }
+.tm-mock-kb-card .tag { display:inline-block; background:#f5ede3; color:#78350f; padding:1px 6px; border-radius:4px; font-size:.6rem; font-weight:700; margin-top:.25rem; }
+
+/* Calculadora prazos mock */
+.tm-mock-calc { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:1rem; max-width:420px; margin:0 auto; }
+.tm-mock-calc-row { display:grid; grid-template-columns:1fr 1fr; gap:.5rem .7rem; margin-bottom:.55rem; }
+.tm-mock-calc label { font-size:.66rem; text-transform:uppercase; letter-spacing:.06em; font-weight:700; color:#64615a; display:block; margin-bottom:.15rem; }
+.tm-mock-calc .campo { background:#fff; border:1.5px solid #e5e7eb; border-radius:6px; padding:6px 9px; font-size:.8rem; }
+.tm-mock-calc .campo.hi { border-color:#B87333; background:#faf7f2; font-weight:700; }
+.tm-mock-calc-result { background:#052228; color:#e5e7eb; padding:.8rem 1rem; border-radius:8px; margin-top:.6rem; font-size:.85rem; }
+.tm-mock-calc-result b { color:#f5ede3; font-family:'Cormorant Garamond',serif; font-size:1.15rem; font-weight:600; }
+.tm-mock-calc-result .aviso { color:#fbbf24; font-size:.72rem; margin-top:.35rem; display:block; }
+
+/* Procuração — comparativo lado a lado */
+.tm-mock-procuracao { display:grid; grid-template-columns:1fr 1fr; gap:.7rem; }
+@media (max-width:640px) { .tm-mock-procuracao { grid-template-columns:1fr; } }
+.tm-mock-proc-card { background:#fff; border:2px solid; border-radius:10px; padding:.85rem 1rem; }
+.tm-mock-proc-card.crianca { border-color:#059669; background:#ecfdf5; }
+.tm-mock-proc-card.contratante { border-color:#0284c7; background:#eff6ff; }
+.tm-mock-proc-card h5 { margin:0 0 .5rem; font-size:.75rem; text-transform:uppercase; letter-spacing:.08em; font-weight:800; display:flex; align-items:center; gap:.35rem; }
+.tm-mock-proc-card.crianca h5 { color:#047857; }
+.tm-mock-proc-card.contratante h5 { color:#075985; }
+.tm-mock-proc-card ul { margin:0; padding-left:1.1rem; font-size:.82rem; line-height:1.6; color:#052228; }
+
 /* Botão copiar link */
 .tm-copy-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:#fff; border:1px solid #e5e7eb; border-radius:8px; color:#052228; font-size:.78rem; font-weight:600; cursor:pointer; transition:all .12s; font-family:inherit; }
 .tm-copy-btn:hover { border-color:#B87333; color:#B87333; }

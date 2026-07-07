@@ -164,6 +164,53 @@ HTML,
 
 'kanban-comercial' => array(
     'por_que' => 'O Kanban Comercial acompanha o lead desde o primeiro contato até o contrato assinado. É o funil que o comercial toca todos os dias — 10 colunas com gatilhos automáticos em cada movimentação.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/pipeline/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-kanban">
+      <div class="tm-mock-kb-col">
+        <h6>📝 Cadastro Preenchido <span class="cnt">3</span></h6>
+        <div class="tm-mock-kb-card">
+          <div class="nome">Maria da Silva Santos</div>
+          <div class="sub">Alimentos · Site</div>
+        </div>
+        <div class="tm-mock-kb-card">
+          <div class="nome">João Pereira Lima</div>
+          <div class="sub">Divórcio · Site</div>
+        </div>
+      </div>
+      <div class="tm-mock-kb-col">
+        <h6>✍️ Elaboração Docs <span class="cnt">2</span></h6>
+        <div class="tm-mock-kb-card">
+          <div class="nome">Ana Beatriz</div>
+          <div class="sub">Guarda · R$ 3.500</div>
+          <div class="tag">Procuração gerada</div>
+        </div>
+      </div>
+      <div class="tm-mock-kb-col">
+        <h6>🔗 Link Enviado <span class="cnt">1</span></h6>
+        <div class="tm-mock-kb-card">
+          <div class="nome">Vagner Nunes</div>
+          <div class="sub">Invest. Paternidade</div>
+        </div>
+      </div>
+      <div class="tm-mock-kb-col destaque">
+        <h6>🎯 Contrato Assinado <span class="cnt">4</span></h6>
+        <div class="tm-mock-kb-card destaque">
+          <div class="nome">Thaís Rocha</div>
+          <div class="sub">Assinou hoje ✍️</div>
+          <div class="tag">→ Pasta criada</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Kanban Comercial. Arrasta o card entre colunas conforme avança. Ao chegar em "Contrato Assinado" (coluna destacada), o sistema AUTOMATICAMENTE cria pasta no Drive, abre caso no Operacional e envia msg de boas-vindas.</p>
+</figure>
+HTML,
     'passos' => array(
         'Cliente preenche formulário público (site ou landing) → card aparece em **Cadastro Preenchido**.',
         'Comercial move pra **Elaboração Docs** → gera procuração/contrato pela Fábrica.',
@@ -237,6 +284,36 @@ HTML,
 
 'procuracao-regras' => array(
     'por_que' => 'Procuração errada = **nulidade processual**. Pode comprometer o caso inteiro. Essa é a regra mais crítica do escritório — não erre.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Quadro de referência — quem assina o quê</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-procuracao">
+      <div class="tm-mock-proc-card crianca">
+        <h5>👶 Nome da CRIANÇA</h5>
+        <ul>
+          <li>Alimentos</li>
+          <li>Execução de Alimentos</li>
+          <li>Revisional de Alimentos</li>
+          <li>Investigação de Paternidade</li>
+        </ul>
+      </div>
+      <div class="tm-mock-proc-card contratante">
+        <h5>👨‍👩‍👦 Nome do PAI/MÃE contratante</h5>
+        <ul>
+          <li>Convivência</li>
+          <li>Guarda</li>
+          <li>Divórcio (ambos se consensual)</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Regra — Ação em nome de QUEM? Verde é criança (representada pelo responsável). Azul é o adulto contratante. Errou = nulidade processual. Em dúvida, sempre pergunta ANTES de gerar.</p>
+</figure>
+HTML,
     'passos' => array(
         '**ALIMENTOS** → procuração no nome da **CRIANÇA** (representada pelo pai/mãe responsável).',
         '**EXECUÇÃO DE ALIMENTOS** → procuração no nome da **CRIANÇA**.',
@@ -268,6 +345,49 @@ HTML,
 
 'kanban-operacional' => array(
     'por_que' => 'Depois que o comercial fechou o contrato, o processo vira pra cá. 12 colunas acompanham: coleta de docs → elaboração → distribuição → andamento → conclusão.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/operacional/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-kanban">
+      <div class="tm-mock-kb-col">
+        <h6>📥 Aguard. Docs <span class="cnt">6</span></h6>
+        <div class="tm-mock-kb-card">
+          <div class="nome">Maria x Alimentos</div>
+          <div class="sub">2 docs faltando</div>
+          <div class="tag" style="background:#fee2e2;color:#991b1b;">Cliente inerte</div>
+        </div>
+      </div>
+      <div class="tm-mock-kb-col destaque">
+        <h6>✍️ Pasta Apta <span class="cnt">3</span></h6>
+        <div class="tm-mock-kb-card destaque">
+          <div class="nome">João x Divórcio</div>
+          <div class="sub">Redigindo petição</div>
+        </div>
+      </div>
+      <div class="tm-mock-kb-col">
+        <h6>⏳ Aguard. Distribuição <span class="cnt">2</span></h6>
+        <div class="tm-mock-kb-card">
+          <div class="nome">Ana x Guarda</div>
+          <div class="sub">Redigida — protocolar</div>
+        </div>
+      </div>
+      <div class="tm-mock-kb-col">
+        <h6>⚖️ Em Andamento <span class="cnt">47</span></h6>
+        <div class="tm-mock-kb-card">
+          <div class="nome">Vagner x Invest. Paternidade</div>
+          <div class="sub">CNJ 0817952-56...</div>
+          <div class="tag" style="background:#d1fae5;color:#065f46;">🐻 Jorjão tocou</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Kanban Operacional. Card se movimenta da coleta até o processo tramitando. Quando ganha número CNJ e vira "Em Andamento", o Jorjão toca sino automaticamente no grupo 🐻.</p>
+</figure>
+HTML,
     'passos' => array(
         '**Aguardando Docs** (ponto de partida do operacional).',
         'Cliente manda documentos → marca como recebidos → **Em Elaboração** (Pasta Apta).',
@@ -328,6 +448,48 @@ HTML,
 ),
 
 'calculadora-prazos' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/operacional/prazos_calc.php</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-calc">
+      <div class="tm-mock-calc-row">
+        <div>
+          <label>Data da intimação</label>
+          <div class="campo">06/07/2026</div>
+        </div>
+        <div>
+          <label>Tipo de prazo</label>
+          <div class="campo">Dias úteis</div>
+        </div>
+      </div>
+      <div class="tm-mock-calc-row">
+        <div>
+          <label>Quantidade</label>
+          <div class="campo">15</div>
+        </div>
+        <div>
+          <label>Tribunal</label>
+          <div class="campo">TJRJ</div>
+        </div>
+      </div>
+      <div style="margin-bottom:.55rem;">
+        <label style="font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:#64615a;display:block;margin-bottom:.15rem;">Ação</label>
+        <div class="campo hi">Contestação — 15 dias úteis</div>
+      </div>
+      <div class="tm-mock-calc-result">
+        <div>Prazo fatal:</div>
+        <b>28/07/2026 (terça-feira)</b>
+        <span class="aviso">⚠ Considerou suspensão 20/12/2026 – 20/01/2027 (recesso) e 6 feriados TJRJ no período.</span>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Calculadora de prazos. Escolhe data + tipo + tribunal, ela calcula sozinha considerando dias úteis, feriados TJRJ e recesso judiciário. Sempre confere antes de anotar!</p>
+</figure>
+HTML,
     'por_que' => 'CPC art. 224 + suspensões TJRJ específicas. Calcular na mão dá erro — a calculadora já conhece feriados, suspensões e 47 comarcas do RJ. Dupla checagem: sempre calcule na calculadora antes de agendar.',
     'passos' => array(
         'Acessa pelo menu Prazos ou pelo botão "Calcular Prazo" na pasta do processo.',
