@@ -206,9 +206,9 @@ $menuItems = array(
     array('label' => 'Daily Planner',  'icon' => '📓', 'href' => url('modules/admin/onboarding_daily.php'), 'id' => 'onboarding_daily', 'roles' => array('admin')),
     array('label' => 'Seguro de Vida', 'icon' => '🛡️', 'href' => url('modules/admin/seguro_vida.php'), 'id' => 'seguro_vida', 'roles' => array('admin')),
     array('label' => 'Permissões',     'icon' => '🔐', 'href' => url('modules/admin/permissoes.php'), 'id' => 'permissoes',   'roles' => array('admin')),
-    array('label' => 'Jorjão (Sinos WhatsApp)', 'icon' => '🐻', 'href' => url('modules/admin/jorjao.php'), 'id' => 'jorjao', 'roles' => array('admin')),
-    array('label' => 'Comemorar Contrato', 'icon' => '🔔', 'href' => url('modules/admin/comemorar_contrato.php'), 'id' => 'comemorar_contrato', 'roles' => array('admin')),
-    array('label' => 'Rastreio de Cliques', 'icon' => '🔗', 'href' => url('modules/admin/shortlinks.php'), 'id' => 'shortlinks', 'roles' => array('admin','gestao')),
+    array('label' => 'Jorjão (Sinos WhatsApp)', 'icon' => '🐻', 'href' => url('modules/admin/jorjao.php'), 'id' => 'jorjao', 'roles' => array('admin'), 'keywords' => 'sino sinos grupo whatsapp comemorar contrato peticao prazo novidade resumo diario'),
+    array('label' => 'Comemorar Contrato', 'icon' => '🔔', 'href' => url('modules/admin/comemorar_contrato.php'), 'id' => 'comemorar_contrato', 'roles' => array('admin'), 'keywords' => 'sino jorjao grupo'),
+    array('label' => 'Rastreio de Cliques', 'icon' => '🔗', 'href' => url('modules/admin/shortlinks.php'), 'id' => 'shortlinks', 'roles' => array('admin','gestao'), 'keywords' => 'shortlinks encurtador link tracking rastreio cliques abriu engajamento lead'),
     array('label' => 'DataJud',         'icon' => '🔄', 'href' => url('modules/admin/datajud_monitor.php'), 'id' => 'datajud',  'roles' => array('admin')),
     array('label' => 'Importar DJen',   'icon' => '📥', 'href' => url('modules/admin/djen_importar.php'),  'id' => 'djen_importar', 'roles' => array('admin')),
     array('label' => 'Andamentos Monitor', 'icon' => '📧', 'href' => url('modules/email_monitor.php'), 'id' => 'email_monitor', 'roles' => array('admin')),
@@ -390,7 +390,7 @@ body.dark-mode thead tr[style*="background:#f9fafb"] { background:var(--bg-secon
                         $isActive = is_current_module($item['id']);
                     }
                 ?>
-                    <div class="sidebar-item-row">
+                    <div class="sidebar-item-row" data-keywords="<?= e($item['keywords'] ?? '') ?>">
                         <a href="<?= $item['href'] ?>"
                            class="sidebar-link <?= $isActive ? 'active' : '' ?>"
                            title="<?= e($item['label']) ?>">
@@ -717,8 +717,12 @@ function sidebarFiltrar(q) {
         if (!label.dataset.original) label.dataset.original = label.textContent;
         var texto = label.dataset.original.toLowerCase();
         var textoNorm = sbNorm(label.dataset.original);
+        // Amanda 07/07/2026: casa também nas keywords ocultas (data-keywords).
+        // Útil pra sinônimos técnicos ('shortlinks' encontra 'Rastreio de Cliques').
+        var keywords = (row.dataset.keywords || '').toLowerCase();
         // Casa COM ou SEM acentos: 'cal' acha 'Cálculo', 'cál' tambem
-        var bate = texto.indexOf(q) !== -1 || textoNorm.indexOf(qNorm) !== -1;
+        var bate = texto.indexOf(q) !== -1 || textoNorm.indexOf(qNorm) !== -1
+                || (keywords && (keywords.indexOf(q) !== -1 || sbNorm(keywords).indexOf(qNorm) !== -1));
         row.style.display = bate ? '' : 'none';
         if (bate) {
             totalVisiveis++;
