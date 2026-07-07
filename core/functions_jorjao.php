@@ -88,11 +88,108 @@ function jorjao_render($template, $vars) {
 }
 
 /**
+ * Verifica se a tocada está com modo IA ligado (config jorjao_{tocada}_modo_ia).
+ */
+function jorjao_modo_ia_ativo($tocada) {
+    static $cache = null;
+    if ($cache === null) {
+        $cache = array();
+        try {
+            $st = db()->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'jorjao_%_modo_ia'");
+            foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) $cache[$r['chave']] = (string)$r['valor'];
+        } catch (Exception $e) {}
+    }
+    return ($cache['jorjao_' . $tocada . '_modo_ia'] ?? '0') === '1';
+}
+
+/**
+ * Gera mensagem única via Claude Haiku no estilo do Jorjão.
+ * Retorna string com a mensagem, ou null em caso de falha (chamador cai no template).
+ */
+function _jorjao_gerar_via_ia($tocada, $vars) {
+    require_once __DIR__ . '/functions_ia.php';
+    if (!defined('ANTHROPIC_API_KEY') || !ANTHROPIC_API_KEY) return null;
+
+    $system = <<<PROMPT
+Você é o "Jorjão", mascote do escritório Ferreira & Sá Advocacia.
+Personalidade: tio brincalhão, animador de festas, narrador de futebol.
+Usa gírias tipo "Bora!", "Craque!", "Fecha, campeão!", "Golaço!", "Preclusão que nada!".
+Emojis fartos: 🎉🔔🏆🚀⚖️💪🎯🥳🐻🔥.
+Faz brincadeiras com a rotina jurídica ("Bata o martelo!", "Papel voando no PJe!", "Preclusão que nada!").
+
+Sua tarefa: gerar UMA mensagem CURTA (3 a 6 linhas, máximo 400 caracteres) pra postar
+no grupo WhatsApp do escritório celebrando o evento descrito abaixo.
+
+REGRAS:
+- Use APENAS os dados fornecidos (não invente cliente, valor, tipo de caso).
+- Comece com emoji + frase de impacto (tipo "🎉 GOLAÇO!" ou "⚖️ PETIÇÃO NO MUNDO!").
+- Cite os nomes reais fornecidos (cliente, quem fechou, quem cumpriu).
+- Termine com uma frase animada estilo Jorjão (não assine).
+- Formato WhatsApp: use *negrito* pra destaque, quebras de linha simples.
+- Sem hashtags. Sem "clique aqui". Sem enrolação.
+PROMPT;
+
+    // User prompt específico por tocada
+    switch ($tocada) {
+        case 'contrato_assinado':
+            $userMsg = "EVENTO: Contrato assinado hoje ({$vars['hoje']}).\n"
+                     . "Cliente: {$vars['cliente']}\n"
+                     . "Tipo de caso: {$vars['tipo_caso']}\n"
+                     . "Vendedor(a) que fechou: {$vars['comercial']}\n"
+                     . (isset($vars['valor']) && $vars['valor'] !== 'a combinar' ? "Valor: R$ {$vars['valor']}\n" : "")
+                     . "\nGere a mensagem celebrando esse contrato fechado.";
+            break;
+        case 'peticao_distribuida':
+            $userMsg = "EVENTO: Petição inicial distribuída hoje ({$vars['hoje']}).\n"
+                     . "Cliente: {$vars['cliente']}\n"
+                     . "Tipo de caso: {$vars['tipo_caso']}\n"
+                     . "Nº do processo: {$vars['numero_processo']}\n"
+                     . "Quem distribuiu: {$vars['operacional']}\n"
+                     . "\nGere a mensagem celebrando essa petição distribuída.";
+            break;
+        case 'prazo_cumprido':
+            $userMsg = "EVENTO: Prazo processual cumprido hoje ({$vars['hoje']}).\n"
+                     . "Cliente: {$vars['cliente']}\n"
+                     . "Tipo do prazo: {$vars['tipo_prazo']}\n"
+                     . "Processo: {$vars['processo']}\n"
+                     . "Quem cumpriu: {$vars['operacional']}\n"
+                     . "\nGere a mensagem parabenizando quem cumpriu o prazo.";
+            break;
+        case 'novidade_hub':
+            $userMsg = "EVENTO: Anúncio de novidade no Hub Conecta (sistema interno).\n"
+                     . "Título: {$vars['titulo']}\n"
+                     . "Descrição: {$vars['descricao']}\n"
+                     . "Link do treinamento: {$vars['link']}\n"
+                     . "\nGere a mensagem apresentando a novidade e pedindo pra galera fazer o treinamento (vale ponto no ranking).";
+            break;
+        default:
+            return null;
+    }
+
+    $resp = ia_chamar(
+        'jorjao_tocada',
+        'claude-haiku-4-5-20251001',
+        $system,
+        array(array('role' => 'user', 'content' => $userMsg)),
+        array('max_tokens' => 300, 'temperature' => 0.95, 'bypass_killswitch' => true, 'bypass_user_whitelist' => true)
+    );
+
+    if (empty($resp['ok']) || empty($resp['texto'])) return null;
+    $txt = trim($resp['texto']);
+    // Guarda contra IA devolver algo grande demais (não deveria com max_tokens=300)
+    return mb_strlen($txt) > 800 ? mb_substr($txt, 0, 800) : $txt;
+}
+
+/**
  * Envio genérico: pega template sorteado (ou o especificado), aplica vars, manda no grupo.
  * $tocada: contrato_assinado|peticao_distribuida|prazo_cumprido|novidade_hub
  * $vars: array associativo com as variáveis do template.
  * $templateId: opcional. Se informado, usa essa variação específica em vez de sortear.
- * Retorna ['ok'=>bool, 'erro'=>?, 'mensagem'=>?, 'template_id'=>?].
+ *
+ * Se a config jorjao_{tocada}_modo_ia estiver ligada, gera com Claude Haiku em vez
+ * de sortear template. Se a IA falhar, cai no template (fallback seguro).
+ *
+ * Retorna ['ok'=>bool, 'erro'=>?, 'mensagem'=>?, 'template_id'=>?, 'via_ia'=>bool].
  */
 function jorjao_enviar($tocada, $vars, $templateId = null) {
     if (!jorjao_tocada_ativa($tocada)) {
@@ -102,21 +199,32 @@ function jorjao_enviar($tocada, $vars, $templateId = null) {
     if (!$g['grupo_id']) return array('ok' => false, 'erro' => 'Grupo não configurado');
     if (!in_array($g['canal'], array('21','24'), true)) return array('ok' => false, 'erro' => 'Canal inválido');
 
+    $mensagem = null;
+    $viaIa = false;
     $tpl = null;
-    if ($templateId) {
-        try {
-            $st = db()->prepare("SELECT id, template FROM jorjao_templates WHERE id = ? AND tocada = ? AND ativo = 1");
-            $st->execute(array((int)$templateId, $tocada));
-            $tpl = $st->fetch(PDO::FETCH_ASSOC) ?: null;
-        } catch (Exception $e) {}
-    }
-    if (!$tpl) $tpl = jorjao_pick_template($tocada);
-    if (!$tpl) return array('ok' => false, 'erro' => 'Nenhum template ativo pra tocada ' . $tocada);
 
-    $mensagem = jorjao_render($tpl['template'], $vars);
+    // 1) Se modo IA ligado E não foi especificada uma variação, tenta gerar via IA
+    if (!$templateId && jorjao_modo_ia_ativo($tocada)) {
+        $mensagem = _jorjao_gerar_via_ia($tocada, $vars);
+        if ($mensagem) $viaIa = true;
+    }
+
+    // 2) Se IA falhou ou não estava ligada, usa template (sorteia ou usa o especificado)
+    if (!$mensagem) {
+        if ($templateId) {
+            try {
+                $st = db()->prepare("SELECT id, template FROM jorjao_templates WHERE id = ? AND tocada = ? AND ativo = 1");
+                $st->execute(array((int)$templateId, $tocada));
+                $tpl = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+            } catch (Exception $e) {}
+        }
+        if (!$tpl) $tpl = jorjao_pick_template($tocada);
+        if (!$tpl) return array('ok' => false, 'erro' => 'Nenhum template ativo pra tocada ' . $tocada);
+        $mensagem = jorjao_render($tpl['template'], $vars);
+    }
     $r = zapi_send_text($g['canal'], $g['grupo_id'], $mensagem);
 
-    if (!empty($r['ok'])) {
+    if (!empty($r['ok']) && $tpl) {
         jorjao_marcar_usado((int)$tpl['id']);
     }
 
@@ -128,7 +236,8 @@ function jorjao_enviar($tocada, $vars, $templateId = null) {
         array_unshift($atual, array(
             'em'   => date('Y-m-d H:i:s'),
             'ok'   => !empty($r['ok']),
-            'tpl'  => (int)$tpl['id'],
+            'tpl'  => $tpl ? (int)$tpl['id'] : 0,
+            'via_ia' => $viaIa,
             'erro' => $r['ok'] ? null : ($r['erro'] ?? 'HTTP ' . ($r['http_code'] ?? '?')),
             'ctx'  => array_slice($vars, 0, 3, true),
         ));
@@ -142,7 +251,8 @@ function jorjao_enviar($tocada, $vars, $templateId = null) {
         'ok'          => !empty($r['ok']),
         'erro'        => $r['ok'] ? null : ($r['erro'] ?? 'erro desconhecido'),
         'mensagem'    => $mensagem,
-        'template_id' => (int)$tpl['id'],
+        'template_id' => $tpl ? (int)$tpl['id'] : null,
+        'via_ia'      => $viaIa,
     );
 }
 

@@ -62,6 +62,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($hora >= 0 && $hora <= 23) _cfg_set($pdo, 'jorjao_resumo_diario_hora', (string)$hora);
         $minMsgs = max(1, (int)($_POST['resumo_min_msgs'] ?? 5));
         _cfg_set($pdo, 'jorjao_resumo_diario_min_msgs', (string)$minMsgs);
+        // Modo IA por tocada (usa Claude Haiku, gera única a cada tocada)
+        _cfg_set($pdo, 'jorjao_contrato_assinado_modo_ia',   !empty($_POST['ia_contrato'])   ? '1' : '0');
+        _cfg_set($pdo, 'jorjao_peticao_distribuida_modo_ia', !empty($_POST['ia_peticao'])    ? '1' : '0');
+        _cfg_set($pdo, 'jorjao_prazo_cumprido_modo_ia',      !empty($_POST['ia_prazo'])      ? '1' : '0');
+        _cfg_set($pdo, 'jorjao_novidade_hub_modo_ia',        !empty($_POST['ia_novidade'])   ? '1' : '0');
         flash_set('success', '✓ Configurações salvas.');
         redirect($_SERVER['REQUEST_URI']);
     }
@@ -222,6 +227,10 @@ $resumoHora   = (int)_cfg_get($pdo, 'jorjao_resumo_diario_hora', '19');
 $resumoMinMsgs = (int)_cfg_get($pdo, 'jorjao_resumo_diario_min_msgs', '5');
 $resumoUltimo = _cfg_get($pdo, 'jorjao_resumo_ultimo_em', '');
 $resumoDebug  = _cfg_get($pdo, 'jorjao_resumo_ultimo_debug', '');
+$iaContrato  = _cfg_get($pdo, 'jorjao_contrato_assinado_modo_ia', '0') === '1';
+$iaPeticao   = _cfg_get($pdo, 'jorjao_peticao_distribuida_modo_ia', '0') === '1';
+$iaPrazo     = _cfg_get($pdo, 'jorjao_prazo_cumprido_modo_ia', '0') === '1';
+$iaNovidade  = _cfg_get($pdo, 'jorjao_novidade_hub_modo_ia', '0') === '1';
 
 // Templates agrupados por tocada
 $tpls = array('contrato_assinado' => array(), 'peticao_distribuida' => array(), 'prazo_cumprido' => array(), 'novidade_hub' => array());
@@ -356,6 +365,34 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <b>📆 Resumo diário do grupo (IA)</b>
         <small>Cron todo dia às <input type="number" name="resumo_hora" value="<?= $resumoHora ?>" min="0" max="23" style="width:52px;padding:2px 4px;">h — só resume se tiver ao menos <input type="number" name="resumo_min_msgs" value="<?= $resumoMinMsgs ?>" min="1" style="width:52px;padding:2px 4px;"> mensagens de texto. Custo Anthropic Haiku ~R$ 0,05/dia.</small>
       </label>
+    </div>
+
+    <div style="margin:1.2rem 0 .8rem;padding:1rem;background:linear-gradient(135deg,#f0f9ff,#faf7f2);border:1.5px dashed #0284c7;border-radius:10px;">
+      <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.6rem;">
+        <span style="font-size:1.3rem;">🤖</span>
+        <div>
+          <b style="color:#075985;">Modo IA — mensagem única a cada tocada</b><br>
+          <small style="color:#334155;">Quando ligado, Claude Haiku gera a mensagem no estilo do Jorjão com os dados reais do evento. <strong>Nunca repete.</strong> Se a IA falhar, cai nos templates cadastrados (fallback seguro). Custo ~R$ 0,002 por tocada.</small>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.4rem;">
+        <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;background:#fff;border-radius:7px;border:1px solid #bae6fd;cursor:pointer;font-size:.85rem;">
+          <input type="checkbox" name="ia_contrato" value="1" <?= $iaContrato ? 'checked' : '' ?>>
+          🎉 Contrato assinado
+        </label>
+        <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;background:#fff;border-radius:7px;border:1px solid #bae6fd;cursor:pointer;font-size:.85rem;">
+          <input type="checkbox" name="ia_peticao" value="1" <?= $iaPeticao ? 'checked' : '' ?>>
+          🎯 Petição distribuída
+        </label>
+        <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;background:#fff;border-radius:7px;border:1px solid #bae6fd;cursor:pointer;font-size:.85rem;">
+          <input type="checkbox" name="ia_prazo" value="1" <?= $iaPrazo ? 'checked' : '' ?>>
+          ⏰ Prazo cumprido
+        </label>
+        <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;background:#fff;border-radius:7px;border:1px solid #bae6fd;cursor:pointer;font-size:.85rem;">
+          <input type="checkbox" name="ia_novidade" value="1" <?= $iaNovidade ? 'checked' : '' ?>>
+          🎁 Novidade no Hub
+        </label>
+      </div>
     </div>
 
     <button type="submit" class="jz-btn-primary">Salvar configurações</button>
