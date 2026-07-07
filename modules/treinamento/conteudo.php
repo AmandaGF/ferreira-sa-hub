@@ -793,6 +793,39 @@ HTML,
 ),
 
 'financeiro' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/financeiro/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-fin-grid">
+      <div class="tm-mock-fin-card pos">
+        <div class="k">Recebido no mês</div>
+        <div class="v">R$ 47.320</div>
+        <div class="sub">↑ 12% vs mês anterior</div>
+      </div>
+      <div class="tm-mock-fin-card pos">
+        <div class="k">A receber (30d)</div>
+        <div class="v">R$ 28.900</div>
+        <div class="sub">14 cobranças ativas</div>
+      </div>
+      <div class="tm-mock-fin-card warn">
+        <div class="k">Vencendo em 3d</div>
+        <div class="v">R$ 6.500</div>
+        <div class="sub">4 clientes</div>
+      </div>
+      <div class="tm-mock-fin-card neg">
+        <div class="k">Vencidas</div>
+        <div class="v">R$ 12.180</div>
+        <div class="sub">7 clientes</div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Dashboard financeiro (Amanda, Rodrigo, Luiz). Cards de KPI + fluxo de caixa. Integrado ao Asaas: cobranças criadas aqui aparecem no Asaas automaticamente, pagamentos sincronizam de volta.</p>
+</figure>
+HTML,
     'por_que' => 'Controle total das cobranças do escritório via Asaas. KPIs de recebido/pendente/vencido, cobranças por cliente, Proposta de Acordo, alertas de token Asaas.',
     'passos' => array(
         'Menu **Financeiro** (restrito a Amanda, Rodrigo, Luiz — whitelist).',
@@ -809,6 +842,35 @@ HTML,
 ),
 
 'cobranca-honorarios' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Escalada automática de cobrança</span>
+  </div>
+  <div class="tm-screen-body">
+    <div style="display:flex;flex-direction:column;gap:.55rem;">
+      <div style="background:#f0f9ff;border-left:3px solid #0284c7;padding:.6rem 1rem;border-radius:0 8px 8px 0;font-size:.82rem;">
+        <strong>D-3 · Aviso amigável</strong><br>
+        <span style="font-size:.74rem;color:#8b7a68;">"Oi Maria, só passando pra lembrar que a parcela vence em 3 dias 😊"</span>
+      </div>
+      <div style="background:#fef3c7;border-left:3px solid #d97706;padding:.6rem 1rem;border-radius:0 8px 8px 0;font-size:.82rem;">
+        <strong>D+1 · Cobrança formal</strong><br>
+        <span style="font-size:.74rem;color:#8b7a68;">"Sua parcela venceu ontem. Segue o link atualizado pra pagamento"</span>
+      </div>
+      <div style="background:#fee2e2;border-left:3px solid #dc2626;padding:.6rem 1rem;border-radius:0 8px 8px 0;font-size:.82rem;">
+        <strong>D+15 · Notificação extrajudicial</strong><br>
+        <span style="font-size:.74rem;color:#8b7a68;">Cria tarefa pra Amanda revisar antes de enviar</span>
+      </div>
+      <div style="background:#f3e8ff;border-left:3px solid #7c3aed;padding:.6rem 1rem;border-radius:0 8px 8px 0;font-size:.82rem;">
+        <strong>D+30 · Ação judicial</strong><br>
+        <span style="font-size:.74rem;color:#8b7a68;">Move pra "Cobrança Judicial" com todos os docs anexados</span>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Fluxo — Escalada de 4 níveis, um por vez, automática. Sem intervenção humana até D+15. Amanda pode pausar cobrança a qualquer momento se cliente negociar.</p>
+</figure>
+HTML,
     'por_que' => 'Gestão da inadimplência em 4 etapas progressivas. Em vez de lembrar de cobrar cada cliente, o sistema detecta automaticamente e abre o caso aqui.',
     'passos' => array(
         'Cron diário detecta cobranças Asaas vencidas há 90+ dias → cria entrada automática.',
@@ -825,6 +887,37 @@ HTML,
 ),
 
 'newsletter' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/newsletter/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-form">
+      <div class="tm-mock-form-title">✉️ Nova campanha</div>
+      <div class="tm-mock-grid">
+        <div class="tm-mock-field full">
+          <label>Assunto</label>
+          <div class="tm-mock-input">Novidades sobre o seu processo — julho/2026</div>
+        </div>
+        <div class="tm-mock-field">
+          <label>Público</label>
+          <div class="tm-mock-input">Clientes ativos (147)</div>
+        </div>
+        <div class="tm-mock-field">
+          <label>Enviar</label>
+          <div class="tm-mock-input">Agendar 08/07 09:00</div>
+        </div>
+      </div>
+      <div style="margin-top:.7rem;padding:.55rem;background:#ecfdf5;border-radius:6px;font-size:.72rem;color:#065f46;">
+        📊 Estatística média Brevo: 62% abertura · 12% clique
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Campanhas de e-mail via Brevo. Escolhe público (clientes ativos, ex-clientes, leads), assunto e agenda envio. Templates HTML com timbrado F&S. Métricas de abertura e clique em tempo real.</p>
+</figure>
+HTML,
     'por_que' => 'Campanhas de e-mail pra clientes e contatos — via Brevo. Tracking de abertura, clique, descadastro. 9 templates prontos (notícias, promoções, avisos legais).',
     'passos' => array(
         'Menu **Newsletter**.',
@@ -870,6 +963,32 @@ HTML,
 ),
 
 'aniversarios' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Mensagem que chega no cliente às 9h</span>
+  </div>
+  <div class="tm-screen-body">
+    <div style="max-width:400px;margin:0 auto;">
+      <div class="tm-mock-wa-chat-hdr">
+        <span class="nome">Ferreira &amp; Sá Advocacia</span>
+      </div>
+      <div class="tm-mock-wa-body">
+        <div class="tm-mock-bolha env">
+          🎂 <strong>Feliz aniversário, Maria!</strong> 🎉<br><br>
+          É a Equipe Ferreira &amp; Sá desejando um dia lindo e cheio de motivos pra sorrir. 💛<br><br>
+          Que este novo ciclo traga saúde, alegria e realizações. Estamos aqui torcendo por você e sua família sempre!<br><br>
+          Com carinho,<br>
+          <strong>Equipe Ferreira &amp; Sá Advocacia</strong>
+          <span class="h">09:00 ✓✓</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Mensagem — Cron diário 9h detecta aniversariantes e envia parabéns pelo canal 24. 5 templates rotacionam (nunca repete a mesma msg 2 anos seguidos). Envio único por cliente por ano.</p>
+</figure>
+HTML,
     'por_que' => 'Pequeno gesto, grande impacto. Parabenizar cliente no aniversário gera retenção e fortalece relacionamento. Automatizado — ninguém esquece.',
     'passos' => array(
         'Cron diário às 09h roda `zapi_aniversarios.php`.',
