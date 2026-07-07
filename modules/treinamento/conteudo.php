@@ -10,6 +10,31 @@ return array(
 
 'visao-geral' => array(
     'por_que' => 'O F&S Hub é o sistema que centraliza TUDO que antes estava espalhado: LegalOne, planilhas Excel, WhatsApp avulso, caderno, e-mails. Em vez de lembrar onde cada informação mora, você tem um só lugar — organizado por cliente, por processo e por tarefa.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">ferreiraesa.com.br/conecta — menu lateral</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-sidebar">
+      <div class="sec">Principal</div>
+      <div class="item"><span class="icon">🌅</span>Painel do Dia</div>
+      <div class="item"><span class="icon">📊</span>Dashboard</div>
+      <div class="sec">💬 WhatsApp</div>
+      <div class="item"><span class="icon">💬</span>Comercial (21)<span class="badge" style="background:#dc2626">4</span></div>
+      <div class="item"><span class="icon">💬</span>CX / Operac. (24)<span class="badge" style="background:#dc2626">12</span></div>
+      <div class="sec">💼 Comercial</div>
+      <div class="item"><span class="icon">📈</span>Kanban Comercial</div>
+      <div class="sec">⚙️ Operacional</div>
+      <div class="item"><span class="icon">📋</span>Kanban Operacional</div>
+      <div class="item"><span class="icon">⚖️</span>Processos</div>
+      <div class="item"><span class="icon">📅</span>Agenda</div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Menu lateral com todos os módulos agrupados. Cada seção reúne ferramentas do mesmo assunto. Bolinhas vermelhas mostram itens que exigem atenção agora (mensagens não lidas, prazos vencendo).</p>
+</figure>
+HTML,
     'passos' => array(
         'Todo fluxo começa pelo **Painel do Dia** (sua home) ou pelo **Kanban** da sua área.',
         'Cada cliente tem uma **ficha única** — acessível pela busca (Ctrl+K ou menu lateral).',
@@ -24,6 +49,55 @@ return array(
 
 'painel-dia' => array(
     'por_que' => 'O Painel do Dia é sua **central de comando**. Aqui você vê o que precisa fazer hoje — audiências, prazos e tarefas — sem precisar abrir 3 kanbans diferentes.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/painel/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-hdr">
+      <div>
+        <h4>🌅 Painel do Dia</h4>
+        <div class="s">Bom dia, Amanda! Hoje é 07/07/2026 — sexta-feira.</div>
+      </div>
+    </div>
+    <div class="tm-mock-painel-sec">
+      <h5>📅 Audiências e reuniões</h5>
+      <div class="tm-mock-linha">
+        <span class="hora">10:30</span>
+        <span class="titulo">Audiência de conciliação — Maria da Silva x Alimentos</span>
+        <span class="cli">2ª Vara Família VR</span>
+      </div>
+      <div class="tm-mock-linha">
+        <span class="hora">14:00</span>
+        <span class="titulo">Reunião cliente — João Pereira (Divórcio)</span>
+        <span class="cli">Google Meet</span>
+      </div>
+    </div>
+    <div class="tm-mock-painel-sec">
+      <h5>⚠️ Prazos processuais</h5>
+      <div class="tm-mock-linha urg">
+        <span class="hora">HOJE</span>
+        <span class="titulo">Contestação — Gildson Faria x Alimentos (5d)</span>
+        <span class="badge-urg">Urgente</span>
+      </div>
+      <div class="tm-mock-linha">
+        <span class="hora">09/07</span>
+        <span class="titulo">Réplica — Sara Silva x Destituição</span>
+        <span class="cli">3d</span>
+      </div>
+    </div>
+    <div class="tm-mock-painel-sec">
+      <h5>✅ Tarefas do dia</h5>
+      <div class="tm-mock-linha">
+        <span class="titulo">Ligar pra cliente Ana confirmando audiência de segunda</span>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Sua sexta-feira em 1 tela: audiências, prazos (vermelho = urgente hoje!) e tarefas. Clica em qualquer item pra abrir a pasta.</p>
+</figure>
+HTML,
     'passos' => array(
         'Entra automaticamente após login (se você não for Admin/Gestão/Sócio).',
         'Lista tudo do dia corrente: audiências, reuniões, prazos vencendo, tarefas do dia.',
@@ -38,6 +112,40 @@ return array(
 
 'drawer-card' => array(
     'por_que' => 'O drawer é o **coração do sistema** — quando você clica num cliente ou processo em qualquer lugar do Hub, ele abre à direita com TUDO: dados, processos, docs, financeiro, agenda, histórico. Em vez de navegar por 5 telas, você tem tudo numa.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Drawer aberto sobre qualquer tela</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-drawer">
+      <div class="tm-mock-drawer-top">
+        <h4>Maria da Silva Santos</h4>
+        <div class="sub">CPF 139.***.***-05 · (24) 99289-9663</div>
+      </div>
+      <div class="tm-mock-drawer-abas">
+        <span class="a">📇 Geral</span>
+        <span class="a">💼 Comercial</span>
+        <span class="a">⚙️ Operacional</span>
+        <span class="a on">📄 Docs</span>
+        <span class="a">💰 Financeiro</span>
+        <span class="a">📆 Agenda</span>
+        <span class="a">🕘 Histórico</span>
+      </div>
+      <div class="tm-mock-drawer-cont">
+        <div style="font-size:.72rem;color:#8b7a68;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-bottom:.5rem;">Pasta: Maria x Alimentos</div>
+        <div class="tm-mock-doc-item done"><span class="chk"></span>RG</div>
+        <div class="tm-mock-doc-item done"><span class="chk"></span>CPF</div>
+        <div class="tm-mock-doc-item done"><span class="chk"></span>Comprovante de residência</div>
+        <div class="tm-mock-doc-item"><span class="chk"></span>Certidão de nascimento do menor</div>
+        <div class="tm-mock-doc-item"><span class="chk"></span>3 últimos contracheques do genitor</div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Drawer aberto na aba Docs. Ao lado, as 6 outras abas (Geral, Comercial, Operacional, Financeiro, Agenda, Histórico). Cada aba mostra dados da PASTA selecionada, não do cliente inteiro.</p>
+</figure>
+HTML,
     'passos' => array(
         'Clica no nome de qualquer cliente em qualquer kanban/lista → drawer abre.',
         '**7 abas na ordem:** Geral · Comercial · Operacional · Docs · Financeiro · Agenda · Histórico.',
@@ -73,6 +181,44 @@ return array(
 
 'whatsapp-crm' => array(
     'por_que' => 'Atende cliente pelo WhatsApp direto do Hub — sem precisar sair do sistema. 2 canais: **DDD 21** (Comercial) e **DDD 24** (CX/Operacional). Histórico completo, integrado ao cliente, com trava por atendente, etiquetas automáticas e cronômetro de liberação.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/whatsapp/?canal=21</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-wa">
+      <div class="tm-mock-wa-lista">
+        <div class="tm-mock-wa-conv on">
+          <div class="nome">Jessica Amaral <span class="lock">🔒</span></div>
+          <div class="prev">Muito obrigada, doutora!</div>
+        </div>
+        <div class="tm-mock-wa-conv">
+          <div class="nome">João Ferreira <span class="badge-nl">3</span></div>
+          <div class="prev">Oi, gostaria de saber sobre…</div>
+        </div>
+        <div class="tm-mock-wa-conv">
+          <div class="nome">Maria Cabral 🤖</div>
+          <div class="prev">Bot atendendo…</div>
+        </div>
+      </div>
+      <div class="tm-mock-wa-chat">
+        <div class="tm-mock-wa-chat-hdr">
+          <span class="nome">Jessica Amaral</span>
+          <span class="timer">🔒 4h12min</span>
+        </div>
+        <div class="tm-mock-wa-body">
+          <div class="tm-mock-bolha recv">Oi! Recebi o link do contrato, vou assinar hoje ainda.<span class="h">14:22</span></div>
+          <div class="tm-mock-bolha env">Perfeito! Assim que assinar me avisa que já abro a pasta do processo. 💪<span class="h">14:23</span></div>
+          <div class="tm-mock-bolha recv">Muito obrigada, doutora!<span class="h">14:25</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Canal 21 (Comercial). Lista de conversas à esquerda, chat aberto à direita. Cronômetro 🔒 4h12min mostra quanto falta pra trava liberar. Bot 🤖 aparece nas conversas onde a IA ainda está respondendo.</p>
+</figure>
+HTML,
     'passos' => array(
         'Entra em **WhatsApp Comercial (21)** ou **WhatsApp CX (24)** na sidebar.',
         'Filtros: Todos · Aguardando · Em atend. · Não lidas · Resolv. · 🔓 AT Desbloq. · 🏷 Etiqueta · 👥 Atendente.',
