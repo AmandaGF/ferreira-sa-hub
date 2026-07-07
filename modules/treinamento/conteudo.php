@@ -425,6 +425,48 @@ HTML,
 ),
 
 'kanban-prev' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/prev/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-kanban">
+      <div class="tm-mock-kb-col">
+        <h6>📋 Docs INSS <span class="cnt">8</span></h6>
+        <div class="tm-mock-kb-card">
+          <div class="nome">Jorge Peñaranda</div>
+          <div class="sub">LOAS · RISCO</div>
+        </div>
+      </div>
+      <div class="tm-mock-kb-col">
+        <h6>🏛️ Admin. INSS <span class="cnt">5</span></h6>
+        <div class="tm-mock-kb-card">
+          <div class="nome">Osvaldo Rocha</div>
+          <div class="sub">Aposentadoria</div>
+        </div>
+      </div>
+      <div class="tm-mock-kb-col">
+        <h6>⚖️ Judicial <span class="cnt">12</span></h6>
+        <div class="tm-mock-kb-card">
+          <div class="nome">Neide Cordeiro</div>
+          <div class="sub">Pensão por morte</div>
+        </div>
+      </div>
+      <div class="tm-mock-kb-col destaque">
+        <h6>🏆 Finalizado Êxito <span class="cnt">4</span></h6>
+        <div class="tm-mock-kb-card destaque">
+          <div class="nome">Maria da Paz</div>
+          <div class="sub">BPC concedido!</div>
+          <div class="tag" style="background:#d1fae5;color:#065f46;">Este mês</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Kanban PREV especializado em processos previdenciários. Fluxo: Docs INSS → Admin → Judicial → Finalizado (com/sem êxito). Cards se mantêm no "Finalizado" só do mês corrente.</p>
+</figure>
+HTML,
     'por_que' => 'Processos previdenciários têm fluxo próprio (13 colunas) — da análise INSS até implantação do benefício. São demorados e seguem regras específicas do INSS/CRPS/CAJ.',
     'passos' => array(
         'Aguardando Docs → Pasta Apta → Análise INSS → Perícia Médica → Recurso Administrativo → Recurso CRPS/CAJ → Ação Judicial → Sentença → Cumprimento/Precatório → Implantação.',
@@ -583,6 +625,35 @@ HTML,
 ),
 
 'datajud' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Timeline de andamentos do processo</span>
+  </div>
+  <div class="tm-screen-body">
+    <div style="display:flex;flex-direction:column;gap:.55rem;">
+      <div style="background:#fff;border-left:4px solid #059669;border-radius:0 8px 8px 0;padding:.6rem 1rem;font-size:.82rem;">
+        <div style="font-size:.62rem;color:#8b7a68;text-transform:uppercase;font-weight:700;">06/07/2026 · via DataJud CNJ 🔄</div>
+        <div style="color:#052228;">Sentença de mérito publicada — julgado procedente</div>
+      </div>
+      <div style="background:#fff;border-left:4px solid #059669;border-radius:0 8px 8px 0;padding:.6rem 1rem;font-size:.82rem;">
+        <div style="font-size:.62rem;color:#8b7a68;text-transform:uppercase;font-weight:700;">04/07/2026 · via DataJud CNJ 🔄</div>
+        <div style="color:#052228;">Conclusos para sentença</div>
+      </div>
+      <div style="background:#fff;border-left:4px solid #059669;border-radius:0 8px 8px 0;padding:.6rem 1rem;font-size:.82rem;">
+        <div style="font-size:.62rem;color:#8b7a68;text-transform:uppercase;font-weight:700;">30/06/2026 · via DataJud CNJ 🔄</div>
+        <div style="color:#052228;">Réu apresentou contestação</div>
+      </div>
+      <div style="background:#fff;border-left:4px solid #B87333;border-radius:0 8px 8px 0;padding:.6rem 1rem;font-size:.82rem;">
+        <div style="font-size:.62rem;color:#8b7a68;text-transform:uppercase;font-weight:700;">15/06/2026 · manual (você)</div>
+        <div style="color:#052228;">Cliente confirmou endereço atualizado</div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Timeline automática. Andamentos com 🔄 vêm do DataJud (CNJ oficial). Cron roda 3x/dia puxando andamentos novos de todos os processos. Manuais também podem ser adicionados.</p>
+</figure>
+HTML,
     'por_que' => 'Em vez de ficar consultando o PJe/TJRJ/tribunais manualmente, o DataJud (API pública do CNJ) puxa andamentos automaticamente. Você nem precisa fazer nada — o cron roda diário às 07h.',
     'passos' => array(
         'Cron diário às 07h sincroniza até 50 processos por execução (rate limit 1s).',
@@ -597,6 +668,42 @@ HTML,
 ),
 
 'agenda' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/agenda/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-cal">
+      <div class="tm-mock-cal-hd">Seg</div>
+      <div class="tm-mock-cal-hd">Ter</div>
+      <div class="tm-mock-cal-hd">Qua</div>
+      <div class="tm-mock-cal-hd">Qui</div>
+      <div class="tm-mock-cal-hd">Sex</div>
+      <div class="tm-mock-cal-hd">Sáb</div>
+      <div class="tm-mock-cal-hd">Dom</div>
+
+      <div class="tm-mock-cal-day"><span class="num">1</span></div>
+      <div class="tm-mock-cal-day tem"><span class="num">2</span><span class="ev">📅 Aud. Maria</span></div>
+      <div class="tm-mock-cal-day"><span class="num">3</span></div>
+      <div class="tm-mock-cal-day tem"><span class="num">4</span><span class="ev">💬 Reunião</span></div>
+      <div class="tm-mock-cal-day"><span class="num">5</span></div>
+      <div class="tm-mock-cal-day"><span class="num">6</span></div>
+      <div class="tm-mock-cal-day hoje"><span class="num">7</span><span class="ev">⏰ Prazo Gildson</span></div>
+
+      <div class="tm-mock-cal-day tem"><span class="num">8</span><span class="ev">📅 Aud. João</span></div>
+      <div class="tm-mock-cal-day"><span class="num">9</span></div>
+      <div class="tm-mock-cal-day tem"><span class="num">10</span><span class="ev">⏰ Réplica</span></div>
+      <div class="tm-mock-cal-day"><span class="num">11</span></div>
+      <div class="tm-mock-cal-day"><span class="num">12</span></div>
+      <div class="tm-mock-cal-day"><span class="num">13</span></div>
+      <div class="tm-mock-cal-day"><span class="num">14</span></div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Calendário do mês. Hoje destacado bronze. Dias com evento ficam amarelos. Tipos: audiência 📅, reunião 💬, prazo ⏰. Google Meet integrado nas reuniões — botão "Abrir Meet" no card do evento.</p>
+</figure>
+HTML,
     'por_que' => 'Agenda unificada do escritório. 8 tipos de evento + Google Meet integrado + Balcão Virtual TJRJ + lembretes automáticos pra atendentes e clientes.',
     'passos' => array(
         'Tipos: Audiência · Reunião com Cliente · Prazo · Onboarding · Reunião Interna · Mediação/CEJUSC · Balcão Virtual · Ligação.',
@@ -613,6 +720,35 @@ HTML,
 ),
 
 'sala-vip' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">salavip.ferreiraesa.com.br</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-hdr" style="background:linear-gradient(135deg,#052228,#B87333);">
+      <div>
+        <h4>🏛️ Sala VIP · Maria da Silva</h4>
+        <div class="s">Bem-vinda! Aqui você acompanha seus 2 processos.</div>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.55rem;">
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:.8rem 1rem;">
+        <div style="font-weight:700;color:#052228;font-size:.88rem;">⚖️ Alimentos — Lucas x José Pereira</div>
+        <div style="font-size:.75rem;color:#8b7a68;margin:.3rem 0;">Último andamento: sentença procedente 06/07/2026</div>
+        <div style="background:#d1fae5;color:#065f46;padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:700;display:inline-block;">Vitória!</div>
+      </div>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:.8rem 1rem;">
+        <div style="font-weight:700;color:#052228;font-size:.88rem;">👨‍👩‍👦 Convivência</div>
+        <div style="font-size:.75rem;color:#8b7a68;margin:.3rem 0;">Próxima audiência: 15/07/2026 às 14h</div>
+        <div style="background:#fef3c7;color:#78350f;padding:2px 8px;border-radius:5px;font-size:.7rem;font-weight:700;display:inline-block;">Em andamento</div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Portal exclusivo pro cliente acompanhar processos. Login por WhatsApp OTP. Cliente vê andamentos, próximas audiências e pode mandar mensagem pro CX diretamente daqui.</p>
+</figure>
+HTML,
     'por_que' => 'Portal do cliente — ele acompanha o processo, envia documentos, conversa com a equipe. Reduz ligações/WhatsApp pedindo "como está meu processo?" porque o cliente vê por si próprio.',
     'passos' => array(
         'Cliente acessa: `ferreiraesa.com.br/salavip/`',
