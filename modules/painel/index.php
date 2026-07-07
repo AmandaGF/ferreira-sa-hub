@@ -1267,7 +1267,12 @@ window.briefBaixarItem = function(btnEl, tipo, id) {
             if (d.error) { btnEl.textContent = '✓'; btnEl.style.pointerEvents = ''; alert('Não foi possível: ' + d.error); return; }
             if (item) {
                 item.classList.add('done');
-                btnEl.textContent = '✅'; btnEl.style.pointerEvents = '';
+                // Se ja estava concluido em outro lugar, marca com info (nao alert)
+                btnEl.textContent = d.ja_estava ? 'ℹ️' : '✅';
+                btnEl.style.pointerEvents = '';
+                if (d.ja_estava) {
+                    btnEl.title = 'Já estava concluído — só marquei aqui pra sumir do briefing';
+                }
                 // Persiste o "feito" tambem no toggle visual local
                 var done = brfGetDone();
                 if (item.dataset.key && done.indexOf(item.dataset.key) < 0) {

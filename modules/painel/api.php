@@ -319,24 +319,40 @@ if ($action === 'baixar_atrasada') {
         echo json_encode(array('error' => 'Parametros invalidos')); exit;
     }
     $isGestao = in_array(current_user_role(), array('admin','gestao'), true);
+    // Amanda 06/07/2026: quando o item ja foi concluido em outro lugar (ex:
+    // Amanda deu baixa direto na pasta do processo), o Briefing nao deve
+    // dar erro — deve marcar visualmente como done pra sumir do briefing.
+    // Distinguimos 'nao existe/sem permissao' (error) de 'ja estava
+    // concluido' (ok + ja_estava:true) checando o registro antes do UPDATE.
     try {
         if ($tipo === 'tarefa') {
-            $sql = "UPDATE case_tasks SET status='concluido', completed_at=NOW() WHERE id=? AND status != 'concluido'";
-            $params = array($id);
-            if (!$isGestao) { $sql .= " AND assigned_to=?"; $params[] = $userId; }
-            $st = $pdo->prepare($sql); $st->execute($params);
-            if ($st->rowCount() === 0) { echo json_encode(array('error' => 'Tarefa nao encontrada, sem permissao ou ja concluida')); exit; }
+            $stCheck = $pdo->prepare("SELECT status, assigned_to FROM case_tasks WHERE id=?");
+            $stCheck->execute(array($id));
+            $t = $stCheck->fetch(PDO::FETCH_ASSOC);
+            if (!$t) { echo json_encode(array('error' => 'Tarefa nao encontrada')); exit; }
+            if (!$isGestao && (int)$t['assigned_to'] !== (int)$userId) {
+                echo json_encode(array('error' => 'Sem permissao pra dar baixa nesta tarefa')); exit;
+            }
+            if ($t['status'] === 'concluido') { echo json_encode(array('ok' => true, 'ja_estava' => true)); exit; }
+            $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=NOW() WHERE id=?")->execute(array($id));
         } elseif ($tipo === 'evento') {
-            $sql = "UPDATE agenda_eventos SET status='realizado' WHERE id=? AND status NOT IN ('cancelado','remarcado','realizado','nao_compareceu')";
-            $params = array($id);
-            if (!$isGestao) { $sql .= " AND responsavel_id=?"; $params[] = $userId; }
-            $st = $pdo->prepare($sql); $st->execute($params);
-            if ($st->rowCount() === 0) { echo json_encode(array('error' => 'Evento nao encontrado, sem permissao ou ja realizado')); exit; }
+            $stCheck = $pdo->prepare("SELECT status, responsavel_id FROM agenda_eventos WHERE id=?");
+            $stCheck->execute(array($id));
+            $ev = $stCheck->fetch(PDO::FETCH_ASSOC);
+            if (!$ev) { echo json_encode(array('error' => 'Evento nao encontrado')); exit; }
+            if (!$isGestao && (int)$ev['responsavel_id'] !== (int)$userId) {
+                echo json_encode(array('error' => 'Sem permissao pra dar baixa neste evento')); exit;
+            }
+            if (in_array($ev['status'], array('realizado','cancelado','remarcado','nao_compareceu'), true)) {
+                echo json_encode(array('ok' => true, 'ja_estava' => true)); exit;
+            }
+            $pdo->prepare("UPDATE agenda_eventos SET status='realizado' WHERE id=?")->execute(array($id));
         } else { // prazo - replica logica resumida de modules/operacional/api.php concluir_prazo
-            $stPz = $pdo->prepare("SELECT descricao_acao, case_id FROM prazos_processuais WHERE id=? AND concluido=0");
-            $stPz->execute(array($id));
-            $rowPz = $stPz->fetch(PDO::FETCH_ASSOC);
-            if (!$rowPz) { echo json_encode(array('error' => 'Prazo nao encontrado ou ja concluido')); exit; }
+            $stCheck = $pdo->prepare("SELECT descricao_acao, case_id, concluido FROM prazos_processuais WHERE id=?");
+            $stCheck->execute(array($id));
+            $rowPz = $stCheck->fetch(PDO::FETCH_ASSOC);
+            if (!$rowPz) { echo json_encode(array('error' => 'Prazo nao encontrado')); exit; }
+            if ((int)$rowPz['concluido'] === 1) { echo json_encode(array('ok' => true, 'ja_estava' => true)); exit; }
             $pdo->prepare("UPDATE prazos_processuais SET concluido=1, concluido_em=NOW() WHERE id=?")->execute(array($id));
             // 🔔 Jorjão toca sino (silencioso)
             try {
