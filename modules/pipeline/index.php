@@ -80,6 +80,31 @@ $stmt = $pdo->prepare(
 $stmt->execute($kanbanParams);
 $leads = $stmt->fetchAll();
 
+// 🔗 Shortlinks: cliques dos leads nos últimos 7 dias (mostra badge no card)
+$_leadCliques = array(); // lead_id => ['total' => N, 'ultimo' => Y-m-d H:i:s]
+try {
+    $stC = db()->query("
+        SELECT lead_id, SUM(cliques_total) AS total, MAX(ultimo_clique_em) AS ultimo
+        FROM short_links
+        WHERE lead_id IS NOT NULL AND ultimo_clique_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        GROUP BY lead_id
+    ");
+    foreach ($stC->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $_leadCliques[(int)$r['lead_id']] = array('total' => (int)$r['total'], 'ultimo' => $r['ultimo']);
+    }
+    // Cliques agregados por client_id (pra leads sem link direto mas cujo cliente clicou)
+    $stC2 = db()->query("
+        SELECT client_id, SUM(cliques_total) AS total, MAX(ultimo_clique_em) AS ultimo
+        FROM short_links
+        WHERE client_id IS NOT NULL AND lead_id IS NULL AND ultimo_clique_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+        GROUP BY client_id
+    ");
+    $_clientCliques = array();
+    foreach ($stC2->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $_clientCliques[(int)$r['client_id']] = array('total' => (int)$r['total'], 'ultimo' => $r['ultimo']);
+    }
+} catch (Exception $e) { $_clientCliques = array(); }
+
 $byStage = array();
 foreach (array_keys($stages) as $s) { $byStage[$s] = array(); }
 foreach ($leads as $lead) {
@@ -420,6 +445,20 @@ $_foraColunas = $totalAtivos - $_somaColunas;
                     <?php endif; ?>
                     <?php if (!empty($lead['case_number'])): ?>
                         <div title="Clique pra copiar" onclick="copiarCNJ(event,'<?= e($lead['case_number']) ?>',this)" style="font-size:.6rem;color:#15803d;font-weight:600;margin-top:.15rem;font-family:'Courier New',monospace;letter-spacing:.02em;cursor:pointer;user-select:none;">⚖️ <?= e($lead['case_number']) ?></div>
+                    <?php endif; ?>
+                    <?php
+                    // 🔗 Cliques em links enviados nos últimos 7 dias
+                    $_cli = $_leadCliques[(int)$lead['id']] ?? null;
+                    if (!$_cli && !empty($lead['client_id'])) {
+                        $_cli = $_clientCliques[(int)$lead['client_id']] ?? null;
+                    }
+                    if ($_cli && $_cli['total'] > 0):
+                        $_dif = time() - strtotime($_cli['ultimo']);
+                        $_quando = $_dif < 3600 ? floor($_dif/60) . 'min' : ($_dif < 86400 ? floor($_dif/3600) . 'h' : floor($_dif/86400) . 'd');
+                    ?>
+                        <div style="font-size:.6rem;color:#0369a1;font-weight:700;margin-top:.15rem;background:#e0f2fe;display:inline-block;padding:1px 6px;border-radius:5px;" title="Cliques nos links que enviamos por WhatsApp (últimos 7 dias)">
+                            🔗 <?= (int)$_cli['total'] ?> <?= $_cli['total'] === 1 ? 'clique' : 'cliques' ?> · há <?= $_quando ?>
+                        </div>
                     <?php endif; ?>
                     <?php if (!empty($lead['onboard_nao_precisa'])): ?>
                         <div onclick="event.stopPropagation();toggleOnboardNaoPrecisa(<?= (int)$lead['id'] ?>,0,this)"

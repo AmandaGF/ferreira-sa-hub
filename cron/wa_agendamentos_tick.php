@@ -100,6 +100,17 @@ try {
             '{{data_hoje}}'     => date('d/m/Y'),
         ));
 
+        // 🔗 Shortlinks: rastreia clique do cliente em URLs enviadas
+        try {
+            require_once dirname(__DIR__) . '/core/functions_shortlinks.php';
+            $mensagemFinal = sl_encurtar_urls_no_texto($mensagemFinal, array(
+                'client_id'  => $ag['client_id'] ? (int)$ag['client_id'] : null,
+                'case_id'    => $ag['case_id'] ? (int)$ag['case_id'] : null,
+                'canal'      => $canal,
+                'criado_por' => $ag['criado_por'] ? (int)$ag['criado_por'] : null,
+            ));
+        } catch (Exception $_e) {}
+
         $r = zapi_send_text($canal, $telefone, $mensagemFinal);
         $novoTent = $tentAtual + 1;
 

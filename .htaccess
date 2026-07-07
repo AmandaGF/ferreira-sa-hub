@@ -17,6 +17,9 @@ AddDefaultCharset UTF-8
     # Redirecionar raiz para dashboard
     RewriteRule ^$ modules/dashboard/ [L,R=302]
     RewriteRule ^index\.php$ modules/dashboard/ [L,R=302]
+
+    # Shortlinks: /l/ABC123 -> api/l.php?c=ABC123 (registra clique + redir)
+    RewriteRule ^l/([A-Za-z0-9]+)$ api/l.php?c=$1 [L,QSA]
 </IfModule>
 
 # Bloquear listagem de diretórios

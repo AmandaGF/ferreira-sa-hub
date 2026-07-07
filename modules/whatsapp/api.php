@@ -958,6 +958,16 @@ if ($action === 'enviar_mensagem') {
         $textoEnviar = $assinatura . "\n" . ltrim($texto);
     }
 
+    // 🔗 Shortlinks: encurta URLs pro Hub rastrear clique do cliente.
+    // Ignora URLs internas do Hub logado (exceto treinamento — vale rastrear).
+    require_once APP_ROOT . '/core/functions_shortlinks.php';
+    $textoEnviar = sl_encurtar_urls_no_texto($textoEnviar, array(
+        'conversa_id' => (int)$conv['id'],
+        'client_id'   => !empty($conv['client_id']) ? (int)$conv['client_id'] : null,
+        'canal'       => $conv['canal'],
+        'criado_por'  => $userId,
+    ));
+
     $resp = zapi_send_text($conv['canal'], $conv['telefone'], $textoEnviar, $replyTo ?: null);
     if (empty($resp['ok'])) {
         echo json_encode(array('error' => 'Falha ao enviar: ' . ($resp['erro'] ?? 'HTTP ' . ($resp['http_code'] ?? '?')) . ' — ' . json_encode($resp['data'] ?? '')));
@@ -2354,6 +2364,14 @@ if ($action === 'enviar_rapido') {
         $assinatura2 = str_replace('{{atendente}}', $nomeUser2, $formato2);
         $mensagemFinal = $assinatura2 . "\n" . ltrim($mensagem);
     }
+    // 🔗 Shortlinks: encurta URLs pro Hub rastrear clique do cliente.
+    require_once APP_ROOT . '/core/functions_shortlinks.php';
+    $mensagemFinal = sl_encurtar_urls_no_texto($mensagemFinal, array(
+        'client_id'  => $clientId,
+        'lead_id'    => $leadId,
+        'canal'      => $canal,
+        'criado_por' => $userId,
+    ));
     // Envia via Z-API
     $resp = zapi_send_text($canal, $telefone, $mensagemFinal);
     if (empty($resp['ok'])) {

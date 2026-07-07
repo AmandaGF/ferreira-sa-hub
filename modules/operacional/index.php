@@ -136,6 +136,24 @@ try {
     }
 } catch (Exception $e) { /* tabela pode não existir */ }
 
+// 🔗 Shortlinks: cliques por case e por client (últimos 7d)
+$_caseCliques = array();
+$_clientCliques = array();
+try {
+    foreach ($pdo->query("SELECT case_id, SUM(cliques_total) AS total, MAX(ultimo_clique_em) AS ultimo
+                          FROM short_links
+                          WHERE case_id IS NOT NULL AND ultimo_clique_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                          GROUP BY case_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $_caseCliques[(int)$r['case_id']] = array('total' => (int)$r['total'], 'ultimo' => $r['ultimo']);
+    }
+    foreach ($pdo->query("SELECT client_id, SUM(cliques_total) AS total, MAX(ultimo_clique_em) AS ultimo
+                          FROM short_links
+                          WHERE client_id IS NOT NULL AND case_id IS NULL AND ultimo_clique_em >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                          GROUP BY client_id")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $_clientCliques[(int)$r['client_id']] = array('total' => (int)$r['total'], 'ultimo' => $r['ultimo']);
+    }
+} catch (Exception $e) {}
+
 // Agrupar por status
 // REGRA (Amanda 01/Mai/2026): NUNCA tirar cards do Kanban automaticamente.
 // Cards só saem quando movidos manualmente para "Para Arquivar" e arquivados em massa.
@@ -499,6 +517,18 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="op-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?></div>
                     <?php if (!empty($cs['case_number'])): ?>
                         <div title="Clique pra copiar" onclick="copiarCNJ(event,'<?= e($cs['case_number']) ?>',this)" style="font-size:.62rem;color:#15803d;font-weight:600;margin:.15rem 0;font-family:'Courier New',monospace;letter-spacing:.02em;cursor:pointer;user-select:none;">⚖️ <?= e($cs['case_number']) ?></div>
+                    <?php endif; ?>
+                    <?php
+                    // 🔗 Cliques em links enviados (últimos 7d): case → fallback client
+                    $_cli = $_caseCliques[(int)$cs['id']] ?? null;
+                    if (!$_cli && !empty($cs['client_id'])) $_cli = $_clientCliques[(int)$cs['client_id']] ?? null;
+                    if ($_cli && $_cli['total'] > 0):
+                        $_dif = time() - strtotime($_cli['ultimo']);
+                        $_quando = $_dif < 3600 ? floor($_dif/60) . 'min' : ($_dif < 86400 ? floor($_dif/3600) . 'h' : floor($_dif/86400) . 'd');
+                    ?>
+                        <div style="font-size:.6rem;color:#0369a1;font-weight:700;margin:.15rem 0;background:#e0f2fe;display:inline-block;padding:1px 6px;border-radius:5px;" title="Cliques do cliente nos links que enviamos por WhatsApp (últimos 7 dias)">
+                            🔗 <?= (int)$_cli['total'] ?> · há <?= $_quando ?>
+                        </div>
                     <?php endif; ?>
                     <div class="op-card-badges">
                         <?php if ($_isAcompExt): ?>
