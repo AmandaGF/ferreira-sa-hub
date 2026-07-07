@@ -206,6 +206,8 @@ $menuItems = array(
     array('label' => 'Daily Planner',  'icon' => '📓', 'href' => url('modules/admin/onboarding_daily.php'), 'id' => 'onboarding_daily', 'roles' => array('admin')),
     array('label' => 'Seguro de Vida', 'icon' => '🛡️', 'href' => url('modules/admin/seguro_vida.php'), 'id' => 'seguro_vida', 'roles' => array('admin')),
     array('label' => 'Permissões',     'icon' => '🔐', 'href' => url('modules/admin/permissoes.php'), 'id' => 'permissoes',   'roles' => array('admin')),
+    array('label' => 'Jorjão (Sinos WhatsApp)', 'icon' => '🐻', 'href' => url('modules/admin/jorjao.php'), 'id' => 'jorjao', 'roles' => array('admin')),
+    array('label' => 'Comemorar Contrato', 'icon' => '🔔', 'href' => url('modules/admin/comemorar_contrato.php'), 'id' => 'comemorar_contrato', 'roles' => array('admin')),
     array('label' => 'DataJud',         'icon' => '🔄', 'href' => url('modules/admin/datajud_monitor.php'), 'id' => 'datajud',  'roles' => array('admin')),
     array('label' => 'Importar DJen',   'icon' => '📥', 'href' => url('modules/admin/djen_importar.php'),  'id' => 'djen_importar', 'roles' => array('admin')),
     array('label' => 'Andamentos Monitor', 'icon' => '📧', 'href' => url('modules/email_monitor.php'), 'id' => 'email_monitor', 'roles' => array('admin')),

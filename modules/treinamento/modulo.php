@@ -92,6 +92,74 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tm-quiz-result .score { font-family:'Cormorant Garamond',serif; font-size:3rem; font-weight:600; color:#052228; }
 .tm-next-btn { background:#B87333; color:#fff; border:none; padding:12px 28px; border-radius:10px; font-size:.95rem; font-weight:700; cursor:pointer; margin-top:1rem; }
 .tm-next-btn:hover { background:#a06428; }
+
+/* ── Mockups visuais ("telas_html") ─────────────────────────── */
+.tm-screens { margin: 1.5rem 0; display: flex; flex-direction: column; gap: 1.4rem; }
+.tm-screen { background:#fff; border:1px solid #e5e7eb; border-radius:12px; overflow:hidden; box-shadow:0 1px 2px rgba(5,34,40,.04), 0 12px 32px -12px rgba(5,34,40,.15); }
+.tm-screen-chrome { background:#f4f2ed; border-bottom:1px solid #e5e7eb; padding:.5rem .85rem; display:flex; align-items:center; gap:.5rem; }
+.tm-screen-dots { display:inline-flex; gap:5px; }
+.tm-screen-dots span { width:10px; height:10px; border-radius:50%; }
+.tm-screen-dots span:nth-child(1){background:#e59a8f;} .tm-screen-dots span:nth-child(2){background:#e5c26a;} .tm-screen-dots span:nth-child(3){background:#7fbb8f;}
+.tm-screen-url { background:#fff; border:1px solid #e5e7eb; border-radius:6px; padding:3px 9px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:.68rem; color:#8b7a68; margin-left:.5rem; }
+.tm-screen-body { padding:1.1rem; overflow-x:auto; }
+.tm-screen-caption { padding:.65rem 1.1rem .9rem; font-size:.82rem; color:#64748b; font-style:italic; border-top:1px dashed #e5e7eb; background:#faf7f2; margin:0; }
+
+/* Sidebar mock */
+.tm-mock-sidebar { background:linear-gradient(180deg,#052228 0%,#0a3842 100%); color:#fff; padding:.9rem .6rem; border-radius:8px; font-size:.82rem; min-width:260px; }
+.tm-mock-sidebar .sec { color:rgba(255,255,255,.55); font-size:.62rem; letter-spacing:.12em; text-transform:uppercase; padding:.55rem .5rem .3rem; font-weight:700; }
+.tm-mock-sidebar .item { display:flex; align-items:center; gap:.55rem; padding:.42rem .55rem; border-radius:6px; color:rgba(255,255,255,.88); }
+.tm-mock-sidebar .item.hot { background:rgba(184,115,51,.22); box-shadow:inset 0 0 0 1px rgba(184,115,51,.5); }
+.tm-mock-sidebar .item .icon { font-size:.95rem; width:1.2rem; text-align:center; }
+.tm-mock-sidebar .item .badge { margin-left:auto; background:#0891b2; color:#fff; font-size:.65rem; padding:1px 7px; border-radius:10px; font-weight:700; }
+.tm-mock-sidebar .arrow { color:#B87333; font-size:.75rem; padding:.3rem .55rem .1rem; }
+
+/* Hub header mock */
+.tm-mock-hdr { background:linear-gradient(135deg,#052228,#0d3640); color:#fff; border-radius:10px; padding:.85rem 1rem; display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; margin-bottom:1rem; }
+.tm-mock-hdr h4 { font-family:'Cormorant Garamond',serif; font-size:1.05rem; margin:0; color:#fff; }
+.tm-mock-hdr .s { font-size:.72rem; color:rgba(255,255,255,.75); margin-top:.1rem; }
+.tm-mock-hdr .stats { margin-left:auto; display:flex; gap:.5rem; flex-wrap:wrap; }
+.tm-mock-stat { background:rgba(255,255,255,.1); padding:4px 9px; border-radius:7px; font-size:.66rem; text-align:center; line-height:1.1; }
+.tm-mock-stat b { font-size:.88rem; display:block; font-weight:700; }
+.tm-mock-kill { padding:4px 9px; border-radius:7px; font-size:.62rem; font-weight:700; background:#059669; color:#fff; }
+
+/* Form mock */
+.tm-mock-form { border:1px solid #e5e7eb; border-radius:10px; padding:1rem 1.1rem; background:#fff; }
+.tm-mock-form-title { font-size:.88rem; font-weight:700; margin:0 0 .7rem; color:#052228; }
+.tm-mock-grid { display:grid; grid-template-columns:1fr 1fr; gap:.6rem .7rem; }
+.tm-mock-field { display:flex; flex-direction:column; gap:.2rem; }
+.tm-mock-field.full { grid-column:1/-1; }
+.tm-mock-field label { font-size:.68rem; text-transform:uppercase; letter-spacing:.06em; font-weight:700; color:#64615a; }
+.tm-mock-input { background:#fff; border:1.5px solid #e5e7eb; border-radius:7px; padding:7px 10px; font-size:.82rem; color:#052228; min-height:34px; display:flex; align-items:center; }
+.tm-mock-input.focus { border-color:#052228; box-shadow:0 0 0 3px rgba(5,34,40,.08); }
+.tm-mock-input.tall { min-height:78px; align-items:flex-start; padding:8px 10px; white-space:pre-line; }
+.tm-mock-hint { font-size:.68rem; color:#8b7a68; margin-top:.3rem; }
+.tm-mock-var { background:#f5ede3; color:#78350f; padding:1px 6px; border-radius:4px; font-family:'JetBrains Mono',ui-monospace,monospace; font-size:.72rem; margin-right:4px; }
+.tm-mock-btn-good { display:inline-flex; align-items:center; gap:.35rem; background:#059669; color:#fff; padding:8px 16px; border-radius:7px; font-weight:700; font-size:.82rem; margin-top:.75rem; }
+
+/* Lista de agendamentos mock */
+.tm-mock-tabs { display:flex; gap:.3rem; margin:1rem 0 .7rem; flex-wrap:wrap; }
+.tm-mock-tab { padding:5px 11px; background:#fff; border:1.5px solid #e5e7eb; border-radius:18px; font-size:.74rem; font-weight:600; color:#052228; }
+.tm-mock-tab.active { background:#052228; color:#fff; border-color:#052228; }
+.tm-mock-tab .n { background:#fef3c7; color:#78350f; padding:1px 7px; border-radius:9px; font-size:.66rem; margin-left:4px; }
+.tm-mock-tab.active .n { background:rgba(255,255,255,.2); color:#fff; }
+.tm-mock-item { background:#fff; border:1px solid #e5e7eb; border-left:4px solid; border-radius:8px; padding:.75rem .9rem; margin-bottom:.55rem; font-size:.8rem; }
+.tm-mock-item.pend { border-left-color:#d97706; }
+.tm-mock-item.env { border-left-color:#059669; }
+.tm-mock-item .top { display:flex; align-items:center; gap:.45rem; flex-wrap:wrap; }
+.tm-mock-item .quem { font-weight:700; color:#052228; }
+.tm-mock-item .canal { padding:1px 6px; border-radius:5px; font-size:.62rem; font-weight:700; background:#f0fdf4; color:#166534; }
+.tm-mock-item .quando { font-size:.68rem; color:#8b7a68; }
+.tm-mock-item .badge { padding:1px 7px; border-radius:5px; font-weight:700; font-size:.62rem; text-transform:uppercase; margin-left:auto; }
+.tm-mock-item .badge.pend { background:#fef3c7; color:#78350f; }
+.tm-mock-item .badge.env { background:#d1fae5; color:#065f46; }
+.tm-mock-item .msg { background:#f9f7f2; border-radius:6px; padding:.45rem .6rem; font-size:.76rem; color:#334155; margin-top:.35rem; line-height:1.45; }
+.tm-mock-item .cancel { background:#fee2e2; color:#991b1b; padding:2px 9px; border-radius:5px; font-size:.66rem; font-weight:600; margin-left:auto; }
+
+.tm-mock-cli-sug { margin-top:4px; background:#fff; border:1px solid #e5e7eb; border-radius:7px; max-width:340px; box-shadow:0 6px 16px rgba(0,0,0,.08); font-size:.78rem; }
+.tm-mock-cli-sug .r { padding:7px 11px; border-bottom:1px solid #f3f0ea; }
+.tm-mock-cli-sug .r:last-child { border-bottom:0; }
+.tm-mock-cli-sug .r.hov { background:#f5faff; }
+.tm-mock-cli-sug .r small { display:block; color:#8b7a68; font-size:.72rem; margin-top:1px; }
 </style>
 
 <div class="tm-wrap">
@@ -129,6 +197,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="tm-box">
     <h3>POR QUE ISSO IMPORTA</h3>
     <p><?= nl2br(e($cont['por_que'])) ?></p>
+
+    <?php if (!empty($cont['telas_html'])): ?>
+    <h3>COMO É NA TELA</h3>
+    <div class="tm-screens">
+        <?= $cont['telas_html'] /* HTML controlado, sem escape */ ?>
+    </div>
+    <?php endif; ?>
 
     <?php if (!empty($cont['passos'])): ?>
     <h3>PASSO A PASSO</h3>

@@ -451,6 +451,141 @@ return array(
 
 'agendar-mensagem-wa' => array(
     'por_que' => 'Você combinou de dar retorno pro cliente na próxima segunda, mas não vai lembrar sábado à noite de programar isso. Ou tem audiência de manhã cedo e precisa mandar um check-in um dia antes. **Agendar Mensagem** deixa você escrever a mensagem agora e escolher exatamente quando ela sai — o Hub manda automaticamente no horário marcado, sem precisar deixar aba aberta nem lembrar.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">ferreiraesa.com.br/conecta</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-sidebar">
+      <div class="sec">💬 WhatsApp</div>
+      <div class="item"><span class="icon">💬</span>Comercial (21)<span class="badge" style="background:#dc2626">4</span></div>
+      <div class="item"><span class="icon">💬</span>CX / Operac. (24)<span class="badge" style="background:#dc2626">12</span></div>
+      <div class="item"><span class="icon">📬</span>Caixa de Envios</div>
+      <div class="item hot"><span class="icon">📅</span>Agendar Mensagem<span class="badge">3</span></div>
+      <div class="arrow">← É aqui que você abre</div>
+      <div class="item"><span class="icon">📊</span>Dashboard WhatsApp</div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela 1 — Menu lateral. A entrada nova fica destacada em bronze e a bolinha azul mostra quantas mensagens estão na fila.</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/agendar_msg/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-form">
+      <div class="tm-mock-form-title">➕ Novo agendamento</div>
+      <div class="tm-mock-grid">
+        <div class="tm-mock-field full">
+          <label>Cliente</label>
+          <div class="tm-mock-input focus">maria da s</div>
+          <div class="tm-mock-cli-sug">
+            <div class="r hov"><div><strong>Maria da Silva Santos</strong></div><small>21 99754-1122 · Ação previdenciária</small></div>
+            <div class="r"><div><strong>Maria da Silveira Costa</strong></div><small>24 99311-4488 · Divórcio consensual</small></div>
+          </div>
+          <div class="tm-mock-hint">Telefone é preenchido automaticamente ao selecionar.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela 2 — Começa a digitar o nome, o Hub sugere da agenda. Ao clicar, o telefone entra sozinho.</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/agendar_msg/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-form">
+      <div class="tm-mock-grid">
+        <div class="tm-mock-field"><label>Telefone</label><div class="tm-mock-input">21 99754-1122</div></div>
+        <div class="tm-mock-field"><label>Canal</label><div class="tm-mock-input">24 — CX / Operacional</div></div>
+        <div class="tm-mock-field"><label>Data</label><div class="tm-mock-input">15/07/2026</div></div>
+        <div class="tm-mock-field"><label>Hora</label><div class="tm-mock-input">09:30</div></div>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela 3 — Canal 24 (CX/Operacional) é o padrão. 21 é pra cliente do Comercial. Data e hora são horário de Brasília.</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/agendar_msg/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-form">
+      <div class="tm-mock-grid">
+        <div class="tm-mock-field full">
+          <label>Mensagem</label>
+          <div class="tm-mock-input tall focus">Bom dia, {{primeiro_nome}}! Só passando pra confirmar sua audiência de hoje às 14h.
+
+Se precisar de qualquer ajuda, é só responder por aqui.
+
+Equipe Ferreira &amp; Sá Advocacia</div>
+          <div class="tm-mock-hint">
+            Variáveis clicáveis:
+            <span class="tm-mock-var">{{primeiro_nome}}</span>
+            <span class="tm-mock-var">{{nome}}</span>
+            <span class="tm-mock-var">{{data_hoje}}</span>
+          </div>
+        </div>
+      </div>
+      <div class="tm-mock-btn-good">Agendar</div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela 4 — Escreve a mensagem, clica nas chips laranjas pra inserir variáveis. Sempre assinar "Equipe Ferreira &amp; Sá Advocacia".</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/agendar_msg/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-hdr">
+      <div>
+        <h4>📅 Agendar Mensagem WhatsApp</h4>
+        <div class="s">Escolha cliente, data/hora e a mensagem.</div>
+      </div>
+      <div class="stats">
+        <div class="tm-mock-stat"><b>3</b>pendentes</div>
+        <div class="tm-mock-stat"><b>17</b>enviados 7d</div>
+        <span class="tm-mock-kill">● LIGADO</span>
+      </div>
+    </div>
+    <div class="tm-mock-tabs">
+      <span class="tm-mock-tab active">⏳ Pendentes <span class="n">3</span></span>
+      <span class="tm-mock-tab">📜 Histórico</span>
+    </div>
+    <div class="tm-mock-item pend">
+      <div class="top">
+        <span class="quem">Maria da Silva Santos</span>
+        <span class="canal">Canal 24</span>
+        <span class="quando">Para: <b>15/07 às 09:30</b></span>
+        <span class="badge pend">Pendente</span>
+        <span class="cancel">✕ Cancelar</span>
+      </div>
+      <div class="msg">Bom dia, Maria! Só passando pra confirmar sua audiência de hoje às 14h…</div>
+    </div>
+    <div class="tm-mock-item env">
+      <div class="top">
+        <span class="quem">João Pereira Lima</span>
+        <span class="canal">Canal 24</span>
+        <span class="quando">Enviado ontem, 14:00</span>
+        <span class="badge env">✓ Enviado</span>
+      </div>
+      <div class="msg">Boa tarde, João! Sua parcela vence sexta (10/07). Se precisar…</div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela 5 — Depois de salvar, mensagem aparece em "Pendentes" com botão vermelho pra cancelar. Depois de enviar, vai pro Histórico como verde ✓.</p>
+</figure>
+HTML,
     'passos' => array(
         'Menu lateral **💬 WhatsApp → 📅 Agendar Mensagem**. A bolinha azul do lado do nome mostra quantas mensagens estão na fila.',
         '**Cliente** — comece a digitar o nome. O Hub sugere da agenda; ao clicar, o **telefone é preenchido sozinho** (pode editar se estiver desatualizado).',
