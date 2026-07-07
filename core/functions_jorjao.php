@@ -88,12 +88,13 @@ function jorjao_render($template, $vars) {
 }
 
 /**
- * Envio genérico: pega template sorteado, aplica vars, manda no grupo.
+ * Envio genérico: pega template sorteado (ou o especificado), aplica vars, manda no grupo.
  * $tocada: contrato_assinado|peticao_distribuida|prazo_cumprido|novidade_hub
  * $vars: array associativo com as variáveis do template.
+ * $templateId: opcional. Se informado, usa essa variação específica em vez de sortear.
  * Retorna ['ok'=>bool, 'erro'=>?, 'mensagem'=>?, 'template_id'=>?].
  */
-function jorjao_enviar($tocada, $vars) {
+function jorjao_enviar($tocada, $vars, $templateId = null) {
     if (!jorjao_tocada_ativa($tocada)) {
         return array('ok' => false, 'erro' => 'Tocada desativada: ' . $tocada);
     }
@@ -101,7 +102,15 @@ function jorjao_enviar($tocada, $vars) {
     if (!$g['grupo_id']) return array('ok' => false, 'erro' => 'Grupo não configurado');
     if (!in_array($g['canal'], array('21','24'), true)) return array('ok' => false, 'erro' => 'Canal inválido');
 
-    $tpl = jorjao_pick_template($tocada);
+    $tpl = null;
+    if ($templateId) {
+        try {
+            $st = db()->prepare("SELECT id, template FROM jorjao_templates WHERE id = ? AND tocada = ? AND ativo = 1");
+            $st->execute(array((int)$templateId, $tocada));
+            $tpl = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (Exception $e) {}
+    }
+    if (!$tpl) $tpl = jorjao_pick_template($tocada);
     if (!$tpl) return array('ok' => false, 'erro' => 'Nenhum template ativo pra tocada ' . $tocada);
 
     $mensagem = jorjao_render($tpl['template'], $vars);
@@ -241,13 +250,14 @@ function jorjao_prazo_cumprido_by_id($prazoId, $usuarioId = null) {
 
 /**
  * Tocada 4: novidade no Hub (disparada manualmente pelo admin).
+ * $templateId opcional — se informado, usa essa variação específica em vez de sortear.
  */
-function jorjao_novidade_hub($titulo, $descricao, $link) {
+function jorjao_novidade_hub($titulo, $descricao, $link, $templateId = null) {
     $vars = array(
         'titulo'    => $titulo,
         'descricao' => $descricao,
         'link'      => $link ?: '(sem link)',
         'hoje'      => date('d/m/Y'),
     );
-    return jorjao_enviar('novidade_hub', $vars);
+    return jorjao_enviar('novidade_hub', $vars, $templateId);
 }

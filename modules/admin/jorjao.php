@@ -104,13 +104,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $titulo = trim($_POST['nov_titulo'] ?? '');
         $desc   = trim($_POST['nov_desc'] ?? '');
         $link   = trim($_POST['nov_link'] ?? '');
+        $tplId  = (int)($_POST['nov_template_id'] ?? 0);
         if ($titulo === '' || $desc === '') {
             flash_set('error', 'Título e descrição são obrigatórios.');
             redirect($_SERVER['REQUEST_URI'] . '#novidade_hub');
         }
-        $r = jorjao_novidade_hub($titulo, $desc, $link);
+        $r = jorjao_novidade_hub($titulo, $desc, $link, $tplId ?: null);
         if (!empty($r['ok'])) {
-            flash_set('success', '🔔 Jorjão tocou! Confira o grupo.');
+            $sufixo = $tplId > 0 ? ' (variação #' . $tplId . ')' : ' (variação sorteada)';
+            flash_set('success', '🔔 Jorjão tocou' . $sufixo . '! Confira o grupo.');
         } else {
             flash_set('error', '⚠️ Falhou: ' . ($r['erro'] ?? 'erro desconhecido'));
         }
@@ -274,6 +276,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .jz-btn-copy.copiado { background:#d1fae5; color:#065f46; border-color:#a7f3d0; }
 .jz-btn-send { background:#fef3c7; color:#78350f; border-color:#fcd34d; }
 .jz-btn-send:hover { background:#fde68a; }
+.jz-btn-usar { background:#d97706; color:#fff; border-color:#b45309; font-weight:700; }
+.jz-btn-usar:hover { background:#b45309; }
+.jz-btn-usar.escolhida { background:#059669; border-color:#047857; }
+.jz-btn-usar.escolhida::before { content:'✓ '; }
+.jz-tpl.escolhida-nov { border-color:#059669; background:#ecfdf5; box-shadow:0 0 0 2px rgba(5,150,105,.15); }
 
 .jz-add-form { margin-top: 1rem; padding: 1rem; background:#f5faff; border:1px dashed #93c5fd; border-radius:8px; }
 .jz-add-form textarea { width:100%; min-height:110px; padding:.7rem; border:1.5px solid #e5e7eb; border-radius:7px; font-family:inherit; font-size:.85rem; box-sizing:border-box; }
@@ -399,7 +406,14 @@ foreach ($tocadaInfo as $tocKey => $info): ?>
       <form method="POST" style="background:#fef3c7; padding:1rem; border-radius:10px; margin:1rem 0;">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="novidade_disparar">
+        <input type="hidden" name="nov_template_id" id="nov-tpl-id" value="">
         <h3 style="margin:0 0 .75rem;font-size:1rem;color:#78350f;">🔔 Anunciar novidade agora</h3>
+
+        <div id="nov-tpl-selecionada" style="display:none;background:#fff;border:1.5px dashed #d97706;border-radius:8px;padding:.55rem .75rem;margin-bottom:.6rem;font-size:.78rem;color:#78350f;">
+          🎯 <strong>Usando variação #<span id="nov-tpl-num"></span></strong> — clique
+          <a href="#" onclick="event.preventDefault();novLimparEscolha()" style="color:#B87333;font-weight:700;">aqui pra voltar ao sorteio aleatório</a>.
+        </div>
+
         <div style="display:grid;gap:.6rem;">
           <div>
             <label style="font-size:.72rem;font-weight:700;text-transform:uppercase;color:#78350f;">Título</label>
@@ -438,6 +452,9 @@ foreach ($tocadaInfo as $tocKey => $info): ?>
           <?php if (!$t['ativo']): ?><small style="color:#991b1b;font-size:.7rem;">DESATIVADO</small><?php endif; ?>
         </div>
         <div class="jz-tpl-actions">
+          <?php if ($tocKey === 'novidade_hub'): ?>
+          <button type="button" class="btn-mini jz-btn-usar" onclick="novUsarEssa(<?= (int)$t['id'] ?>, this)" title="Usar essa variação específica no próximo 'Tocar sino agora'">⬆️ Usar essa</button>
+          <?php endif; ?>
           <button type="button" class="btn-mini jz-btn-copy" onclick="jzCopiar(this)" title="Copiar o texto pra colar em outro lugar">📋 Copiar</button>
           <?php if (in_array($tocKey, array('peticao_distribuida','prazo_cumprido','contrato_assinado'), true)): ?>
           <form method="POST" style="display:inline;" onsubmit="return confirm('Enviar essa variação AGORA no grupo? Vai chegar como mensagem real com valores de demo.')">
@@ -522,6 +539,36 @@ function jzEdit(id, btn) {
   form.querySelector('button[type=submit]').textContent = 'Atualizar template #' + id;
   form.querySelector('label').textContent = 'Editando template #' + id;
   form.scrollIntoView({behavior:'smooth', block:'center'});
+}
+
+// Marca uma variação específica pra ser usada no próximo "Tocar sino agora"
+function novUsarEssa(id, btn) {
+  var hidden = document.getElementById('nov-tpl-id');
+  var badge = document.getElementById('nov-tpl-selecionada');
+  var num = document.getElementById('nov-tpl-num');
+  if (!hidden || !badge || !num) return;
+  hidden.value = id;
+  num.textContent = id;
+  badge.style.display = 'block';
+  // Marca visualmente qual está escolhida
+  document.querySelectorAll('.jz-tpl.escolhida-nov').forEach(function(el){ el.classList.remove('escolhida-nov'); });
+  document.querySelectorAll('.jz-btn-usar.escolhida').forEach(function(el){ el.classList.remove('escolhida'); el.textContent = '⬆️ Usar essa'; });
+  var card = btn.closest('.jz-tpl');
+  if (card) card.classList.add('escolhida-nov');
+  btn.classList.add('escolhida');
+  btn.textContent = 'Escolhida';
+  // Scroll pro form do topo
+  var form = document.getElementById('form-novidade_hub');
+  var alvo = badge.closest('form');
+  if (alvo) alvo.scrollIntoView({behavior:'smooth', block:'center'});
+}
+function novLimparEscolha() {
+  var hidden = document.getElementById('nov-tpl-id');
+  var badge = document.getElementById('nov-tpl-selecionada');
+  if (hidden) hidden.value = '';
+  if (badge) badge.style.display = 'none';
+  document.querySelectorAll('.jz-tpl.escolhida-nov').forEach(function(el){ el.classList.remove('escolhida-nov'); });
+  document.querySelectorAll('.jz-btn-usar.escolhida').forEach(function(el){ el.classList.remove('escolhida'); el.textContent = '⬆️ Usar essa'; });
 }
 
 // Copia o texto do template pro clipboard
