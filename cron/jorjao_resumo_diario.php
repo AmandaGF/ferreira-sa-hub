@@ -81,9 +81,12 @@ $convId = (int)$stConv->fetchColumn();
 if (!$convId) { echo "Conversa do grupo não encontrada no DB. O grupo teve movimento hoje?\n  (procurei por '{$grupoIdBusca}' e '{$g['grupo_id']}' no canal {$g['canal']})\n"; exit; }
 echo "  Conversa do grupo: #{$convId}\n";
 
-// Msgs do dia (últimas 500 pra proteger token)
+// Msgs do dia (últimas 500 pra proteger token).
+// zapi_mensagens NÃO tem coluna autor_nome (grupos WhatsApp: o nome do
+// participante que enviou msg não é guardado). Distinguimos só quem é
+// da equipe (via users.name) vs 'Alguém do grupo' pras msgs recebidas.
 $stMsg = $pdo->prepare("SELECT m.direcao, m.tipo, m.conteudo, m.created_at,
-                              m.autor_nome, u.name AS user_nome
+                              u.name AS user_nome
                        FROM zapi_mensagens m
                        LEFT JOIN users u ON u.id = m.enviado_por_id
                        WHERE m.conversa_id = ? AND DATE(m.created_at) = ?
@@ -105,7 +108,7 @@ $autoresVistos = array();
 foreach ($msgs as $m) {
     if ($m['tipo'] !== 'texto' || !$m['conteudo']) continue;
     $hora = date('H:i', strtotime($m['created_at']));
-    $quem = $m['user_nome'] ?: ($m['autor_nome'] ?: ($m['direcao'] === 'enviada' ? 'Equipe' : 'Cliente/Grupo'));
+    $quem = $m['user_nome'] ?: ($m['direcao'] === 'enviada' ? 'Equipe' : 'Alguém do grupo');
     $autoresVistos[$quem] = true;
     $txt = mb_substr(preg_replace('/\s+/', ' ', $m['conteudo']), 0, 400);
     $transcricao .= "[{$hora}] {$quem}: {$txt}\n";
