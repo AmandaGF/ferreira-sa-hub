@@ -12,6 +12,38 @@
  */
 
 /**
+ * Amanda 07/07/2026: PJE não aceita travessão (—, U+2014) nem en dash (–)
+ * em nome de arquivo. Padronizamos qualquer variação de traço "elegante"
+ * pra hífen simples ANTES de mandar pro Drive. Blindagem em ponto único —
+ * garante que qualquer upload passa por aqui.
+ *
+ * Substituições:
+ *   —  (em dash)   → -
+ *   –  (en dash)   → -
+ *   ―  (horiz bar) → -
+ *   ‒  (figure dash) → -
+ *   −  (minus sign)  → -
+ *
+ * Espaços múltiplos são colapsados. Trim final.
+ */
+function _drive_sanitize_filename($nome) {
+    if (!is_string($nome) || $nome === '') return $nome;
+    $nome = strtr($nome, array(
+        "\xE2\x80\x94" => '-', // — em dash
+        "\xE2\x80\x93" => '-', // – en dash
+        "\xE2\x80\x92" => '-', // ‒ figure dash
+        "\xE2\x80\x95" => '-', // ― horizontal bar
+        "\xE2\x88\x92" => '-', // − minus sign
+    ));
+    // Também remove caracteres de controle invisíveis (u+200b zero width space, etc)
+    $nome = preg_replace('/[\x{200B}-\x{200D}\x{FEFF}]/u', '', $nome);
+    // Colapsa múltiplos hífens/espaços
+    $nome = preg_replace('/-{2,}/', '-', $nome);
+    $nome = preg_replace('/\s{2,}/', ' ', $nome);
+    return trim($nome);
+}
+
+/**
  * Amanda 03/07: helper de POST com retry — Apps Script tem cold start, e o
  * LiteSpeed WAF do TurboCloud as vezes fecha SSL antes de completar. Retry
  * com backoff resolve os erros esporádicos "timed out after 949 milliseconds".
@@ -127,6 +159,9 @@ function upload_file_to_drive($folderUrl, $fileName, $sourceUrl, $mimeType = '')
     if (!defined('GOOGLE_APPS_SCRIPT_URL') || !GOOGLE_APPS_SCRIPT_URL) {
         return array('success' => false, 'error' => 'GOOGLE_APPS_SCRIPT_URL não configurado');
     }
+
+    // Bloqueio PJE: travessão (—/–) recusado em nome de arquivo
+    $fileName = _drive_sanitize_filename($fileName);
 
     // Extrai o ID da pasta da URL completa
     $folderId = '';
@@ -277,6 +312,8 @@ function upload_file_to_drive_base64($folderId, $fileName, $base64Content, $mime
     if (!defined('GOOGLE_APPS_SCRIPT_URL') || !GOOGLE_APPS_SCRIPT_URL) {
         return array('success' => false, 'error' => 'GOOGLE_APPS_SCRIPT_URL nao configurado');
     }
+    // Bloqueio PJE: travessão (—/–) recusado em nome de arquivo
+    $fileName = _drive_sanitize_filename($fileName);
     $payload = json_encode(array(
         'action'        => 'uploadFileBase64',
         'folderId'      => $folderId,
