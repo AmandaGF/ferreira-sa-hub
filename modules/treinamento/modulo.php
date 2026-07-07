@@ -160,11 +160,69 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tm-mock-cli-sug .r:last-child { border-bottom:0; }
 .tm-mock-cli-sug .r.hov { background:#f5faff; }
 .tm-mock-cli-sug .r small { display:block; color:#8b7a68; font-size:.72rem; margin-top:1px; }
+
+/* Painel do dia: cards de sessao */
+.tm-mock-painel-sec { margin-bottom:.9rem; }
+.tm-mock-painel-sec h5 { margin:0 0 .5rem; font-size:.72rem; text-transform:uppercase; letter-spacing:.1em; color:#8b7a68; font-weight:700; display:flex; align-items:center; gap:.4rem; }
+.tm-mock-linha { background:#fff; border:1px solid #e5e7eb; border-left:4px solid #B87333; border-radius:8px; padding:.6rem .85rem; margin-bottom:.4rem; display:flex; align-items:center; gap:.6rem; font-size:.82rem; }
+.tm-mock-linha.urg { border-left-color:#dc2626; background:#fef2f2; }
+.tm-mock-linha .hora { font-family:'JetBrains Mono',ui-monospace,monospace; color:#052228; font-weight:700; font-size:.75rem; min-width:44px; }
+.tm-mock-linha .titulo { flex:1; color:#052228; font-weight:600; }
+.tm-mock-linha .cli { color:#8b7a68; font-size:.72rem; }
+.tm-mock-linha .badge-urg { background:#dc2626; color:#fff; font-size:.62rem; padding:1px 7px; border-radius:5px; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+
+/* Drawer mock */
+.tm-mock-drawer { max-width:520px; margin-left:auto; background:#fff; border:1px solid #e5e7eb; border-radius:12px 0 0 12px; box-shadow:-4px 0 20px rgba(5,34,40,.1); overflow:hidden; }
+.tm-mock-drawer-top { background:linear-gradient(135deg,#052228,#0d3640); color:#fff; padding:1rem 1.1rem; }
+.tm-mock-drawer-top h4 { margin:0; font-family:'Cormorant Garamond',serif; font-size:1.1rem; color:#fff; }
+.tm-mock-drawer-top .sub { font-size:.72rem; color:rgba(255,255,255,.75); margin-top:.15rem; }
+.tm-mock-drawer-abas { display:flex; gap:0; background:#f4f2ed; border-bottom:1px solid #e5e7eb; overflow-x:auto; }
+.tm-mock-drawer-abas .a { padding:8px 12px; font-size:.7rem; font-weight:600; color:#8b7a68; white-space:nowrap; border-bottom:3px solid transparent; }
+.tm-mock-drawer-abas .a.on { color:#052228; background:#fff; border-bottom-color:#B87333; }
+.tm-mock-drawer-cont { padding:1rem 1.1rem; font-size:.82rem; }
+.tm-mock-doc-item { display:flex; align-items:center; gap:.55rem; padding:.55rem .7rem; background:#faf7f2; border-radius:6px; margin-bottom:.4rem; font-size:.8rem; }
+.tm-mock-doc-item.done { opacity:.6; text-decoration:line-through; }
+.tm-mock-doc-item .chk { width:16px; height:16px; border:1.5px solid #B87333; border-radius:4px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:.7rem; color:#fff; }
+.tm-mock-doc-item.done .chk { background:#059669; border-color:#059669; }
+.tm-mock-doc-item.done .chk::before { content:'✓'; }
+
+/* WhatsApp mock: layout 2 col */
+.tm-mock-wa { display:grid; grid-template-columns:220px 1fr; border:1px solid #e5e7eb; border-radius:10px; overflow:hidden; background:#fff; min-height:340px; }
+@media (max-width:640px) { .tm-mock-wa { grid-template-columns:1fr; } }
+.tm-mock-wa-lista { background:#f4f2ed; border-right:1px solid #e5e7eb; overflow-y:auto; }
+.tm-mock-wa-conv { padding:.6rem .8rem; border-bottom:1px solid #e5e7eb; cursor:pointer; }
+.tm-mock-wa-conv.on { background:#fff; border-left:3px solid #B87333; padding-left:calc(.8rem - 3px); }
+.tm-mock-wa-conv .nome { font-weight:700; color:#052228; font-size:.82rem; display:flex; align-items:center; gap:.4rem; }
+.tm-mock-wa-conv .prev { font-size:.72rem; color:#8b7a68; margin-top:.15rem; }
+.tm-mock-wa-conv .lock { font-size:.7rem; color:#dc2626; }
+.tm-mock-wa-conv .badge-nl { margin-left:auto; background:#dc2626; color:#fff; font-size:.62rem; padding:1px 6px; border-radius:9px; font-weight:700; }
+.tm-mock-wa-chat { display:flex; flex-direction:column; }
+.tm-mock-wa-chat-hdr { background:#052228; color:#fff; padding:.7rem 1rem; display:flex; align-items:center; gap:.5rem; font-size:.82rem; }
+.tm-mock-wa-chat-hdr .nome { font-weight:700; }
+.tm-mock-wa-chat-hdr .timer { margin-left:auto; background:#fef3c7; color:#78350f; padding:2px 8px; border-radius:6px; font-size:.68rem; font-weight:700; font-family:'JetBrains Mono',ui-monospace,monospace; }
+.tm-mock-wa-body { flex:1; padding:.9rem 1rem; background:#faf7f2; display:flex; flex-direction:column; gap:.55rem; }
+.tm-mock-bolha { max-width:75%; padding:.5rem .75rem; border-radius:12px; font-size:.78rem; line-height:1.4; }
+.tm-mock-bolha.recv { background:#fff; border:1px solid #e5e7eb; align-self:flex-start; border-bottom-left-radius:3px; }
+.tm-mock-bolha.env { background:#dcfce7; align-self:flex-end; border-bottom-right-radius:3px; color:#052228; }
+.tm-mock-bolha .h { display:block; font-size:.62rem; color:#8b7a68; margin-top:.2rem; text-align:right; }
+
+/* Botão copiar link */
+.tm-copy-btn { display:inline-flex; align-items:center; gap:6px; padding:6px 12px; background:#fff; border:1px solid #e5e7eb; border-radius:8px; color:#052228; font-size:.78rem; font-weight:600; cursor:pointer; transition:all .12s; font-family:inherit; }
+.tm-copy-btn:hover { border-color:#B87333; color:#B87333; }
+.tm-copy-btn.copiado { background:#d1fae5; border-color:#059669; color:#065f46; }
 </style>
 
+<?php
+$_urlTreinamento = 'https://ferreiraesa.com.br/conecta/modules/treinamento/modulo.php?slug=' . urlencode($slug);
+?>
 <div class="tm-wrap">
 
-<a href="<?= module_url('treinamento') ?>" class="tm-back">← Voltar aos módulos</a>
+<div style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;">
+    <a href="<?= module_url('treinamento') ?>" class="tm-back" style="margin:0;">← Voltar aos módulos</a>
+    <button type="button" class="tm-copy-btn" onclick="tmCopiarLink(this, '<?= e($_urlTreinamento) ?>')" title="Copia o link deste treinamento pra você compartilhar por WhatsApp/email">
+        🔗 <span>Copiar link</span>
+    </button>
+</div>
 
 <div class="tm-hdr">
     <div class="ico"><?= e($modulo['icone']) ?></div>
@@ -440,6 +498,28 @@ document.getElementById('btnMissao')?.addEventListener('click', function(){
         else { alert(d.error||'Erro'); this.disabled=false; this.textContent='Missão concluída ✓'; }
     });
 });
+
+// Copiar link do treinamento
+window.tmCopiarLink = function(btn, url) {
+    var textoOriginal = btn.querySelector('span').textContent;
+    var restaurar = function() {
+        setTimeout(function(){ btn.classList.remove('copiado'); btn.querySelector('span').textContent = textoOriginal; }, 1800);
+    };
+    var sucesso = function() { btn.classList.add('copiado'); btn.querySelector('span').textContent = '✓ Link copiado!'; restaurar(); };
+    // Método moderno (HTTPS + secure context)
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(sucesso).catch(fallback);
+    } else { fallback(); }
+    function fallback() {
+        // Fallback pra navegadores antigos: textarea temporário + execCommand
+        var ta = document.createElement('textarea');
+        ta.value = url; ta.style.position='fixed'; ta.style.left='-9999px';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); sucesso(); }
+        catch(e) { alert('Link: ' + url); }
+        document.body.removeChild(ta);
+    }
+};
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

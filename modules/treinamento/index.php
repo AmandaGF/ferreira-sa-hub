@@ -179,6 +179,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .tr-card .prog-step.done { background:#B87333; }
 .tr-card .meta { display:flex; justify-content:space-between; align-items:center; font-size:.72rem; color:#6b7280; margin-top:6px; }
 .tr-card .pts { font-weight:700; color:#B87333; }
+.tr-copy-link { position:absolute; top:.7rem; right:.7rem; width:32px; height:32px; border-radius:8px; background:#fff; border:1px solid #e5e7eb; color:#052228; font-size:.9rem; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:all .12s; z-index:2; }
+.tr-copy-link:hover { border-color:#B87333; color:#B87333; background:#f5ede3; transform:scale(1.08); }
+.tr-copy-link.copiado { background:#d1fae5; border-color:#059669; color:#065f46; }
+.tr-card .badge { z-index:1; }
 .tr-card .badge { position:absolute; top:10px; right:10px; font-size:.65rem; padding:2px 8px; border-radius:999px; font-weight:700; }
 .tr-card .badge.ok { background:#059669; color:#fff; }
 .tr-card .badge.andamento { background:#f59e0b; color:#fff; }
@@ -288,7 +292,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
             $concluido = (int)$m['concluido'] === 1;
             $cardCls = $concluido ? 'concluido' : ($etapas > 0 ? 'andamento' : '');
         ?>
+<?php
+            $_urlModulo = 'https://ferreiraesa.com.br/conecta/modules/treinamento/modulo.php?slug=' . urlencode($m['slug']);
+        ?>
         <a href="<?= module_url('treinamento', 'modulo.php?slug=' . urlencode($m['slug'])) ?>" class="tr-card <?= $cardCls ?>">
+            <button type="button" class="tr-copy-link" onclick="event.preventDefault();event.stopPropagation();trCopiarLink(this,'<?= e($_urlModulo) ?>')" title="Copia o link deste treinamento">🔗</button>
             <?php if ($concluido): ?>
                 <span class="badge ok">✓ Concluído</span>
             <?php elseif ($etapas > 0): ?>
@@ -350,5 +358,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </div>
 
 </div>
+
+<script>
+window.trCopiarLink = function(btn, url) {
+    var textoOriginal = btn.textContent;
+    var restaurar = function(){ setTimeout(function(){ btn.classList.remove('copiado'); btn.textContent = textoOriginal; }, 1800); };
+    var sucesso = function(){ btn.classList.add('copiado'); btn.textContent = '✓'; restaurar(); };
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(url).then(sucesso).catch(fallback);
+    } else { fallback(); }
+    function fallback() {
+        var ta = document.createElement('textarea');
+        ta.value = url; ta.style.position='fixed'; ta.style.left='-9999px';
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); sucesso(); } catch(e) { alert('Link: ' + url); }
+        document.body.removeChild(ta);
+    }
+};
+</script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
