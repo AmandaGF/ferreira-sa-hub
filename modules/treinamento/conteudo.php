@@ -765,6 +765,39 @@ HTML,
 
 'helpdesk' => array(
     'por_que' => 'Centraliza comunicação interna da equipe. Dúvidas, bugs do sistema, solicitações de material, solicitações de gestão. Em vez de WhatsApp avulso, abre um chamado — fica documentado.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/helpdesk/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-tarefas">
+      <div class="tm-mock-tarefa hi">
+        <span class="pri alta">BUG</span>
+        <span class="txt">Kanban comercial travou ao mover card</span>
+        <span class="quando">🔴 Aberto · há 2h</span>
+      </div>
+      <div class="tm-mock-tarefa">
+        <span class="pri media">DÚVIDA</span>
+        <span class="txt">Como cadastrar procuração de menor emancipado?</span>
+        <span class="quando">🟡 Em análise</span>
+      </div>
+      <div class="tm-mock-tarefa">
+        <span class="pri baixa">MATERIAL</span>
+        <span class="txt">Solicito papel timbrado impresso (100 folhas)</span>
+        <span class="quando">🟢 Aprovado</span>
+      </div>
+      <div class="tm-mock-tarefa">
+        <span class="pri baixa">GESTÃO</span>
+        <span class="txt">Pedido de folga 12/07 (compensação)</span>
+        <span class="quando">🟢 Aprovado</span>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Central de chamados. Tipos: bug, dúvida, material, gestão. Cada tipo tem responsável default. Status colorido de forma rápida (aberto/análise/aprovado). Histórico completo pra auditoria depois.</p>
+</figure>
+HTML,
     'passos' => array(
         'Menu **Helpdesk** → botão **+ Novo Chamado**.',
         'Preenche: título, categoria, prioridade, descrição, vínculos (cliente/processo opcional).',
@@ -779,6 +812,36 @@ HTML,
 ),
 
 'wiki' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/wiki/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div style="display:grid;grid-template-columns:200px 1fr;gap:.7rem;">
+      <div style="background:#faf7f2;border-radius:8px;padding:.7rem;font-size:.78rem;">
+        <div style="font-size:.62rem;text-transform:uppercase;letter-spacing:.08em;font-weight:700;color:#8b7a68;margin-bottom:.4rem;">Categorias</div>
+        <div style="padding:.3rem;font-weight:700;color:#B87333;">⚖️ Regras jurídicas</div>
+        <div style="padding:.3rem;color:#052228;">📋 Procedimentos</div>
+        <div style="padding:.3rem;color:#052228;">👥 Onboarding</div>
+        <div style="padding:.3rem;color:#052228;">💰 Financeiro</div>
+        <div style="padding:.3rem;color:#052228;">🔒 Compliance/LGPD</div>
+      </div>
+      <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:1rem;font-size:.8rem;">
+        <h4 style="margin:0 0 .5rem;font-family:'Cormorant Garamond',serif;font-size:1.15rem;color:#052228;">Regras de nomenclatura de pastas</h4>
+        <div style="font-size:.68rem;color:#8b7a68;margin-bottom:.6rem;">Atualizado por Amanda · 24/06/2026</div>
+        <p style="margin:0 0 .5rem;line-height:1.5;">Toda pasta deve seguir o padrão <strong>"NOME DO CLIENTE x AÇÃO"</strong> sem exceção. Exemplos:</p>
+        <ul style="margin:0;padding-left:1.2rem;line-height:1.6;">
+          <li>MARIA SILVA x Alimentos ✓</li>
+          <li>JOÃO PEREIRA x Divórcio ✓</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Wiki interna. Manual da casa em 5 categorias. Editável (só admin/gestão). Buscador full-text. Última edição sempre visível.</p>
+</figure>
+HTML,
     'por_que' => 'Base de conhecimento do escritório. Antes de perguntar pra alguém, consulta aqui — a resposta provavelmente já foi escrita por quem já passou pela mesma dúvida.',
     'passos' => array(
         'Menu **Wiki** → lista de artigos organizados por categoria.',
@@ -933,6 +996,43 @@ HTML,
 ),
 
 'ranking' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/gamificacao/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div style="display:flex;flex-direction:column;gap:.4rem;">
+      <div style="display:flex;align-items:center;gap:.7rem;background:linear-gradient(90deg,#f5ede3,#fff);padding:.7rem 1rem;border-radius:8px;border:2px solid #B87333;">
+        <span style="font-size:1.8rem;">🥇</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;color:#052228;">Duda</div>
+          <div style="font-size:.72rem;color:#8b7a68;">Nível Diamante · 12 contratos · 8 treinamentos</div>
+        </div>
+        <span style="font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:600;color:#B87333;">1.240 pts</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:.7rem;background:#fff;border:1px solid #e5e7eb;padding:.7rem 1rem;border-radius:8px;">
+        <span style="font-size:1.6rem;">🥈</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;color:#052228;">Amanda</div>
+          <div style="font-size:.72rem;color:#8b7a68;">Nível Ouro · 9 contratos · 12 treinamentos</div>
+        </div>
+        <span style="font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:600;color:#052228;">980 pts</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:.7rem;background:#fff;border:1px solid #e5e7eb;padding:.7rem 1rem;border-radius:8px;">
+        <span style="font-size:1.6rem;">🥉</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;color:#052228;">Luiz Eduardo</div>
+          <div style="font-size:.72rem;color:#8b7a68;">Nível Prata · 7 contratos</div>
+        </div>
+        <span style="font-family:'Cormorant Garamond',serif;font-size:1.4rem;font-weight:600;color:#052228;">720 pts</span>
+      </div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Ranking do mês. Pontos vêm de: contratos fechados, tarefas concluídas, treinamentos, prazos batidos. 5 níveis (Bronze/Prata/Ouro/Diamante/Lenda). Zera todo dia 1 do mês.</p>
+</figure>
+HTML,
     'por_que' => 'Gamificação incentiva resultado. 2 rankings separados pra ser justo (Comercial ≠ Operacional). 11 eventos dão pontos, 8 níveis, efeitos visuais (confetti, moedas).',
     'passos' => array(
         'Menu **Ranking/Gamificação**.',
@@ -948,6 +1048,29 @@ HTML,
 ),
 
 'links-tribunais' => array(
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/portal/</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-docs-grid">
+      <div class="tm-mock-doc-card"><div class="ico">⚖️</div><div class="n">PJe TJRJ</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">⚖️</div><div class="n">e-SAJ TJSP</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">⚖️</div><div class="n">PROJUDI TJRJ</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">🏛️</div><div class="n">TRF-2</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">🏛️</div><div class="n">TRT-1 RJ</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">🔒</div><div class="n">STJ Push</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">🏦</div><div class="n">Sisbajud</div></div>
+      <div class="tm-mock-doc-card hi"><div class="ico">📮</div><div class="n">DJEN CNJ</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">📇</div><div class="n">Sispatri</div></div>
+      <div class="tm-mock-doc-card"><div class="ico">🚗</div><div class="n">Renajud</div></div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Portal de acessos rápidos. Todos os tribunais + sistemas de consulta em 1 clique. Senhas guardadas cifradas AES-256 (só admin edita). Buscar rápido pelo Ctrl+F da sidebar filtra.</p>
+</figure>
+HTML,
     'por_que' => 'Portal de Links centraliza TODOS os acessos do escritório: tribunais, PJe, e-SAJ, bancos, correspondente, ferramentas. Com credenciais criptografadas (AES-256).',
     'passos' => array(
         'Menu **Portal** ou topbar.',
