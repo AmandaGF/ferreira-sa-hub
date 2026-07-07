@@ -5,10 +5,9 @@
  */
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
-if (!has_min_role('gestao')) {
-    flash_set('error', 'Área restrita a admin/gestão.');
-    redirect(url('modules/dashboard/index.php'));
-}
+// Amanda 07/07/2026: liberado pra TODOS os usuarios (todos os perfis).
+// Rastreio de cliques ajuda comercial+CX+operacional identificar leads
+// engajados no dia a dia. Killswitch continua so admin (bloco abaixo).
 
 $pdo = db();
 $pageTitle = '🔗 Rastreio de Cliques';
@@ -27,8 +26,9 @@ $totCli7d = (int)$pdo->query("SELECT COUNT(DISTINCT link_id) FROM link_clicks WH
 $killswitch = (string)$pdo->query("SELECT valor FROM configuracoes WHERE chave='shortlinks_ativo'")->fetchColumn();
 $killswitchOn = ($killswitch === '1');
 
-// Toggle killswitch
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
+// Toggle killswitch — só admin/gestão pode ligar/desligar a feature
+$_podeToggle = has_min_role('gestao');
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf() && $_podeToggle) {
     if (($_POST['action'] ?? '') === 'toggle_kill') {
         $novo = $killswitchOn ? '0' : '1';
         $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('shortlinks_ativo', ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)")
@@ -191,6 +191,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <?php if ($busca): ?><a href="?filtro=<?= e($filtro) ?>" style="color:#8b7a68;font-size:.72rem;">✕ limpar</a><?php endif; ?>
   </form>
 
+  <?php if ($_podeToggle): ?>
   <form method="POST" style="margin:0;">
     <?= csrf_input() ?>
     <input type="hidden" name="action" value="toggle_kill">
@@ -198,6 +199,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
       ● <?= $killswitchOn ? 'LIGADO' : 'DESLIGADO' ?>
     </button>
   </form>
+  <?php else: ?>
+  <span class="sl-kill <?= $killswitchOn ? 'on' : 'off' ?>" style="cursor:default;" title="Só admin/gestão liga/desliga">
+    ● <?= $killswitchOn ? 'LIGADO' : 'DESLIGADO' ?>
+  </span>
+  <?php endif; ?>
 </div>
 
 <?php if (empty($links)): ?>
