@@ -59,13 +59,20 @@ if (!$g['grupo_id'] || !in_array($g['canal'], array('21','24'), true)) {
 }
 echo "Grupo alvo: {$g['grupo_id']} (canal {$g['canal']})\n";
 
-// Buscar conversa_id do grupo
+// Buscar conversa_id do grupo.
+// Amanda 06/07/2026: config guarda com '@g.us' (necessário pra Z-API entregar
+// no ENVIO — sem sufixo ela gera messageId sintético e nunca entrega). Mas em
+// zapi_conversas.telefone o valor fica só o numérico (sem sufixo). Então
+// normalizo antes de comparar: strip do sufixo pra bater com o que está no DB.
+$grupoIdBusca = str_replace(array('@g.us','@s.whatsapp.net','@lid'), '', $g['grupo_id']);
 $stConv = $pdo->prepare("SELECT co.id FROM zapi_conversas co
                         JOIN zapi_instancias i ON i.id = co.instancia_id
-                        WHERE i.ddd = ? AND co.telefone = ? LIMIT 1");
-$stConv->execute(array($g['canal'], $g['grupo_id']));
+                        WHERE i.ddd = ? AND (co.telefone = ? OR co.telefone = ?)
+                        LIMIT 1");
+$stConv->execute(array($g['canal'], $grupoIdBusca, $g['grupo_id']));
 $convId = (int)$stConv->fetchColumn();
-if (!$convId) { echo "Conversa do grupo não encontrada no DB. O grupo teve movimento hoje?\n"; exit; }
+if (!$convId) { echo "Conversa do grupo não encontrada no DB. O grupo teve movimento hoje?\n  (procurei por '{$grupoIdBusca}' e '{$g['grupo_id']}' no canal {$g['canal']})\n"; exit; }
+echo "  Conversa do grupo: #{$convId}\n";
 
 // Msgs do dia (últimas 500 pra proteger token)
 $stMsg = $pdo->prepare("SELECT m.direcao, m.tipo, m.conteudo, m.created_at,
