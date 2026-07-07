@@ -3,20 +3,20 @@ require_once __DIR__ . '/../../core/middleware.php';
 require_login();
 $pdo = db();
 $docId = (int)($_GET['id'] ?? 0);
+
+// Self-heal ANTES do prepare (Amanda 07/07): o prepare com JOIN em coluna
+// inexistente lança exception ANTES do execute — o try/catch antigo só cobria
+// o execute e o self-heal nunca rodava. Efeito: botão "Ver" de qualquer peça
+// gerada abria página de erro.
+try { $pdo->exec("ALTER TABLE case_documents ADD COLUMN editado_em DATETIME NULL"); } catch (Exception $e) {}
+try { $pdo->exec("ALTER TABLE case_documents ADD COLUMN editado_por INT NULL"); } catch (Exception $e) {}
+
 $stmt = $pdo->prepare("SELECT cd.*, u.name as user_name, ue.name as editado_por_name
                        FROM case_documents cd
                        LEFT JOIN users u ON u.id = cd.gerado_por
                        LEFT JOIN users ue ON ue.id = cd.editado_por
                        WHERE cd.id = ?");
-try {
-    $stmt->execute(array($docId));
-} catch (PDOException $e) {
-    // Self-heal: colunas de edicao manual ainda nao existem em registros antigos
-    try { $pdo->exec("ALTER TABLE case_documents ADD COLUMN editado_em DATETIME NULL"); } catch (Exception $e2) {}
-    try { $pdo->exec("ALTER TABLE case_documents ADD COLUMN editado_por INT NULL"); } catch (Exception $e2) {}
-    $stmt = $pdo->prepare("SELECT cd.*, u.name as user_name FROM case_documents cd LEFT JOIN users u ON u.id = cd.gerado_por WHERE cd.id = ?");
-    $stmt->execute(array($docId));
-}
+$stmt->execute(array($docId));
 $doc = $stmt->fetch();
 if (!$doc) { die('Documento não encontrado.'); }
 $podeEditar = has_min_role('gestao') || has_role('cx') || has_role('operacional');
