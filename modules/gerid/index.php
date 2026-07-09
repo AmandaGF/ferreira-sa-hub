@@ -456,6 +456,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     audit_log('gerid_email_equipe', 'gerid', (int)$id, $enviados . '/' . count($equipe) . ' emails de vinculo positivo enviados');
                 } catch (Throwable $e) { /* nao bloqueia fluxo */ }
+
+                // Amanda 09/07/2026: gera oficio de desconto em folha via IA
+                // (Claude Sonnet + web_search). Killswitch em configuracoes.
+                // So dispara na transicao real (mesma guarda dos emails).
+                try {
+                    require_once APP_ROOT . '/core/functions_gerid_oficio.php';
+                    if (function_exists('gerid_oficio_auto_ativo') && gerid_oficio_auto_ativo()) {
+                        gerid_gerar_oficio_desconto($pdo, (int)$id);
+                    }
+                } catch (Throwable $e) { /* nao bloqueia fluxo */ }
             }
 
             audit_log('gerid_resultado', 'gerid', $id, $tem ? 'com vinculo' : 'sem vinculo');

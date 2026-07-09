@@ -147,6 +147,11 @@ function ia_chamar($feature, $modelo, $system, $messages, $opts = array()) {
     } else {
         $payload['system'] = $system;
     }
+    // Amanda 09/07/2026: suporte a tools (ex: web_search server tool). Retro-compat:
+    // so inclui se passado em opts.
+    if (!empty($opts['tools']) && is_array($opts['tools'])) {
+        $payload['tools'] = $opts['tools'];
+    }
 
     $headers = array(
         'Content-Type: application/json',
