@@ -16,8 +16,7 @@ echo "=== DIAG merge Angela de Oliveira Louzada ===\n\n";
 
 // Localiza os 2 pelo nome
 $st = $pdo->query(
-    "SELECT id, name, cpf, phone, email, tags, status, created_at, updated_at
-     FROM clients
+    "SELECT * FROM clients
      WHERE name LIKE '%Angela%Louzada%'
         OR name LIKE '%Angela%Oliveira%'
      ORDER BY id"
