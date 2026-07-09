@@ -998,7 +998,7 @@ function renderLista() {
 
                 var msg1 = 'Ol\u00e1, ' + primeiroNome + '! Passando para te lembrar que sua ' + tipoMinusc + ' \u00e9 dia ' + dataFmt + ' \u00e0s ' + horaFmt + '. Qualquer d\u00favida, estamos \u00e0 disposi\u00e7\u00e3o!\nFerreira e S\u00e1 Advocacia';
                 var msg2 = 'Oi, ' + primeiroNome + '! Tudo bem?! Te lembrando que sua ' + tipoMinusc + ' \u00e9 amanh\u00e3, \u00e0s ' + horaFmt + 'h! Te vejo l\u00e1!\nFerreira e S\u00e1 Advocacia';
-                var msg3 = 'Oi, ' + primeiroNome + '! Passando pra avisar que sua ' + tipoMinusc + ' \u00e9 HOJE, \u00e0s ' + horaFmt + 'h. Te vejo l\u00e1! Qualquer imprevisto, me avisa por aqui.\nFerreira e S\u00e1 Advocacia';
+                var msg3 = 'Oi, ' + primeiroNome + '! Passando pra avisar que sua ' + tipoMinusc + ' \u00e9 HOJE, \u00e0s ' + horaFmt + 'h. Qualquer imprevisto, nos avisa por aqui.\nFerreira e S\u00e1 Advocacia';
 
                 var _clIdLem = ev.client_id || 0;
                 var _phoneDigLem = phone.replace(/^55/, '');
@@ -1362,7 +1362,7 @@ function abrirModalEditar(id) {
                 var tL = (LABELS[ev.tipo]||'compromisso').toLowerCase();
                 var m1 = 'Ol\u00e1, '+pNome+'! Passando para te lembrar que sua '+tL+' \u00e9 dia '+dF+' \u00e0s '+hF+'. Qualquer d\u00favida, estamos \u00e0 disposi\u00e7\u00e3o!\nFerreira e S\u00e1 Advocacia';
                 var m2 = 'Oi, '+pNome+'! Tudo bem?! Te lembrando que sua '+tL+' \u00e9 amanh\u00e3, \u00e0s '+hF+'h! Te vejo l\u00e1!\nFerreira e S\u00e1 Advocacia';
-                var m3 = 'Oi, '+pNome+'! Passando pra avisar que sua '+tL+' \u00e9 HOJE, \u00e0s '+hF+'h. Te vejo l\u00e1! Qualquer imprevisto, me avisa por aqui.\nFerreira e S\u00e1 Advocacia';
+                var m3 = 'Oi, '+pNome+'! Passando pra avisar que sua '+tL+' \u00e9 HOJE, \u00e0s '+hF+'h. Qualquer imprevisto, nos avisa por aqui.\nFerreira e S\u00e1 Advocacia';
                 var _phDig = ph.replace(/^55/, '');
                 window.__agLembrete = window.__agLembrete || {};
                 var _k1 = 'c' + ev.id + '_1';

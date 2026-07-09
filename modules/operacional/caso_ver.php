@@ -1724,7 +1724,7 @@ try {
                 if ($isHoje) {
                     $msgHoje = "Oi, " . $primeiro . "! Passando pra avisar que sua *" . $tipoCompMsg . "* é *HOJE*";
                     if ($horaCompFmt) $msgHoje .= ", às *" . $horaCompFmt . "h*";
-                    $msgHoje .= ". Te vejo lá! Qualquer imprevisto, me avisa por aqui.";
+                    $msgHoje .= ". Qualquer imprevisto, nos avisa por aqui.";
                     if ($comp['meet_link']) $msgHoje .= "\n\n💻 Link: " . $comp['meet_link'];
                     $msgHoje .= "\n\nFerreira e Sá Advocacia";
                     $waCompsHoje[] = array('name' => $cvw['name'], 'url' => module_url('whatsapp') . '?canal=24&telefone=' . rawurlencode($ph) . '&nome=' . rawurlencode($cvw['name']) . '&texto=' . rawurlencode($msgHoje));
