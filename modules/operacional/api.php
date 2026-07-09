@@ -1086,6 +1086,17 @@ switch ($action) {
         if (!preg_match('/^\d{1,2}:\d{2}$/', $horario)) $horario = '10:00';
         $diasUteis = !empty($_POST['dias_uteis_only']) ? 1 : 0;
         $obs = trim($_POST['obs'] ?? '');
+        // Amanda 09/07/2026: dias_semana (CSV 1-7 ISO) e usar_ia
+        $diasSemArr = array();
+        foreach ((array)($_POST['dias_semana'] ?? array()) as $d) {
+            $di = (int)$d;
+            if ($di >= 1 && $di <= 7) $diasSemArr[] = $di;
+        }
+        $diasSemArr = array_unique($diasSemArr);
+        sort($diasSemArr);
+        if (empty($diasSemArr)) $diasSemArr = array(1,2,3,4,5); // default: seg-sex
+        $diasSemana = implode(',', $diasSemArr);
+        $usarIa = !empty($_POST['usar_ia']) ? 1 : 0;
 
         // Self-heal (defensivo, caso migrar ainda não rodou)
         try {
@@ -1108,21 +1119,28 @@ switch ($action) {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
         } catch (Exception $e) {}
 
+        // Amanda 09/07/2026: self-heal preventivo das colunas novas (defensivo caso migrar
+        // ainda nao tenha rodado em prod). ADD COLUMN idempotente via try/catch.
+        try { $pdo->exec("ALTER TABLE acompanhamento_msg_diario ADD COLUMN dias_semana VARCHAR(20) NOT NULL DEFAULT '1,2,3,4,5'"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE acompanhamento_msg_diario ADD COLUMN usar_ia TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
         try {
             $pdo->prepare(
                 "INSERT INTO acompanhamento_msg_diario
-                 (client_id, case_id, canal, horario_envio, dias_uteis_only, ativo, obs, created_by)
-                 VALUES (?, ?, '24', ?, ?, ?, ?, ?)
+                 (client_id, case_id, canal, horario_envio, dias_uteis_only, dias_semana, usar_ia, ativo, obs, created_by)
+                 VALUES (?, ?, '24', ?, ?, ?, ?, ?, ?, ?)
                  ON DUPLICATE KEY UPDATE
                  horario_envio = VALUES(horario_envio),
                  dias_uteis_only = VALUES(dias_uteis_only),
+                 dias_semana = VALUES(dias_semana),
+                 usar_ia = VALUES(usar_ia),
                  ativo = VALUES(ativo),
                  obs = VALUES(obs),
                  updated_at = NOW()"
             )->execute(array(
-                $clientId, $caseId, $horario . ':00', $diasUteis, $ativo, $obs ?: null, (int)current_user_id()
+                $clientId, $caseId, $horario . ':00', $diasUteis, $diasSemana, $usarIa, $ativo, $obs ?: null, (int)current_user_id()
             ));
-            audit_log('acomp_diario_salvar', 'case', $caseId, "ativo={$ativo} horario={$horario}");
+            audit_log('acomp_diario_salvar', 'case', $caseId, "ativo={$ativo} horario={$horario} dias={$diasSemana} ia={$usarIa}");
             header('Content-Type: application/json');
             echo json_encode(array('ok' => true));
             exit;

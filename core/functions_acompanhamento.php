@@ -265,3 +265,74 @@ function acompanhamento_eh_feriado($ts) {
     return in_array($md, $feriados, true);
 }
 }
+
+/**
+ * Amanda 09/07/2026: gera mensagem UNICA de acompanhamento via Claude Haiku.
+ * Recebe o mesmo $ctx dos templates. Retorna string (mensagem) ou null se falhar
+ * (chamador deve cair no template fixo como fallback).
+ */
+if (!function_exists('acompanhamento_gerar_via_ia')) {
+function acompanhamento_gerar_via_ia($ctx) {
+    require_once __DIR__ . '/functions_ia.php';
+    if (!defined('ANTHROPIC_API_KEY') || !ANTHROPIC_API_KEY) return null;
+
+    $refProc = !empty($ctx['tipo_processo']) ? $ctx['tipo_processo'] : 'processo';
+    $advTxt = !empty($ctx['polo_oposto']) ? " (contra {$ctx['polo_oposto']})" : '';
+
+    $system = <<<PROMPT
+Voce e uma advogada carinhosa e profissional do escritorio Ferreira & Sa Advocacia,
+respondendo a uma cliente ansiosa que espera atualizacao do processo dela.
+
+CONTEXTO IMPORTANTE:
+- O processo NAO teve movimentacao nova desde a ultima checagem.
+- Voce precisa deixar a cliente TRANQUILA e sentir-se acompanhada.
+- Sem falsas promessas, sem prazos que nao dependem de nos.
+- Tom acolhedor, humano, brasileiro. Nao formal demais.
+- Frases curtas. Sem juridiquês.
+
+REGRAS DE FORMATO:
+- Curta: 4 a 7 linhas no maximo.
+- Comece com saudacao personalizada usando o primeiro nome dela.
+- Termine SEMPRE com a assinatura literal: "Equipe Ferreira & Sa Advocacia"
+  (NUNCA use "Dra. Amanda" ou nome de pessoa — sempre "Equipe").
+- Pode usar 1 ou 2 emojis discretos (nao mais).
+- Use *negrito* pra destacar 1 palavra chave se fizer sentido.
+- Sem hashtags, sem links, sem "clique aqui".
+- VARIE — nao caia em formula. Cada mensagem deve soar diferente.
+
+O QUE VOCE PODE DIZER (varie a cada mensagem):
+- Confirma que checou hoje e nao houve movimentacao.
+- Explica que e normal esse ritmo do judiciario em certas fases.
+- Reforca que voces estao monitorando.
+- Promete avisar assim que houver qualquer coisa.
+- Reconhece que a espera pode ser dificil.
+- Pode incluir 1 desejo simpatico ("bom dia", "boa semana", "aproveita o feriado" etc).
+PROMPT;
+
+    $userMsg = "Dados de hoje:\n"
+             . "- Cliente (primeiro nome): {$ctx['nome']}\n"
+             . "- Referencia do processo: {$refProc}{$advTxt}\n"
+             . "- Saudacao apropriada agora: {$ctx['saudacao']}\n"
+             . "- Emoji de horario sugerido: {$ctx['emoji_hora']}\n"
+             . (!empty($ctx['obs']) ? "- Observacao interna sobre a cliente: {$ctx['obs']}\n" : '')
+             . "\nGere a mensagem de acompanhamento agora.";
+
+    $resp = ia_chamar(
+        'acomp_diario',
+        'claude-haiku-4-5-20251001',
+        $system,
+        array(array('role' => 'user', 'content' => $userMsg)),
+        array('max_tokens' => 350, 'temperature' => 0.95, 'bypass_killswitch' => true, 'bypass_user_whitelist' => true)
+    );
+
+    if (empty($resp['ok']) || empty($resp['texto'])) return null;
+    $txt = trim($resp['texto']);
+    // Guarda contra mensagem gigante demais
+    if (mb_strlen($txt) > 900) $txt = mb_substr($txt, 0, 900);
+    // Garante assinatura
+    if (stripos($txt, 'Ferreira') === false) {
+        $txt .= "\n\nEquipe Ferreira & Sá Advocacia";
+    }
+    return $txt;
+}
+}

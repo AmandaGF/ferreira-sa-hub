@@ -2257,19 +2257,47 @@ $_actAttBtn = $_actBlocked
                     </div>
                 </label>
 
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:.65rem;margin-bottom:.9rem;">
-                    <div>
-                        <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Horário do envio</label>
-                        <input type="time" name="horario_envio" value="<?= e(substr((string)($_acompCfg['horario_envio'] ?? '10:00:00'), 0, 5)) ?>" style="width:100%;padding:.5rem .65rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:6px;">
+                <div style="margin-bottom:.9rem;">
+                    <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Horário do envio</label>
+                    <input type="time" name="horario_envio" value="<?= e(substr((string)($_acompCfg['horario_envio'] ?? '10:00:00'), 0, 5)) ?>" style="width:100%;padding:.5rem .65rem;font-size:.85rem;border:1.5px solid #e5e7eb;border-radius:6px;">
+                </div>
+
+                <div style="margin-bottom:.9rem;">
+                    <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.35rem;">Dias da semana</label>
+                    <?php
+                    // Ler dias_semana atual (CSV) — default: seg-sex
+                    $_diasAtualCsv = isset($_acompCfg['dias_semana']) && $_acompCfg['dias_semana'] !== ''
+                        ? (string)$_acompCfg['dias_semana']
+                        : (!empty($_acompCfg) && empty($_acompCfg['dias_uteis_only']) ? '1,2,3,4,5,6,7' : '1,2,3,4,5');
+                    $_diasAtual = array_map('intval', explode(',', $_diasAtualCsv));
+                    $_labelDias = array(1=>'Seg', 2=>'Ter', 3=>'Qua', 4=>'Qui', 5=>'Sex', 6=>'Sáb', 7=>'Dom');
+                    ?>
+                    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:.3rem;">
+                        <?php foreach ($_labelDias as $_n => $_lbl):
+                            $_marc = in_array($_n, $_diasAtual, true);
+                        ?>
+                            <label style="display:flex;flex-direction:column;align-items:center;gap:.2rem;padding:.4rem .1rem;background:<?= $_marc ? '#dbeafe' : '#f8fafc' ?>;border:1.5px solid <?= $_marc ? '#3b82f6' : '#e5e7eb' ?>;border-radius:6px;cursor:pointer;font-size:.68rem;font-weight:700;color:<?= $_marc ? '#1e40af' : '#64748b' ?>;user-select:none;">
+                                <input type="checkbox" name="dias_semana[]" value="<?= $_n ?>" <?= $_marc ? 'checked' : '' ?> style="margin:0;">
+                                <?= $_lbl ?>
+                            </label>
+                        <?php endforeach; ?>
                     </div>
-                    <div>
-                        <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Dias</label>
-                        <label style="display:flex;align-items:center;gap:.4rem;padding:.55rem .65rem;background:#f8fafc;border:1.5px solid #e5e7eb;border-radius:6px;font-size:.8rem;">
-                            <input type="checkbox" name="dias_uteis_only" value="1" <?= (!isset($_acompCfg['dias_uteis_only']) || !empty($_acompCfg['dias_uteis_only'])) ? 'checked' : '' ?>>
-                            Só dias úteis
-                        </label>
+                    <div style="display:flex;gap:.5rem;margin-top:.4rem;font-size:.7rem;">
+                        <button type="button" onclick="acompSetDias([1,2,3,4,5])" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:2px 8px;cursor:pointer;">Só úteis</button>
+                        <button type="button" onclick="acompSetDias([1,5])" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:2px 8px;cursor:pointer;">Seg + Sex</button>
+                        <button type="button" onclick="acompSetDias([1,3,5])" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:2px 8px;cursor:pointer;">Seg/Qua/Sex</button>
+                        <button type="button" onclick="acompSetDias([1,2,3,4,5,6,7])" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:4px;padding:2px 8px;cursor:pointer;">Todos</button>
                     </div>
                 </div>
+
+                <?php $_usarIa = !empty($_acompCfg['usar_ia']); ?>
+                <label style="display:flex;align-items:center;gap:.65rem;padding:.65rem .8rem;background:<?= $_usarIa ? '#f0f9ff' : '#f8fafc' ?>;border:1.5px solid <?= $_usarIa ? '#0284c7' : '#e5e7eb' ?>;border-radius:8px;margin-bottom:.9rem;cursor:pointer;">
+                    <input type="checkbox" name="usar_ia" value="1" <?= $_usarIa ? 'checked' : '' ?> style="width:18px;height:18px;cursor:pointer;">
+                    <div style="flex:1;">
+                        <div style="font-weight:700;color:#0c4a6e;font-size:.85rem;">🤖 Gerar mensagem por IA</div>
+                        <div style="font-size:.7rem;color:#64748b;">Claude Haiku cria uma mensagem única a cada envio (nunca repete). Se a IA falhar, cai nos templates fixos. Custo ~R$ 0,002 por envio.</div>
+                    </div>
+                </label>
 
                 <div style="margin-bottom:.9rem;">
                     <label style="font-size:.72rem;font-weight:700;color:#6b7280;display:block;margin-bottom:.25rem;">Observação interna (opcional)</label>
@@ -2298,6 +2326,33 @@ $_actAttBtn = $_actBlocked
 window.acompDiarioAbrir = function() { document.getElementById('acompDiarioOverlay').style.display = 'flex'; };
 window.acompDiarioFechar = function() { document.getElementById('acompDiarioOverlay').style.display = 'none'; };
 document.getElementById('acompDiarioOverlay').addEventListener('click', function(e) { if (e.target.id === 'acompDiarioOverlay') acompDiarioFechar(); });
+window.acompSetDias = function(dias) {
+    document.querySelectorAll('input[name="dias_semana[]"]').forEach(function(cb) {
+        var val = parseInt(cb.value, 10);
+        cb.checked = dias.indexOf(val) !== -1;
+        // Atualizar visual do label
+        var lbl = cb.closest('label');
+        if (lbl) {
+            if (cb.checked) {
+                lbl.style.background = '#dbeafe'; lbl.style.borderColor = '#3b82f6'; lbl.style.color = '#1e40af';
+            } else {
+                lbl.style.background = '#f8fafc'; lbl.style.borderColor = '#e5e7eb'; lbl.style.color = '#64748b';
+            }
+        }
+    });
+};
+// Auto-update visual quando clica direto no checkbox
+document.querySelectorAll('input[name="dias_semana[]"]').forEach(function(cb) {
+    cb.addEventListener('change', function() {
+        var lbl = cb.closest('label');
+        if (!lbl) return;
+        if (cb.checked) {
+            lbl.style.background = '#dbeafe'; lbl.style.borderColor = '#3b82f6'; lbl.style.color = '#1e40af';
+        } else {
+            lbl.style.background = '#f8fafc'; lbl.style.borderColor = '#e5e7eb'; lbl.style.color = '#64748b';
+        }
+    });
+});
 window.acompUpdVisual = function() {
     var c = document.getElementById('acAtivo');
     var t = document.getElementById('acStatusTxt');
@@ -2316,6 +2371,7 @@ window.acompDiarioSalvar = function() {
     // FormData omite checkboxes desmarcadas. Se não vier, garante '0'.
     if (!fd.has('ativo')) fd.append('ativo', '0');
     if (!fd.has('dias_uteis_only')) fd.append('dias_uteis_only', '0');
+    if (!fd.has('usar_ia')) fd.append('usar_ia', '0');
     fetch('<?= module_url('operacional', 'api.php') ?>', {
         method: 'POST', body: fd, credentials: 'same-origin',
         headers: { 'X-Requested-With': 'XMLHttpRequest' }

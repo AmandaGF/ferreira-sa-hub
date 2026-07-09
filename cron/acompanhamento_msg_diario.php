@@ -17,6 +17,7 @@ require_once __DIR__ . '/../core/database.php';
 require_once __DIR__ . '/../core/functions.php';
 require_once __DIR__ . '/../core/functions_zapi.php';
 require_once __DIR__ . '/../core/functions_acompanhamento.php';
+require_once __DIR__ . '/../core/functions_ia.php';
 
 if (php_sapi_name() !== 'cli') {
     $key = $_GET['key'] ?? '';
@@ -71,9 +72,22 @@ foreach ($configs as $cfg) {
     $tag = "cfg#{$cfg['id']} {$cfg['client_name']}";
     echo "▸ {$tag}\n";
 
-    // Se dias_uteis_only e hoje for sab/dom/feriado, pula
-    if (!empty($cfg['dias_uteis_only']) && ($weekday >= 6 || $ehFeriado)) {
-        echo "  ⊘ Pulado: fim de semana ou feriado (dias_uteis_only=1)\n";
+    // Amanda 09/07/2026: hoje precisa estar na lista dias_semana (CSV 1-7 ISO).
+    // Se a coluna nao existir (migracao nao rodou), cai no fallback dias_uteis_only.
+    $diasCsv = isset($cfg['dias_semana']) ? trim((string)$cfg['dias_semana']) : '';
+    if ($diasCsv !== '') {
+        $dias = array_filter(array_map('intval', explode(',', $diasCsv)));
+        if (!in_array($weekday, $dias, true)) {
+            echo "  ⊘ Pulado: hoje eh weekday={$weekday}, config so envia " . implode(',', $dias) . "\n";
+            $totPul++; continue;
+        }
+    } elseif (!empty($cfg['dias_uteis_only']) && ($weekday >= 6 || $ehFeriado)) {
+        echo "  ⊘ Pulado: fim de semana ou feriado (dias_uteis_only=1, legado)\n";
+        $totPul++; continue;
+    }
+    // Feriado nacional fixo: mesmo se o dia esteja na lista, respeita feriado
+    if ($ehFeriado) {
+        echo "  ⊘ Pulado: feriado nacional\n";
         $totPul++; continue;
     }
 
@@ -143,12 +157,22 @@ foreach ($configs as $cfg) {
     // Monta contexto rico (tipo de processo + polo oposto + saudação por hora)
     $nomeCliente = trim(explode(' ', trim($cfg['client_name']))[0]);
     $ctx = acompanhamento_montar_contexto_caso($pdo, (int)$cfg['case_id'], $nomeCliente, (string)($cfg['obs'] ?? ''), $tsNow);
-    $texto = $tplFn($ctx);
+
+    // Amanda 09/07/2026: modo IA — gera mensagem unica via Claude Haiku
+    $usarIa = !empty($cfg['usar_ia']);
+    $viaIa = false;
+    $texto = null;
+    if ($usarIa) {
+        $texto = acompanhamento_gerar_via_ia($ctx);
+        if ($texto) { $viaIa = true; echo "  🤖 Mensagem gerada por IA\n"; }
+        else { echo "  ⚠ IA falhou, caindo pro template fixo\n"; }
+    }
+    if (!$texto) $texto = $tplFn($ctx);
 
     $canal = ($cfg['canal'] === '21') ? '21' : '24';
     $r = zapi_send_text($canal, $cfg['client_phone'], $texto);
     if (!empty($r['ok'])) {
-        echo "  ✓ Enviado (canal={$canal} tpl={$novoIdx} tipo='{$ctx['tipo_processo']}' polo='{$ctx['polo_oposto']}')\n";
+        echo "  ✓ Enviado (canal={$canal} " . ($viaIa ? 'via IA' : "tpl={$novoIdx}") . " tipo='{$ctx['tipo_processo']}' polo='{$ctx['polo_oposto']}')\n";
         $totEnv++;
     } else {
         // Rollback do lock: reverte para não bloquear tentativa nova mais tarde

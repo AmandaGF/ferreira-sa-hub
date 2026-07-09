@@ -198,9 +198,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <?php endif; ?>
             </td>
             <td style="font-family:monospace;font-size:.75rem;">📱 <?= e($c['canal']) ?></td>
-            <td><?= e(substr((string)$c['horario_envio'], 0, 5)) ?></td>
+            <td><?= e(substr((string)$c['horario_envio'], 0, 5)) ?><?php if (!empty($c['usar_ia'])): ?><br><span style="font-size:.6rem;background:#e0f2fe;color:#0369a1;padding:1px 5px;border-radius:3px;font-weight:700;">🤖 IA</span><?php endif; ?></td>
             <td style="font-size:.72rem;color:var(--text-muted);">
-                <?= $c['dias_uteis_only'] ? 'Só úteis' : 'Todos' ?>
+                <?php
+                $_diasCsv = trim((string)($c['dias_semana'] ?? ''));
+                if ($_diasCsv === '') $_diasCsv = !empty($c['dias_uteis_only']) ? '1,2,3,4,5' : '1,2,3,4,5,6,7';
+                $_ds = array_map('intval', explode(',', $_diasCsv));
+                sort($_ds);
+                $_lbl = array(1=>'S',2=>'T',3=>'Q',4=>'Q',5=>'S',6=>'S',7=>'D');
+                $_full = array(1=>'Seg',2=>'Ter',3=>'Qua',4=>'Qui',5=>'Sex',6=>'Sáb',7=>'Dom');
+                // Presets
+                if ($_ds === array(1,2,3,4,5)) echo 'Só úteis';
+                elseif ($_ds === array(1,2,3,4,5,6,7)) echo 'Todos';
+                elseif ($_ds === array(1,5)) echo 'Seg + Sex';
+                elseif ($_ds === array(1,3,5)) echo 'Seg/Qua/Sex';
+                else {
+                    $_out = array();
+                    foreach ($_ds as $_d) if (isset($_full[$_d])) $_out[] = $_full[$_d];
+                    echo implode(', ', $_out);
+                }
+                ?>
             </td>
             <td style="font-size:.72rem;">
                 <?php if ($c['ultimo_envio_em']): ?>
