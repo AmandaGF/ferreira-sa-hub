@@ -376,7 +376,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // Amanda recebeu 4 emails iguais por re-cliques em 'Registrar').
             if ((int)$tem === 1 && ($_geridEraPendente || $_geridTinhaVinculo === 0)) {
                 try {
-                    $stEq = db()->query("SELECT id, name, email FROM users WHERE is_active = 1 AND email IS NOT NULL AND email <> ''");
+                    // Amanda 09/07/2026: lista de user_ids que NAO recebem o email
+                    // geral de GERID positivo. Rodrigo pediu pra sair da lista.
+                    // Pra adicionar/remover outros, editar aqui.
+                    $_geridOptOutIds = array(4); // 4 = Rodrigo de Almeida Gustavo
+                    $_optOutPh = implode(',', array_fill(0, count($_geridOptOutIds), '?'));
+                    $stEq = db()->prepare("SELECT id, name, email FROM users
+                                            WHERE is_active = 1
+                                              AND email IS NOT NULL AND email <> ''
+                                              AND id NOT IN ($_optOutPh)");
+                    $stEq->execute($_geridOptOutIds);
                     $equipe = $stEq->fetchAll(PDO::FETCH_ASSOC);
                     $pesqNome = function_exists('user_display_name') ? user_display_name() : 'A equipe';
                     $solicNome = '';
