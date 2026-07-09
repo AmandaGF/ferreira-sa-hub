@@ -1695,6 +1695,7 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
             <?php
             // Montar links WhatsApp para cada cliente vinculado
             $waComps = array();
+            $waCompsHoje = array(); // Amanda 09/07/2026: botao "Avisar hoje" quando isHoje
             $dataCompFmt = date('d/m/Y', strtotime($dtInicio));
             $horaCompFmt = ($comp['dia_todo'] != 1) ? date('H:i', strtotime($dtInicio)) : '';
             $tipoCompMsg = isset($tipoCompLabels[$comp['tipo']]) ? mb_strtolower($tipoCompLabels[$comp['tipo']]) : $comp['tipo'];
@@ -1709,6 +1710,16 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
                 if ($comp['meet_link']) $msg .= "\n\n💻 Link de acesso: " . $comp['meet_link'];
                 $msg .= "\n\nQualquer dúvida, estamos à disposição.\nFerreira & Sá Advocacia";
                 $waComps[] = array('name' => $cvw['name'], 'url' => module_url('whatsapp') . '?canal=24&telefone=' . rawurlencode($ph) . '&nome=' . rawurlencode($cvw['name']) . '&texto=' . rawurlencode($msg));
+
+                // Amanda 09/07/2026: mensagem D-0 "HOJE"
+                if ($isHoje) {
+                    $msgHoje = "Oi, " . $primeiro . "! Passando pra avisar que sua *" . $tipoCompMsg . "* é *HOJE*";
+                    if ($horaCompFmt) $msgHoje .= ", às *" . $horaCompFmt . "h*";
+                    $msgHoje .= ". Te vejo lá! Qualquer imprevisto, me avisa por aqui.";
+                    if ($comp['meet_link']) $msgHoje .= "\n\n💻 Link: " . $comp['meet_link'];
+                    $msgHoje .= "\n\nFerreira e Sá Advocacia";
+                    $waCompsHoje[] = array('name' => $cvw['name'], 'url' => module_url('whatsapp') . '?canal=24&telefone=' . rawurlencode($ph) . '&nome=' . rawurlencode($cvw['name']) . '&texto=' . rawurlencode($msgHoje));
+                }
             }
             ?>
             <?php if (count($waComps) === 1): ?>
@@ -1719,6 +1730,18 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
                     <div style="display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:200px;margin-top:4px;overflow:hidden;">
                         <?php foreach ($waComps as $wc): ?>
                         <a href="<?= e($wc['url']) ?>" target="_blank" data-wa-aviso="<?= (int)$comp['id'] ?>" style="display:block;padding:.5rem .75rem;color:#052228;text-decoration:none;font-size:.78rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#ecfdf5'" onmouseout="this.style.background=''">💬 <?= e($wc['name']) ?></a>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+            <?php endif; ?>
+            <?php if (count($waCompsHoje) === 1): ?>
+                <a href="<?= e($waCompsHoje[0]['url']) ?>" target="_blank" data-wa-aviso="<?= (int)$comp['id'] ?>" title="Enviar mensagem HOJE (D-0) — 'é HOJE, às Xh'" style="font-size:.7rem;background:#0369a1;color:#fff;padding:3px 8px;border-radius:5px;text-decoration:none;font-weight:600;">📣 Avisar hoje</a>
+            <?php elseif (count($waCompsHoje) > 1): ?>
+                <div style="position:relative;display:inline-block;">
+                    <button type="button" onclick="var m=this.nextElementSibling;m.style.display=m.style.display==='block'?'none':'block';" title="Enviar mensagem HOJE (D-0)" style="font-size:.7rem;background:#0369a1;color:#fff;padding:3px 8px;border-radius:5px;border:none;font-weight:600;cursor:pointer;">📣 Avisar hoje ▾</button>
+                    <div style="display:none;position:absolute;top:100%;right:0;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:50;min-width:200px;margin-top:4px;overflow:hidden;">
+                        <?php foreach ($waCompsHoje as $wc): ?>
+                        <a href="<?= e($wc['url']) ?>" target="_blank" data-wa-aviso="<?= (int)$comp['id'] ?>" style="display:block;padding:.5rem .75rem;color:#052228;text-decoration:none;font-size:.78rem;font-weight:500;border-bottom:1px solid #f1f5f9;" onmouseover="this.style.background='#dbeafe'" onmouseout="this.style.background=''">📣 <?= e($wc['name']) ?></a>
                         <?php endforeach; ?>
                     </div>
                 </div>
