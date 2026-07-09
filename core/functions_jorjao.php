@@ -103,6 +103,80 @@ function jorjao_modo_ia_ativo($tocada) {
 }
 
 /**
+ * Coleta rastros de trabalho recente no case (últimos N dias) pra IA deduzir
+ * quem realmente trabalhou. Retorna string formatada pra prompt.
+ * Amanda 07/07/2026: como o pessoal se ajuda, não dá pra confiar em
+ * responsible_user_id — a IA vê os rastros e decide.
+ */
+function _jorjao_coletar_rastros_case($caseId, $limiteDias = 15) {
+    if (!$caseId) return '';
+    $partes = array();
+    try {
+        $pdo = db();
+        // Andamentos recentes com autor
+        $st = $pdo->prepare("SELECT a.data_andamento, a.descricao, u.name AS autor
+                             FROM case_andamentos a
+                             LEFT JOIN users u ON u.id = a.usuario_id
+                             WHERE a.case_id = ? AND a.data_andamento >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                               AND a.usuario_id IS NOT NULL
+                             ORDER BY a.data_andamento DESC LIMIT 12");
+        $st->execute(array((int)$caseId, (int)$limiteDias));
+        $ands = $st->fetchAll(PDO::FETCH_ASSOC);
+        if ($ands) {
+            $linhas = array();
+            foreach ($ands as $a) {
+                $data = date('d/m', strtotime($a['data_andamento']));
+                $autor = $a['autor'] ? (preg_split('/\s+/', $a['autor'])[0]) : 'sistema';
+                $desc = mb_substr(preg_replace('/\s+/', ' ', (string)$a['descricao']), 0, 100);
+                $linhas[] = "- {$data} · {$autor}: {$desc}";
+            }
+            $partes[] = "ANDAMENTOS RECENTES:\n" . implode("\n", $linhas);
+        }
+        // Tarefas concluídas recentemente
+        $st = $pdo->prepare("SELECT ct.completed_at, ct.title, u.name AS autor
+                             FROM case_tasks ct
+                             LEFT JOIN users u ON u.id = ct.assigned_to
+                             WHERE ct.case_id = ? AND ct.completed_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                               AND ct.status = 'concluido'
+                             ORDER BY ct.completed_at DESC LIMIT 8");
+        $st->execute(array((int)$caseId, (int)$limiteDias));
+        $tks = $st->fetchAll(PDO::FETCH_ASSOC);
+        if ($tks) {
+            $linhas = array();
+            foreach ($tks as $t) {
+                $data = date('d/m', strtotime($t['completed_at']));
+                $autor = $t['autor'] ? (preg_split('/\s+/', $t['autor'])[0]) : '?';
+                $tit = mb_substr(preg_replace('/\s+/', ' ', (string)$t['title']), 0, 80);
+                $linhas[] = "- {$data} · {$autor}: {$tit}";
+            }
+            $partes[] = "TAREFAS CONCLUÍDAS:\n" . implode("\n", $linhas);
+        }
+        // Comentários recentes (se tabela existe)
+        try {
+            $st = $pdo->prepare("SELECT cc.created_at, cc.comentario, u.name AS autor
+                                 FROM case_comments cc
+                                 LEFT JOIN users u ON u.id = cc.usuario_id
+                                 WHERE cc.case_id = ? AND cc.created_at >= DATE_SUB(NOW(), INTERVAL ? DAY)
+                                   AND cc.usuario_id IS NOT NULL
+                                 ORDER BY cc.created_at DESC LIMIT 5");
+            $st->execute(array((int)$caseId, (int)$limiteDias));
+            $cs = $st->fetchAll(PDO::FETCH_ASSOC);
+            if ($cs) {
+                $linhas = array();
+                foreach ($cs as $c) {
+                    $data = date('d/m', strtotime($c['created_at']));
+                    $autor = $c['autor'] ? (preg_split('/\s+/', $c['autor'])[0]) : '?';
+                    $com = mb_substr(preg_replace('/\s+/', ' ', (string)$c['comentario']), 0, 80);
+                    $linhas[] = "- {$data} · {$autor}: {$com}";
+                }
+                $partes[] = "COMENTÁRIOS RECENTES:\n" . implode("\n", $linhas);
+            }
+        } catch (Exception $e) {}
+    } catch (Exception $e) {}
+    return $partes ? implode("\n\n", $partes) : '';
+}
+
+/**
  * Gera mensagem única via Claude Haiku no estilo do Jorjão.
  * Retorna string com a mensagem, ou null em caso de falha (chamador cai no template).
  */
@@ -111,23 +185,51 @@ function _jorjao_gerar_via_ia($tocada, $vars) {
     if (!defined('ANTHROPIC_API_KEY') || !ANTHROPIC_API_KEY) return null;
 
     $system = <<<PROMPT
-Você é o "Jorjão", mascote do escritório Ferreira & Sá Advocacia.
-Personalidade: tio brincalhão, animador de festas, narrador de futebol.
-Usa gírias tipo "Bora!", "Craque!", "Fecha, campeão!", "Golaço!", "Preclusão que nada!".
-Emojis fartos: 🎉🔔🏆🚀⚖️💪🎯🥳🐻🔥.
-Faz brincadeiras com a rotina jurídica ("Bata o martelo!", "Papel voando no PJe!", "Preclusão que nada!").
+Você é o mascote do escritório Ferreira & Sá Advocacia — um senhor simpático,
+brincalhão, que celebra vitórias do time no grupo do WhatsApp.
 
-Sua tarefa: gerar UMA mensagem CURTA (3 a 6 linhas, máximo 400 caracteres) pra postar
-no grupo WhatsApp do escritório celebrando o evento descrito abaixo.
+Você tem VÁRIOS apelidos que a equipe usa carinhosamente. Escolha UM DIFERENTE
+a cada mensagem (variação é obrigatória — jamais repita o mesmo apelido em sequência):
+- Jorjão
+- O veio dos prazos
+- Tio do Ferreira & Sá
+- Seu Jorge
+- Jorjinho
+- Vovô Jorge
+- O senhor dos autos
+- Tio das causas
+
+Você pode se autorreferenciar como esse apelido quando fizer sentido (não é obrigatório
+em toda mensagem — só quando couber com naturalidade, tipo "É o veio dos prazos aqui, ó!").
+
+PERSONALIDADE:
+- Tio brincalhão, animador de festas, narrador de futebol.
+- Gírias: "Bora!", "Craque!", "Fecha, campeão!", "Golaço!", "Preclusão que nada!".
+- Emojis fartos: 🎉🔔🏆🚀⚖️💪🎯🥳🐻🔥.
+- Brincadeiras com rotina jurídica ("Bata o martelo!", "Papel voando no PJe!").
+
+SUA TAREFA: gerar UMA mensagem CURTA (3 a 6 linhas, máximo 400 caracteres) pra
+postar no grupo WhatsApp do escritório celebrando o evento abaixo.
 
 REGRAS:
 - Use APENAS os dados fornecidos (não invente cliente, valor, tipo de caso).
-- Comece com emoji + frase de impacto (tipo "🎉 GOLAÇO!" ou "⚖️ PETIÇÃO NO MUNDO!").
-- Cite os nomes reais fornecidos (cliente, quem fechou, quem cumpriu).
-- Termine com uma frase animada estilo Jorjão (não assine).
+- Comece com emoji + frase de impacto (ex: "🎉 GOLAÇO!" ou "⚖️ PETIÇÃO NO MUNDO!").
+- Sobre CITAR NOMES: LEIA COM ATENÇÃO os "RASTROS DE TRABALHO" (se fornecidos).
+  Se UMA pessoa se destacar claramente (várias ações recentes), cite ELA.
+  Se o rastro for AMBÍGUO (várias pessoas com atividade parecida) ou VAZIO,
+  NÃO invente nome — celebre o TIME OPERACIONAL, o time de peticionadores, o
+  time que fez acontecer, etc. Prefira celebrar o time a errar o nome.
+- Termine com uma frase animada e VARIE o apelido a cada mensagem.
 - Formato WhatsApp: use *negrito* pra destaque, quebras de linha simples.
 - Sem hashtags. Sem "clique aqui". Sem enrolação.
 PROMPT;
+
+    // Coleta rastros do case (se contexto tem case_id) — pra IA deduzir quem trabalhou
+    $rastros = '';
+    if (!empty($vars['_case_id'])) {
+        $rastros = _jorjao_coletar_rastros_case((int)$vars['_case_id'], 15);
+    }
+    $blocoRastros = $rastros ? "\n\nRASTROS DE TRABALHO NO CASE (últimos 15 dias — deduza quem trabalhou):\n" . $rastros : '';
 
     // User prompt específico por tocada
     switch ($tocada) {
@@ -135,8 +237,9 @@ PROMPT;
             $userMsg = "EVENTO: Contrato assinado hoje ({$vars['hoje']}).\n"
                      . "Cliente: {$vars['cliente']}\n"
                      . "Tipo de caso: {$vars['tipo_caso']}\n"
-                     . "Vendedor(a) que fechou: {$vars['comercial']}\n"
+                     . "Vendedor(a) que fechou (dado do sistema): {$vars['comercial']}\n"
                      . (isset($vars['valor']) && $vars['valor'] !== 'a combinar' ? "Valor: R$ {$vars['valor']}\n" : "")
+                     . $blocoRastros
                      . "\nGere a mensagem celebrando esse contrato fechado.";
             break;
         case 'peticao_distribuida':
@@ -144,7 +247,8 @@ PROMPT;
                      . "Cliente: {$vars['cliente']}\n"
                      . "Tipo de caso: {$vars['tipo_caso']}\n"
                      . "Nº do processo: {$vars['numero_processo']}\n"
-                     . "Quem distribuiu: {$vars['operacional']}\n"
+                     . "Responsável do case (dado do sistema, pode não bater com quem realmente distribuiu): {$vars['operacional']}\n"
+                     . $blocoRastros
                      . "\nGere a mensagem celebrando essa petição distribuída.";
             break;
         case 'prazo_cumprido':
@@ -152,8 +256,9 @@ PROMPT;
                      . "Cliente: {$vars['cliente']}\n"
                      . "Tipo do prazo: {$vars['tipo_prazo']}\n"
                      . "Processo: {$vars['processo']}\n"
-                     . "Quem cumpriu: {$vars['operacional']}\n"
-                     . "\nGere a mensagem parabenizando quem cumpriu o prazo.";
+                     . "Responsável do case (dado do sistema, pode não bater com quem realmente cumpriu): {$vars['operacional']}\n"
+                     . $blocoRastros
+                     . "\nGere a mensagem parabenizando quem cumpriu o prazo (use rastros pra decidir se cita pessoa ou o time).";
             break;
         case 'novidade_hub':
             $userMsg = "EVENTO: Anúncio de novidade no Hub Conecta (sistema interno).\n"
@@ -270,6 +375,7 @@ function jorjao_peticao_distribuida($case) {
     $vars['tipo_caso']       = $case['case_type'] ?? 'não informado';
     $vars['numero_processo'] = $case['case_number'] ?: 'sem CNJ ainda';
     $vars['hoje']            = date('d/m/Y');
+    $vars['_case_id']        = $case['id'] ?? null; // pra IA vasculhar rastros
 
     // Nome do operacional (responsável) — primeiro nome só
     $opNome = 'time operacional';
@@ -298,6 +404,7 @@ function jorjao_prazo_cumprido($prazo) {
     $vars['tipo_prazo'] = $prazo['descricao_acao'] ?? 'Prazo processual';
     $vars['processo']   = $prazo['numero_processo'] ?: '(sem CNJ)';
     $vars['hoje']       = date('d/m/Y');
+    $vars['_case_id']   = $prazo['case_id'] ?? null; // pra IA vasculhar rastros
 
     // Nome do cliente
     $clienteNome = 'cliente';

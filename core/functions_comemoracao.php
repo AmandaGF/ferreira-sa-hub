@@ -61,7 +61,6 @@ function comemorar_contrato_assinado($lead) {
             $st->execute(array((int)$lead['assigned_to']));
             $n = (string)$st->fetchColumn();
             if ($n) {
-                // Primeiro nome só, mais informal
                 $parts = preg_split('/\s+/', $n);
                 $comercialNome = $parts[0] ?: $n;
             }
@@ -75,16 +74,39 @@ function comemorar_contrato_assinado($lead) {
 
     $tipoCaso = !empty($lead['case_type']) ? $lead['case_type'] : 'não informado';
 
-    $msg = strtr($cfg['template'], array(
-        '[cliente]'   => $lead['name'] ?? 'Cliente',
-        '[comercial]' => $comercialNome,
-        '[valor]'     => $valorFmt,
-        '[tipo_caso]' => $tipoCaso,
-        '[hoje]'      => date('d/m/Y'),
-    ));
+    // Amanda 07/07/2026: contrato assinado passa pelo jorjao_enviar pra
+    // respeitar o toggle "modo IA" (gera mensagem única via Claude Haiku)
+    // com fallback pros templates jorjao_templates(tocada=contrato_assinado).
+    // A config antiga comemoracao_contrato_ativada segue como killswitch mestre.
+    require_once __DIR__ . '/functions_jorjao.php';
+    $vars = array(
+        'cliente'   => $lead['name'] ?? 'Cliente',
+        'comercial' => $comercialNome,
+        'valor'     => $valorFmt,
+        'tipo_caso' => $tipoCaso,
+        'hoje'      => date('d/m/Y'),
+        // Contrato assinado normalmente é ANTES de ter case — rastros não aplicam
+    );
 
-    require_once __DIR__ . '/functions_zapi.php';
-    $r = zapi_send_text($cfg['canal'], $cfg['grupo_id'], $msg);
+    // Garante que a tocada 'contrato_assinado' está ativa pra jorjao_enviar
+    // funcionar (default no seed migrar_jorjao). Se por acaso estiver OFF,
+    // usa fallback pro template inline antigo.
+    if (jorjao_tocada_ativa('contrato_assinado')) {
+        $r = jorjao_enviar('contrato_assinado', $vars);
+        $msg = $r['mensagem'] ?? '';
+    } else {
+        // Fallback: template inline da config (comportamento pré-jorjao 2.0)
+        $msg = strtr($cfg['template'], array(
+            '[cliente]'   => $vars['cliente'],
+            '[comercial]' => $vars['comercial'],
+            '[valor]'     => $vars['valor'],
+            '[tipo_caso]' => $vars['tipo_caso'],
+            '[hoje]'      => $vars['hoje'],
+        ));
+        require_once __DIR__ . '/functions_zapi.php';
+        $r = zapi_send_text($cfg['canal'], $cfg['grupo_id'], $msg);
+        $r = array('ok' => !empty($r['ok']), 'erro' => $r['ok'] ? null : ($r['erro'] ?? ''), 'mensagem' => $msg);
+    }
 
     // Log na configuracoes pra debug (ultimas 5 tentativas)
     try {
@@ -94,6 +116,7 @@ function comemorar_contrato_assinado($lead) {
             'cliente'  => $lead['name'] ?? '',
             'ok'       => !empty($r['ok']),
             'erro'     => $r['ok'] ? null : ($r['erro'] ?? ''),
+            'via_ia'   => $r['via_ia'] ?? false,
         ));
         $hist = array_slice($hist, 0, 10);
         db()->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('comemoracao_contrato_log', ?)
