@@ -55,28 +55,35 @@ function initAlerts() {
 }
 
 /* ─── Modais ──────────────────────────────────────────── */
+// Amanda 09/07/2026: migrado de bind direto pra event delegation no document.
+// Bug: apos navegar de Dashboard -> Prazos, primeiro clique no botao
+// '+ Novo Prazo' nao abria modal — 2o clique funcionava. Provavel causa:
+// timing entre PWA cache + DOMContentLoaded fazia initModals() rodar
+// antes de todos [data-modal] existirem, ou algum re-render movia o botao.
+// Delegation resolve os 2 casos: elementos futuros ganham binding automatico.
 function initModals() {
-    // Abrir
-    document.querySelectorAll('[data-modal]').forEach(trigger => {
-        trigger.addEventListener('click', (e) => {
-            e.preventDefault();
-            const modal = document.getElementById(trigger.dataset.modal);
-            if (modal) modal.classList.add('open');
-        });
+    // Abrir modal — delegado
+    document.addEventListener('click', (e) => {
+        const trigger = e.target.closest('[data-modal]');
+        if (!trigger) return;
+        e.preventDefault();
+        const modal = document.getElementById(trigger.dataset.modal);
+        if (modal) modal.classList.add('open');
     });
 
-    // Fechar com botão
-    document.querySelectorAll('.modal-close, [data-modal-close]').forEach(btn => {
-        btn.addEventListener('click', () => {
-            btn.closest('.modal-overlay')?.classList.remove('open');
-        });
-    });
-
-    // Fechar com click no overlay
-    document.querySelectorAll('.modal-overlay').forEach(overlay => {
-        overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) overlay.classList.remove('open');
-        });
+    // Fechar (botao close / botao data-modal-close / click no overlay) — delegado
+    document.addEventListener('click', (e) => {
+        // Botao interno de fechar
+        const closeBtn = e.target.closest('.modal-close, [data-modal-close]');
+        if (closeBtn) {
+            const overlay = closeBtn.closest('.modal-overlay');
+            if (overlay) overlay.classList.remove('open');
+            return;
+        }
+        // Click direto no overlay (fundo escuro)
+        if (e.target.classList && e.target.classList.contains('modal-overlay')) {
+            e.target.classList.remove('open');
+        }
     });
 
     // Fechar com ESC

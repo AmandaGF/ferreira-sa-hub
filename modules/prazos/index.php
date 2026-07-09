@@ -10,6 +10,63 @@ if (!has_role('admin','gestao','operacional')) { redirect(url('modules/dashboard
 $pageTitle = 'Prazos Processuais';
 $pdo = db();
 
+// Amanda 09/07/2026: AJAX combobox de cliente (substitui <select> de 1600 opcoes)
+if (($_GET['ajax'] ?? '') === 'buscar_cliente') {
+    header('Content-Type: application/json; charset=utf-8');
+    $q = trim($_GET['q'] ?? '');
+    if (mb_strlen($q) < 2) { echo '[]'; exit; }
+    // Normaliza case pra ordenar consistente (bug real: 'Adriana' e 'ADRIANA' misturados)
+    $st = $pdo->prepare(
+        "SELECT id, name, cpf FROM clients
+         WHERE name LIKE ?
+         ORDER BY LOWER(name) ASC
+         LIMIT 20"
+    );
+    $st->execute(array('%' . $q . '%'));
+    echo json_encode($st->fetchAll(PDO::FETCH_ASSOC), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// Amanda 09/07/2026: AJAX autocomplete de processo (num CNJ ou titulo)
+if (($_GET['ajax'] ?? '') === 'buscar_processo') {
+    header('Content-Type: application/json; charset=utf-8');
+    $q = trim($_GET['q'] ?? '');
+    if (mb_strlen($q) < 3) { echo '[]'; exit; }
+    $qLike = '%' . $q . '%';
+    // Digitos do CNJ (permite buscar '10005649320' e achar '1000564-93.2026...')
+    $qDig = preg_replace('/\D/', '', $q);
+    $qDigLike = '%' . $qDig . '%';
+    $st = $pdo->prepare(
+        "SELECT cs.id, cs.case_number, cs.title, cs.client_id, cl.name AS client_name
+         FROM cases cs
+         LEFT JOIN clients cl ON cl.id = cs.client_id
+         WHERE cs.stage NOT IN ('arquivado','concluido')
+           AND (
+               cs.case_number LIKE ?
+               OR (LENGTH(?) >= 4 AND REPLACE(REPLACE(REPLACE(cs.case_number,'.',''),'-',''),'/','') LIKE ?)
+               OR cs.title LIKE ?
+           )
+         ORDER BY cs.updated_at DESC
+         LIMIT 15"
+    );
+    $st->execute(array($qLike, $qDig, $qDigLike, $qLike));
+    echo json_encode($st->fetchAll(PDO::FETCH_ASSOC), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// Amanda 09/07/2026: helper pra redirect preservando filtros da URL de origem
+// (bug: contador 'Todos' parecia "nao atualizar" — na verdade o redirect
+// jogava a usuaria pra ?filtro=pendentes default, perdendo contexto).
+$_redirectPreservando = function(){
+    $qs = array();
+    foreach (array('filtro','tipo','case_id','voltar_caso') as $k) {
+        if (!empty($_POST[$k]))     $qs[$k] = $_POST[$k];
+        elseif (!empty($_GET[$k]))  $qs[$k] = $_GET[$k];
+    }
+    $qs['_t'] = time(); // cache-buster contra SW cache
+    return module_url('prazos') . '?' . http_build_query($qs);
+};
+
 // Ações
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
     $action = $_POST['action'] ?? '';
@@ -55,7 +112,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
 
             flash_set('success', 'Prazo cadastrado!' . ($caseId ? ' Tarefa criada automaticamente para 3 dias antes.' : ''));
         }
-        redirect(module_url('prazos'));
+        redirect($_redirectPreservando());
     }
 
     if ($action === 'concluir') {
@@ -75,7 +132,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
                 ->execute(array(abs($id)));
             flash_set('success', 'Prazo (agenda) marcado como realizado.');
         }
-        redirect(module_url('prazos'));
+        redirect($_redirectPreservando());
     }
 
     if ($action === 'delete') {
@@ -88,12 +145,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
                 ->execute(array(abs($id)));
             flash_set('success', 'Prazo (agenda) cancelado.');
         }
-        redirect(module_url('prazos'));
+        redirect($_redirectPreservando());
     }
 }
 
-// Filtro
+// Filtro (Amanda 09/07/2026: adicionado 'vencidos' pra deep-link do banner)
 $filtro = isset($_GET['filtro']) ? $_GET['filtro'] : 'pendentes';
+if (!in_array($filtro, array('pendentes', 'todos', 'vencidos'), true)) $filtro = 'pendentes';
 // 30/06/2026 Amanda: aba por tipo de prazo (classificação por regex no
 // descricao_acao). Categorias decididas com ela: DJEN/Publicação, Recurso,
 // Contestação, Alegações Finais, Provas, Outros.
@@ -129,7 +187,10 @@ if (!isset($_tipoLabels[$tipoSel])) $tipoSel = 'todos';
 // Agenda hoje em dia, sem isso a tela ficava "mentindo" — prazo do dia HOJE
 // nao aparecia aqui. Origem 'agenda' usa id negativo no DOM pra nao colidir
 // com ids de prazos_processuais quando renderiza/forma.
-if ($filtro === 'todos') {
+// Amanda 09/07/2026: 'vencidos' reusa query base de pendentes e filtra em PHP
+// (menos risco de regressao vs. duplicar a query UNION-ALL toda de novo)
+$_filtroQuery = ($filtro === 'vencidos') ? 'pendentes' : $filtro;
+if ($_filtroQuery === 'todos') {
     $prazos = $pdo->query(
         "SELECT * FROM (
             SELECT p.id, p.client_id, p.case_id,
@@ -242,6 +303,14 @@ if (!empty($_prazosSemCaseId)) {
     } catch (Exception $_e) { /* falha silenciosa — sem match, mostra so CNJ como antes */ }
 }
 
+// Amanda 09/07/2026: filtro 'vencidos' — so o que passou do prazo e nao esta concluido
+if ($filtro === 'vencidos') {
+    $_hoje = strtotime(date('Y-m-d'));
+    $prazos = array_values(array_filter($prazos, function($p) use ($_hoje) {
+        return empty($p['concluido']) && strtotime($p['prazo_fatal']) < $_hoje;
+    }));
+}
+
 // 30/06/2026 Amanda: classifica cada prazo e conta por tipo (pra badge das abas)
 $_contagemTipo = array('todos' => 0, 'djen' => 0, 'recurso' => 0, 'contestacao' => 0, 'alegacoes' => 0, 'provas' => 0, 'outros' => 0);
 foreach ($prazos as $_i => $_p) {
@@ -257,7 +326,8 @@ if ($tipoSel !== 'todos') {
     $prazos = array_values(array_filter($prazos, function($p) use ($tipoSel) { return ($p['_tipo_prazo'] ?? '') === $tipoSel; }));
 }
 
-$clients = $pdo->query("SELECT id, name FROM clients ORDER BY name")->fetchAll();
+// Amanda 09/07/2026: removido $clients = query 1600+ opcoes. Combobox no
+// modal usa AJAX (?ajax=buscar_cliente) — filtro server-side, sem pre-carga.
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -307,6 +377,7 @@ $_buildUrl = function($overrides = array()) use ($filtro, $tipoSel, $voltarCaso)
 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;">
     <div style="display:flex;gap:.35rem;">
         <a href="<?= $_buildUrl(array('filtro' => 'pendentes')) ?>" class="btn btn-<?= $filtro === 'pendentes' ? 'primary' : 'outline' ?> btn-sm">Pendentes</a>
+        <a href="<?= $_buildUrl(array('filtro' => 'vencidos')) ?>" class="btn btn-<?= $filtro === 'vencidos' ? 'danger' : 'outline' ?> btn-sm"<?= $filtro !== 'vencidos' ? ' style="color:#b91c1c;border-color:#fca5a5;"' : '' ?>>🚨 Vencidos</a>
         <a href="<?= $_buildUrl(array('filtro' => 'todos')) ?>" class="btn btn-<?= $filtro === 'todos' ? 'primary' : 'outline' ?> btn-sm">Todos</a>
     </div>
     <button class="btn btn-primary btn-sm" data-modal="modalPrazo">+ Novo Prazo</button>
@@ -367,14 +438,29 @@ $_buildUrl = function($overrides = array()) use ($filtro, $tipoSel, $voltarCaso)
     <?php endforeach; ?>
 <?php endif; ?>
 
-<!-- Modal: Novo Prazo -->
+<!-- Modal: Novo Prazo (Amanda 09/07/2026: combobox cliente + autocomplete processo) -->
+<style>
+.pz-combo { position:relative; }
+.pz-combo-results { position:absolute;top:100%;left:0;right:0;z-index:50;background:#fff;border:1px solid #ddd;border-radius:0 0 8px 8px;max-height:220px;overflow:auto;display:none;box-shadow:0 6px 14px rgba(0,0,0,.12); }
+.pz-combo-results.aberto { display:block; }
+.pz-combo-item { padding:.5rem .75rem;cursor:pointer;border-bottom:1px solid #f1f5f9;font-size:.86rem; }
+.pz-combo-item:hover, .pz-combo-item.focado { background:#ecfeff; }
+.pz-combo-item .pz-sub { color:#64748b;font-size:.75rem;display:block;margin-top:1px; }
+.pz-combo-vazio { padding:.6rem .75rem;color:#94a3b8;font-size:.82rem;text-align:center; }
+.pz-pill-selecionado { display:inline-flex;align-items:center;gap:.4rem;background:#ecfeff;border:1px solid #67e8f9;color:#0e7490;padding:4px 10px;border-radius:999px;font-size:.8rem;font-weight:600;margin-top:6px; }
+.pz-pill-selecionado button { background:none;border:none;color:#b91c1c;font-size:1rem;cursor:pointer;padding:0;line-height:1; }
+.pz-processo-match { background:#dcfce7;border:1px solid #86efac;color:#15803d;padding:5px 10px;border-radius:6px;font-size:.78rem;margin-top:5px;display:flex;align-items:center;gap:.4rem; }
+.pz-processo-nomatch { background:#fef3c7;border:1px solid #fbbf24;color:#78350f;padding:5px 10px;border-radius:6px;font-size:.75rem;margin-top:5px; }
+</style>
 <div class="modal-overlay" id="modalPrazo">
     <div class="modal">
         <div class="modal-header"><h3>Novo Prazo Processual</h3><button class="modal-close">&times;</button></div>
         <div class="modal-body">
-            <form method="POST">
+            <form method="POST" id="frmPrazo">
                 <?= csrf_input() ?>
                 <input type="hidden" name="action" value="create">
+                <input type="hidden" name="client_id" id="pzClientId" value="">
+                <input type="hidden" name="case_id" id="pzCaseId" value="">
                 <div class="form-group">
                     <label class="form-label">Descrição da ação *</label>
                     <input type="text" name="descricao_acao" class="form-input" required placeholder="Ex: Contestação, Réplica, Recurso...">
@@ -386,17 +472,20 @@ $_buildUrl = function($overrides = array()) use ($filtro, $tipoSel, $voltarCaso)
                     </div>
                     <div class="form-group">
                         <label class="form-label">Nº do processo</label>
-                        <input type="text" name="numero_processo" class="form-input" placeholder="0000000-00.0000.0.00.0000">
+                        <div class="pz-combo">
+                            <input type="text" name="numero_processo" id="pzProcesso" class="form-input" placeholder="Digite CNJ, título ou parte do número…" autocomplete="off">
+                            <div class="pz-combo-results" id="pzProcResults"></div>
+                        </div>
+                        <div id="pzProcVinculo"></div>
                     </div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Cliente</label>
-                    <select name="client_id" class="form-select">
-                        <option value="">— Opcional —</option>
-                        <?php foreach ($clients as $c): ?>
-                            <option value="<?= $c['id'] ?>"><?= e($c['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
+                    <div class="pz-combo">
+                        <input type="text" id="pzClienteBusca" class="form-input" placeholder="Digite o nome do cliente…" autocomplete="off">
+                        <div class="pz-combo-results" id="pzClienteResults"></div>
+                    </div>
+                    <div id="pzClienteSel"></div>
                 </div>
                 <div class="modal-footer" style="border:none;padding:1rem 0 0;">
                     <button type="button" class="btn btn-outline" data-modal-close>Cancelar</button>
@@ -406,5 +495,117 @@ $_buildUrl = function($overrides = array()) use ($filtro, $tipoSel, $voltarCaso)
         </div>
     </div>
 </div>
+<script>
+(function(){
+    var PZ_URL = '<?= module_url('prazos') ?>';
+
+    /* Combobox cliente */
+    var cliInput = document.getElementById('pzClienteBusca');
+    var cliBox   = document.getElementById('pzClienteResults');
+    var cliSel   = document.getElementById('pzClienteSel');
+    var cliHid   = document.getElementById('pzClientId');
+    var cliT;
+    cliInput.addEventListener('input', function(){
+        clearTimeout(cliT);
+        var q = this.value.trim();
+        if (q.length < 2) { cliBox.classList.remove('aberto'); return; }
+        cliT = setTimeout(function(){
+            fetch(PZ_URL + '?ajax=buscar_cliente&q=' + encodeURIComponent(q), {credentials:'same-origin'})
+                .then(function(r){ return r.json(); })
+                .then(function(arr){
+                    if (!arr.length) { cliBox.innerHTML = '<div class="pz-combo-vazio">Nenhum cliente encontrado</div>'; cliBox.classList.add('aberto'); return; }
+                    var html = '';
+                    arr.forEach(function(c){
+                        var cpf = c.cpf ? ' · ' + c.cpf : '';
+                        html += '<div class="pz-combo-item" data-id="' + c.id + '" data-name="' + (c.name||'').replace(/"/g,'&quot;') + '">' + (c.name||'') + '<span class="pz-sub">' + cpf + '</span></div>';
+                    });
+                    cliBox.innerHTML = html;
+                    cliBox.classList.add('aberto');
+                });
+        }, 220);
+    });
+    cliBox.addEventListener('click', function(e){
+        var item = e.target.closest('.pz-combo-item');
+        if (!item) return;
+        var id = item.dataset.id, name = item.dataset.name;
+        cliHid.value = id;
+        cliInput.value = '';
+        cliInput.style.display = 'none';
+        cliBox.classList.remove('aberto');
+        cliSel.innerHTML = '<span class="pz-pill-selecionado">👤 ' + name + ' <button type="button" title="Remover">×</button></span>';
+        cliSel.querySelector('button').addEventListener('click', function(){
+            cliHid.value = '';
+            cliSel.innerHTML = '';
+            cliInput.style.display = '';
+            cliInput.value = '';
+            cliInput.focus();
+        });
+    });
+    document.addEventListener('click', function(e){
+        if (!e.target.closest('.pz-combo')) cliBox.classList.remove('aberto');
+    });
+
+    /* Autocomplete processo */
+    var procInput = document.getElementById('pzProcesso');
+    var procBox   = document.getElementById('pzProcResults');
+    var procVinc  = document.getElementById('pzProcVinculo');
+    var procHidCase = document.getElementById('pzCaseId');
+    var procT;
+    function limparVinculo() {
+        procHidCase.value = '';
+        procVinc.innerHTML = '';
+    }
+    procInput.addEventListener('input', function(){
+        limparVinculo();
+        clearTimeout(procT);
+        var q = this.value.trim();
+        if (q.length < 3) { procBox.classList.remove('aberto'); return; }
+        procT = setTimeout(function(){
+            fetch(PZ_URL + '?ajax=buscar_processo&q=' + encodeURIComponent(q), {credentials:'same-origin'})
+                .then(function(r){ return r.json(); })
+                .then(function(arr){
+                    if (!arr.length) {
+                        procBox.classList.remove('aberto');
+                        // Aviso: nao achou pasta
+                        if (q.replace(/\D/g,'').length >= 15) {
+                            procVinc.innerHTML = '<div class="pz-processo-nomatch">⚠️ Nenhuma pasta encontrada com este número — o prazo será salvo sem vínculo. Verifique o número ou crie a pasta antes.</div>';
+                        }
+                        return;
+                    }
+                    var html = '';
+                    arr.forEach(function(c){
+                        var cnj = c.case_number || '—';
+                        var t = c.title || '';
+                        var cl = c.client_name ? ' · 👤 ' + c.client_name : '';
+                        html += '<div class="pz-combo-item" data-case-id="' + c.id + '" data-cnj="' + (cnj||'').replace(/"/g,'&quot;') + '" data-title="' + t.replace(/"/g,'&quot;') + '" data-client-id="' + (c.client_id||'') + '" data-client-name="' + (c.client_name||'').replace(/"/g,'&quot;') + '"><strong>' + cnj + '</strong><span class="pz-sub">📂 ' + t + cl + '</span></div>';
+                    });
+                    procBox.innerHTML = html;
+                    procBox.classList.add('aberto');
+                });
+        }, 220);
+    });
+    procBox.addEventListener('click', function(e){
+        var item = e.target.closest('.pz-combo-item');
+        if (!item) return;
+        procInput.value = item.dataset.cnj !== '—' ? item.dataset.cnj : '';
+        procHidCase.value = item.dataset.caseId;
+        procBox.classList.remove('aberto');
+        procVinc.innerHTML = '<div class="pz-processo-match">✓ Vinculado à pasta <strong>' + item.dataset.title + '</strong> <button type="button" title="Remover vínculo" style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:1rem;padding:0;margin-left:auto;">×</button></div>';
+        procVinc.querySelector('button').addEventListener('click', limparVinculo);
+        // Auto-vincula cliente se ainda nao selecionado
+        if (!cliHid.value && item.dataset.clientId) {
+            cliHid.value = item.dataset.clientId;
+            cliInput.style.display = 'none';
+            cliSel.innerHTML = '<span class="pz-pill-selecionado" title="Cliente vinculado à pasta">👤 ' + item.dataset.clientName + ' <button type="button" title="Remover">×</button></span>';
+            cliSel.querySelector('button').addEventListener('click', function(){
+                cliHid.value = '';
+                cliSel.innerHTML = '';
+                cliInput.style.display = '';
+                cliInput.value = '';
+            });
+        }
+    });
+})();
+</script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

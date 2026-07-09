@@ -570,8 +570,12 @@ function fsaAbrirInstalar() {
 .sidebar-fav-btn:hover { color:#fbbf24 !important; background:rgba(255,255,255,.08); }
 .sidebar-fav-btn.active { color:#fbbf24 !important; }
 
-/* Barra de favoritos no topo (sticky logo abaixo do topbar) */
-.fav-bar { display:flex; align-items:center; gap:.4rem; padding:.35rem .8rem; background:var(--bg-card); border-bottom:1px solid var(--border); flex-wrap:wrap; font-size:.72rem; min-height:32px; position:sticky; top:var(--topbar-h); z-index:40; box-shadow:var(--shadow-sm); }
+/* Barra de favoritos no topo (sticky logo abaixo do topbar)
+   Amanda 09/07/2026: quando ha muitos favoritos, wrap manda pra 2a linha.
+   Row-gap explicito + padding vertical maior deixa claro que eh intencional
+   (Amanda achou que 'Prazos'/'Agenda' em 2a linha parecia bug — na verdade
+   sao os ultimos favoritos que nao couberam na 1a linha). */
+.fav-bar { display:flex; align-items:center; column-gap:.4rem; row-gap:.45rem; padding:.45rem .8rem; background:var(--bg-card); border-bottom:1px solid var(--border); flex-wrap:wrap; font-size:.72rem; min-height:32px; position:sticky; top:var(--topbar-h); z-index:40; box-shadow:var(--shadow-sm); }
 .fav-bar-label { font-size:.6rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--text-muted); margin-right:.3rem; }
 .fav-bar-link { display:inline-flex; align-items:center; gap:3px; padding:3px 9px; border-radius:100px; background:rgba(184,115,51,.08); color:var(--petrol-900); text-decoration:none; font-weight:600; font-size:.72rem; border:1px solid rgba(184,115,51,.2); transition:all .15s; white-space:nowrap; }
 .fav-bar-link:hover { background:#B87333; color:#fff; border-color:#B87333; }

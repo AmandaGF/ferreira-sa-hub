@@ -827,10 +827,10 @@ $__qtdProximos = count($__prazosUrgentes) - $__qtdVencidos;
         <span style="font-size:1rem;"><?= $__qtdVencidos > 0 ? '🚨' : '⏰' ?></span>
         <strong>
             <?php if ($__qtdVencidos > 0): ?>
-                <?= $__qtdVencidos ?> prazo(s) <span style="background:#fff;color:#7f1d1d;padding:1px 8px;border-radius:6px;font-size:.78rem;margin:0 .25rem;">VENCIDO(S)</span>
-                <?php if ($__qtdProximos > 0): ?>+ <?= $__qtdProximos ?> nos próximos 3 dias<?php endif; ?>
+                <a href="<?= url('modules/prazos/?filtro=vencidos') ?>" style="color:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;" title="Abrir lista filtrada só com os vencidos"><?= $__qtdVencidos ?> prazo(s)</a> <span style="background:#fff;color:#7f1d1d;padding:1px 8px;border-radius:6px;font-size:.78rem;margin:0 .25rem;">VENCIDO(S)</span>
+                <?php if ($__qtdProximos > 0): ?>+ <a href="<?= url('modules/prazos/?filtro=pendentes') ?>" style="color:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;" title="Abrir lista de pendentes"><?= $__qtdProximos ?> nos próximos 3 dias</a><?php endif; ?>
             <?php else: ?>
-                <?= count($__prazosUrgentes) ?> prazo(s) nos próximos 3 dias!
+                <a href="<?= url('modules/prazos/?filtro=pendentes') ?>" style="color:inherit;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:3px;" title="Abrir lista de pendentes"><?= count($__prazosUrgentes) ?> prazo(s) nos próximos 3 dias!</a>
             <?php endif; ?>
         </strong>
         <button type="button" id="urgBannerToggle" onclick="urgBannerToggle()" class="urg-toggle-btn" style="margin-left:auto;">▲ recolher</button>
