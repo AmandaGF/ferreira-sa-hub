@@ -290,6 +290,38 @@ function aud_sync_agenda($pdo, $audId)
         } catch (Exception $e) {}
         return (int)$a['agenda_evento_id'];
     }
+
+    // Amanda 09/07/2026: antes de INSERT, procura evento pre-existente na
+    // agenda (mesmo case + mesma data/hora + tipo audiencia). Bug real Dayana
+    // 09/07: evento #37 criado em abril + correspondente pedido em julho gerou
+    // evento #654 duplicado. Se acha existente, VINCULA (nao cria segundo).
+    if (!empty($a['case_id']) && !empty($a['data_hora'])) {
+        try {
+            $stDup = $pdo->prepare(
+                "SELECT id FROM agenda_eventos
+                 WHERE case_id = ? AND tipo = 'audiencia'
+                   AND data_inicio = ?
+                   AND status NOT IN ('cancelado')
+                 LIMIT 1"
+            );
+            $stDup->execute(array((int)$a['case_id'], $a['data_hora']));
+            $existId = (int)$stDup->fetchColumn();
+            if ($existId) {
+                // Atualiza titulo/desc do existente pra refletir o correspondente,
+                // mas preserva local, meet_link, lembretes e flag cliente_avisado.
+                try {
+                    $pdo->prepare("UPDATE agenda_eventos SET titulo = ?, descricao = ?, data_fim = ? WHERE id = ?")
+                        ->execute(array($titulo, $desc, $fim, $existId));
+                } catch (Exception $e) {}
+                // Vincula a audiencia ao evento existente
+                $pdo->prepare("UPDATE audiencias SET agenda_evento_id = ? WHERE id = ?")
+                    ->execute(array($existId, $audId));
+                try { audit_log('aud_agenda_reuso', 'audiencia', $audId, 'reusou evento agenda #' . $existId . ' (mesma data+case)'); } catch (Exception $e) {}
+                return $existId;
+            }
+        } catch (Exception $e) { /* fallback pro INSERT abaixo */ }
+    }
+
     try {
         $pdo->prepare("INSERT INTO agenda_eventos (tipo, titulo, descricao, data_inicio, data_fim, case_id, client_id, status, created_by)
                        VALUES ('audiencia', ?, ?, ?, ?, ?, ?, 'agendado', ?)")
@@ -432,11 +464,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $contratarAte   = trim($_POST['contratar_ate'] ?? '');
         $contratarAteV  = preg_match('/^\d{4}-\d{2}-\d{2}$/', $contratarAte) ? $contratarAte : null;
         $obsPreContrato = clean_str($_POST['obs_pre_contrato'] ?? '', 2000);
+        // Amanda 09/07/2026: aviso de duplicidade — se ja existe evento na
+        // agenda pro MESMO case + MESMA data/hora, avisa antes de criar solicitacao.
+        // Amanda pode forcar via _confirmar_dup=1. Bug Dayana 09/07 evitado.
+        $forcarDup = !empty($_POST['_confirmar_dup']);
+        if ($caseId && $dataVal && !$forcarDup) {
+            try {
+                $stDup = $pdo->prepare(
+                    "SELECT id, titulo FROM agenda_eventos
+                     WHERE case_id = ? AND tipo = 'audiencia'
+                       AND data_inicio = ?
+                       AND status NOT IN ('cancelado')
+                     LIMIT 1"
+                );
+                $stDup->execute(array($caseId, $dataVal));
+                $dupExist = $stDup->fetch(PDO::FETCH_ASSOC);
+                if ($dupExist) {
+                    $msg = '⚠️ Já existe compromisso na agenda deste caso para ' . date('d/m/Y \à\s H:i', strtotime($dataVal))
+                         . ' — "' . htmlspecialchars($dupExist['titulo']) . '" (evento #' . $dupExist['id'] . ').'
+                         . ' Se pedir correspondente pra essa audiência, o sistema vai VINCULAR ao evento existente'
+                         . ' (não vai duplicar). Confirme abaixo pra prosseguir.';
+                    flash_set('warning', $msg);
+                    // Guarda dados do form em sessao pra remontar com confirmacao
+                    $_SESSION['aud_dup_repost'] = $_POST;
+                    $_SESSION['aud_dup_evento_id'] = (int)$dupExist['id'];
+                    redirect(module_url('audiencistas') . '#nova');
+                    exit;
+                }
+            } catch (Exception $e) { /* nao bloqueia se check falhar */ }
+        }
+
         $pdo->prepare("INSERT INTO audiencias (tipo, data_hora, comarca, client_id, case_id, processo_numero, orientacoes, audiencista_id, valor_cents, arquivo_nome, arquivo_path, arquivo_mime, status, created_by, modalidade, local, tipo_processo, urgente, contratar_ate, obs_pre_contrato)
                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
             ->execute(array($tipo, $dataVal, $comarca, $clientId, $caseId, $procNum ?: null, $orient ?: null, $audId, $valor, $aNome, $aPath, $aMime, $status, current_user_id(), $modalidade ?: null, $local ?: null, $tipoProcesso ?: null, $urgente, $contratarAteV, $obsPreContrato ?: null));
         $novoId = (int)$pdo->lastInsertId();
-        audit_log('audiencia_criar', 'audiencia', $novoId, $tipo);
+        audit_log('audiencia_criar', 'audiencia', $novoId, $tipo . ($forcarDup ? ' [dup_confirmada]' : ''));
+
+        // Limpa sessao de dedup se foi usada
+        if ($forcarDup) { unset($_SESSION['aud_dup_repost'], $_SESSION['aud_dup_evento_id']); }
 
         // Se já veio com audiencista designada, cria evento na agenda + andamento privado.
         if ($audId) {
@@ -741,6 +806,35 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <!-- ===== ABA AUDIÊNCIAS ===== -->
 <div class="au-pane active" id="pane-audiencias">
+<?php
+// Amanda 09/07/2026: banner de confirmacao de duplicidade
+$_audDupRepost = $_SESSION['aud_dup_repost'] ?? null;
+$_audDupEventoId = (int)($_SESSION['aud_dup_evento_id'] ?? 0);
+if ($_audDupRepost && $_audDupEventoId):
+    unset($_SESSION['aud_dup_repost'], $_SESSION['aud_dup_evento_id']);
+    $_urlEvExist = url('modules/agenda/?editar=' . $_audDupEventoId);
+?>
+<div style="background:#fff7ed;border:2px solid #f59e0b;border-radius:12px;padding:1.1rem 1.3rem;margin-bottom:1rem;max-width:820px;">
+  <h3 style="margin:0 0 .5rem;color:#78350f;">⚠️ Compromisso já existe na agenda deste caso</h3>
+  <p style="margin:0 0 .7rem;color:#78350f;font-size:.9rem;">
+    Encontrei um <a href="<?= e($_urlEvExist) ?>" target="_blank" style="color:#0e7490;font-weight:600;">evento #<?= $_audDupEventoId ?></a>
+    já cadastrado nesta data/hora pro mesmo processo. Se você prosseguir, o sistema vai <strong>vincular a correspondente ao evento existente</strong>
+    (sem criar duplicata) — o título/descrição do evento serão atualizados pra refletir o correspondente designado.
+  </p>
+  <form method="post" action="<?= module_url('audiencistas') ?>" style="display:inline-block;">
+    <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
+    <input type="hidden" name="_confirmar_dup" value="1">
+    <?php foreach ($_audDupRepost as $_kR => $_vR):
+        if ($_kR === 'csrf_token' || $_kR === '_confirmar_dup') continue;
+        if (is_array($_vR)) continue; // ignora arrays complexos
+    ?>
+      <input type="hidden" name="<?= e($_kR) ?>" value="<?= e($_vR) ?>">
+    <?php endforeach; ?>
+    <button type="submit" class="au-btn" style="background:#0e7490;">✓ Prosseguir (vincular ao existente)</button>
+  </form>
+  <a href="<?= module_url('audiencistas') ?>" style="margin-left:.5rem;color:#78350f;font-size:.85rem;">Cancelar</a>
+</div>
+<?php endif; ?>
   <details class="au-card" id="nova" style="max-width:820px;" <?= isset($_GET['nova']) ? 'open' : '' ?>>
     <summary style="font-weight:700;color:#0f3d3e;cursor:pointer;" id="auNovaSummary">➕ Nova audiência a contratar</summary>
     <form class="au-form" id="auAudienciaForm" method="post" action="<?= module_url('audiencistas') ?>" enctype="multipart/form-data" style="margin-top:12px;">
