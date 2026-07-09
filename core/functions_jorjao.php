@@ -319,12 +319,45 @@ function jorjao_prazo_cumprido($prazo) {
     }
     $vars['cliente'] = $clienteNome;
 
-    // Nome do operacional que cumpriu o prazo
+    // Amanda 07/07/2026: pra saber QUEM realmente cumpriu (não quem clicou pra marcar
+    // concluído no Painel do Dia), busca em ordem de precisão:
+    // 1) case_tasks.assigned_to da tarefa vinculada ao prazo (mais preciso — quem foi designado)
+    // 2) cases.responsible_user_id do case (responsável pelo processo)
+    // 3) prazo.usuario_id (fallback — quem criou/marcou como cumprido)
+    // Cenário do bug: Amanda clica pra marcar concluído mas quem trabalhou foi a Carina.
+    // A Carina é assigned_to da task OU responsible_user_id do case; Amanda só apertou o botão.
     $opNome = 'time operacional';
-    if (!empty($prazo['usuario_id'])) {
+    $opUserId = null;
+    if (!empty($prazo['case_id'])) {
+        try {
+            // 1) Tenta assigned_to da task vinculada ao prazo (title contém "PRAZO: {desc}")
+            $desc = (string)($prazo['descricao_acao'] ?? '');
+            if ($desc !== '') {
+                $st = db()->prepare("SELECT assigned_to FROM case_tasks
+                                     WHERE case_id = ? AND assigned_to IS NOT NULL
+                                       AND title LIKE ?
+                                     ORDER BY id DESC LIMIT 1");
+                $st->execute(array((int)$prazo['case_id'], '%PRAZO: ' . $desc . '%'));
+                $tid = (int)$st->fetchColumn();
+                if ($tid > 0) $opUserId = $tid;
+            }
+            // 2) Se não achou por task, pega responsible_user_id do case
+            if (!$opUserId) {
+                $st = db()->prepare("SELECT responsible_user_id FROM cases WHERE id = ?");
+                $st->execute(array((int)$prazo['case_id']));
+                $rid = (int)$st->fetchColumn();
+                if ($rid > 0) $opUserId = $rid;
+            }
+        } catch (Exception $e) {}
+    }
+    // 3) Fallback: usuario_id do prazo
+    if (!$opUserId && !empty($prazo['usuario_id'])) {
+        $opUserId = (int)$prazo['usuario_id'];
+    }
+    if ($opUserId) {
         try {
             $st = db()->prepare("SELECT name FROM users WHERE id = ?");
-            $st->execute(array((int)$prazo['usuario_id']));
+            $st->execute(array($opUserId));
             $n = (string)$st->fetchColumn();
             if ($n) {
                 $parts = preg_split('/\s+/', $n);
@@ -352,8 +385,13 @@ function jorjao_prazo_cumprido_by_id($prazoId, $usuarioId = null) {
         $st->execute(array((int)$prazoId));
         $prazo = $st->fetch(PDO::FETCH_ASSOC);
         if (!$prazo) return;
-        // Prefere quem CUMPRIU (usuarioId da action) sobre quem CRIOU (prazo.usuario_id)
-        if ($usuarioId) $prazo['usuario_id'] = (int)$usuarioId;
+        // Amanda 07/07/2026: NÃO sobrescreve com quem clicou — deixa
+        // jorjao_prazo_cumprido() achar quem realmente fez o trabalho via
+        // case_tasks.assigned_to → cases.responsible_user_id → usuario_id.
+        // O param $usuarioId fica só como último fallback se nada mais achar.
+        if ($usuarioId && empty($prazo['usuario_id'])) {
+            $prazo['usuario_id'] = (int)$usuarioId;
+        }
         jorjao_prazo_cumprido($prazo);
     } catch (Exception $e) {}
 }
