@@ -2323,15 +2323,15 @@ $_actAttBtn = $_actBlocked
 </div>
 
 <script>
-// Amanda 09/07/2026: aviso de custo antes de disparar geracao de oficio via IA (aba GERID).
+// Amanda 09/07/2026: aviso de custo antes de disparar geração de ofício via IA (aba GERID).
 window.cvConfirmarOficioGerid = function(f) {
-  var msg = '⚠️ ATENCAO: esta acao chama IA (Claude Sonnet + web search).\n\n'
-          + 'Cada geracao custa aproximadamente R$ 0,15 a R$ 0,30 do orcamento de IA do escritorio.\n\n'
-          + 'Peca com moderacao — so gere oficio para casos que voce vai realmente executar.\n\n'
+  var msg = '⚠️ ATENÇÃO: esta ação chama IA (Claude Sonnet + web search).\n\n'
+          + 'Cada geração custa aproximadamente R$ 0,15 a R$ 0,30 do orçamento de IA do escritório.\n\n'
+          + 'Peça com moderação — só gere ofício para casos que você vai realmente executar.\n\n'
           + 'A IA vai:\n'
           + '  1. Identificar a empresa no texto do resultado GERID\n'
-          + '  2. Buscar contatos de RH/juridico online (ate 3 buscas)\n'
-          + '  3. Redigir o oficio pronto pra revisao\n'
+          + '  2. Buscar contatos de RH/jurídico online (até 3 buscas)\n'
+          + '  3. Redigir o ofício pronto pra revisão\n'
           + '  4. Criar tarefa na pasta do caso\n\n'
           + 'Confirma que quer gerar agora?';
   if (!confirm(msg)) return false;
@@ -2340,7 +2340,7 @@ window.cvConfirmarOficioGerid = function(f) {
     if (btn.disabled) return false;
     btn.disabled = true;
     btn.textContent = '⏳ Gerando... (10-30s)';
-    setTimeout(function(){ if (btn.disabled) { btn.disabled = false; btn.textContent = '🤖 Gerar oficio desconto folha'; } }, 60000);
+    setTimeout(function(){ if (btn.disabled) { btn.disabled = false; btn.textContent = '🤖 Gerar ofício desconto folha'; } }, 60000);
   }
   return true;
 };
@@ -2596,13 +2596,13 @@ try {
               } catch (Throwable $e) {}
           ?>
               <?php if ($_jaTemOf): ?>
-                  <span style="color:#059669;font-weight:600;font-size:.7rem;" title="Oficio ja foi gerado — ver tarefa na aba Compromissos/Tarefas">✓ oficio gerado</span>
+                  <span style="color:#059669;font-weight:600;font-size:.7rem;" title="Ofício já foi gerado — ver tarefa na aba Compromissos/Tarefas">✓ ofício gerado</span>
               <?php else: ?>
                   <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;margin:0;" onsubmit="return cvConfirmarOficioGerid(this);">
                       <?= csrf_input() ?>
                       <input type="hidden" name="acao" value="gerar_oficio">
                       <input type="hidden" name="id" value="<?= (int)$_gr['id'] ?>">
-                      <button type="submit" style="background:#7c3aed;color:#fff;border:none;border-radius:5px;padding:3px 9px;font-size:.7rem;font-weight:700;cursor:pointer;" title="IA (Sonnet + web search) busca contatos da empresa e redige oficio pronto pra revisao. Cria tarefa na pasta.">🤖 Gerar oficio desconto folha</button>
+                      <button type="submit" style="background:#7c3aed;color:#fff;border:none;border-radius:5px;padding:3px 9px;font-size:.7rem;font-weight:700;cursor:pointer;" title="IA (Sonnet + web search) busca contatos da empresa e redige ofício pronto pra revisão. Cria tarefa na pasta.">🤖 Gerar ofício desconto folha</button>
                   </form>
               <?php endif; ?>
           <?php endif; ?>
