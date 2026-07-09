@@ -1482,6 +1482,15 @@ body.cv-polo-autor .cv-painel { background:#f7fef8; border-color:#bbf7d0; }
 body.cv-polo-reu .cv-tabs-wrap { background:#fff5f6; border-color:#fecdd3; }
 body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
 </style>
+<?php
+// Amanda 09/07/2026: pre-computa count de prazos em aberto pro badge no tab
+$_prazosBadge = 0;
+try {
+    $stPB = $pdo->prepare("SELECT COUNT(*) FROM prazos_processuais WHERE case_id = ? AND concluido = 0");
+    $stPB->execute(array($caseId));
+    $_prazosBadge = (int)$stPB->fetchColumn();
+} catch (Exception $e) {}
+?>
 <div class="cv-tabs-wrap">
   <div class="cv-tabs">
     <button type="button" class="cv-tab ativa" data-aba="visao" onclick="cvAba('visao')">📋 Visão geral</button>
@@ -1491,7 +1500,7 @@ body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
         // sem isso o badge não subia quando pedia audiência remota).
         $_badgeTot = count($compromissosCaso) + (int)$_tarefasPendBadge + (int)$_solAudBadge;
         if ($_badgeTot > 0): ?><span class="cv-tab-badge" id="cvBadgeCompromissos"><?= $_badgeTot ?></span><?php endif; ?></button>
-    <button type="button" class="cv-tab" data-aba="prazos" onclick="cvAba('prazos')">⏰ Prazos <span class="cv-tab-badge" id="cvBadgePrazos" style="display:none;">0</span></button>
+    <button type="button" class="cv-tab" data-aba="prazos" onclick="cvAba('prazos')">⏰ Prazos <span class="cv-tab-badge" id="cvBadgePrazos"<?= $_prazosBadge > 0 ? '' : ' style="display:none;"' ?>><?= $_prazosBadge ?></span></button>
     <button type="button" class="cv-tab" data-aba="andamentos" onclick="cvAba('andamentos')">📜 Andamentos</button>
     <button type="button" class="cv-tab" data-aba="documentos" onclick="cvAba('documentos')">📂 Documentos</button>
     <button type="button" class="cv-tab" data-aba="partes" onclick="cvAba('partes')">👥 Partes</button>
