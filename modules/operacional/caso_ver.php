@@ -2323,6 +2323,28 @@ $_actAttBtn = $_actBlocked
 </div>
 
 <script>
+// Amanda 09/07/2026: aviso de custo antes de disparar geracao de oficio via IA (aba GERID).
+window.cvConfirmarOficioGerid = function(f) {
+  var msg = '⚠️ ATENCAO: esta acao chama IA (Claude Sonnet + web search).\n\n'
+          + 'Cada geracao custa aproximadamente R$ 0,15 a R$ 0,30 do orcamento de IA do escritorio.\n\n'
+          + 'Peca com moderacao — so gere oficio para casos que voce vai realmente executar.\n\n'
+          + 'A IA vai:\n'
+          + '  1. Identificar a empresa no texto do resultado GERID\n'
+          + '  2. Buscar contatos de RH/juridico online (ate 3 buscas)\n'
+          + '  3. Redigir o oficio pronto pra revisao\n'
+          + '  4. Criar tarefa na pasta do caso\n\n'
+          + 'Confirma que quer gerar agora?';
+  if (!confirm(msg)) return false;
+  var btn = f.querySelector('button[type="submit"]');
+  if (btn) {
+    if (btn.disabled) return false;
+    btn.disabled = true;
+    btn.textContent = '⏳ Gerando... (10-30s)';
+    setTimeout(function(){ if (btn.disabled) { btn.disabled = false; btn.textContent = '🤖 Gerar oficio desconto folha'; } }, 60000);
+  }
+  return true;
+};
+
 window.acompDiarioAbrir = function() { document.getElementById('acompDiarioOverlay').style.display = 'flex'; };
 window.acompDiarioFechar = function() { document.getElementById('acompDiarioOverlay').style.display = 'none'; };
 document.getElementById('acompDiarioOverlay').addEventListener('click', function(e) { if (e.target.id === 'acompDiarioOverlay') acompDiarioFechar(); });
@@ -2562,6 +2584,27 @@ try {
           <?php endif; ?>
           <?php if (!empty($_gr['printscreen_path'])): ?>
             <a href="<?= module_url('gerid') ?>?baixar=<?= (int)$_gr['id'] ?>" target="_blank" style="color:#0e7490;text-decoration:none;font-weight:600;">📎 ver printscreen</a>
+          <?php endif; ?>
+          <?php if (!empty($_gr['tem_vinculo']) && $_gr['status'] === 'concluida'):
+              // Amanda 09/07/2026: botao pra gerar oficio via IA (manual).
+              // Dedup: verifica se ja tem tarefa gerada.
+              $_jaTemOf = false;
+              try {
+                  $_stChkOf = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'oficio_desconto_folha' AND title LIKE ? LIMIT 1");
+                  $_stChkOf->execute(array($caseId, '%[gerid#' . (int)$_gr['id'] . ']%'));
+                  $_jaTemOf = (bool)$_stChkOf->fetchColumn();
+              } catch (Throwable $e) {}
+          ?>
+              <?php if ($_jaTemOf): ?>
+                  <span style="color:#059669;font-weight:600;font-size:.7rem;" title="Oficio ja foi gerado — ver tarefa na aba Compromissos/Tarefas">✓ oficio gerado</span>
+              <?php else: ?>
+                  <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;margin:0;" onsubmit="return cvConfirmarOficioGerid(this);">
+                      <?= csrf_input() ?>
+                      <input type="hidden" name="acao" value="gerar_oficio">
+                      <input type="hidden" name="id" value="<?= (int)$_gr['id'] ?>">
+                      <button type="submit" style="background:#7c3aed;color:#fff;border:none;border-radius:5px;padding:3px 9px;font-size:.7rem;font-weight:700;cursor:pointer;" title="IA (Sonnet + web search) busca contatos da empresa e redige oficio pronto pra revisao. Cria tarefa na pasta.">🤖 Gerar oficio desconto folha</button>
+                  </form>
+              <?php endif; ?>
           <?php endif; ?>
           <a href="<?= module_url('gerid') ?>#pesquisa-<?= (int)$_gr['id'] ?>" style="color:#0e7490;text-decoration:none;font-weight:600;margin-left:auto;">abrir no módulo GERID →</a>
         </div>

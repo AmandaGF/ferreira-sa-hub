@@ -128,6 +128,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!validate_csrf()) { flash_set('error', 'Sessão expirada.'); redirect(module_url('gerid')); }
     $acao = $_POST['acao'] ?? '';
 
+    // Amanda 09/07/2026: gerar oficio de desconto folha via IA (Sonnet + web search).
+    // Manual — botao no card. Custa ~R$0,15-0,30 por chamada, killswitch em
+    // /admin/ia_custo.php. Redir de volta pro modulo com flash.
+    if ($acao === 'gerar_oficio') {
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) { flash_set('error', 'ID invalido.'); redirect(module_url('gerid')); }
+        require_once APP_ROOT . '/core/functions_gerid_oficio.php';
+        if (function_exists('gerid_oficio_auto_ativo') && !gerid_oficio_auto_ativo()) {
+            flash_set('error', 'Feature "Oficio desconto folha" esta DESLIGADA em /admin/ia_custo.php. Ligue antes de usar.');
+            redirect(module_url('gerid'));
+        }
+        $r = gerid_gerar_oficio_desconto($pdo, $id);
+        if (!empty($r['ok'])) {
+            flash_set('success', '✓ Oficio gerado! Tarefa criada na pasta do processo (task #' . (int)$r['task_id'] . '). Revise antes de enviar.');
+        } else {
+            flash_set('error', 'Falha ao gerar oficio: ' . ($r['erro'] ?? 'erro desconhecido'));
+        }
+        audit_log('gerid_gerar_oficio', 'gerid', $id, !empty($r['ok']) ? ('ok task#' . (int)$r['task_id']) : ('falha: ' . ($r['erro'] ?? '?')));
+        redirect(module_url('gerid'));
+    }
+
     // 29/06/2026 Amanda: excluir pesquisa (duplicada ou erro). Marca task vinculada
     // como cancelada, fecha task_review se houver, registra andamento de remoção.
     if ($acao === 'excluir') {
@@ -456,16 +477,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     audit_log('gerid_email_equipe', 'gerid', (int)$id, $enviados . '/' . count($equipe) . ' emails de vinculo positivo enviados');
                 } catch (Throwable $e) { /* nao bloqueia fluxo */ }
-
-                // Amanda 09/07/2026: gera oficio de desconto em folha via IA
-                // (Claude Sonnet + web_search). Killswitch em configuracoes.
-                // So dispara na transicao real (mesma guarda dos emails).
-                try {
-                    require_once APP_ROOT . '/core/functions_gerid_oficio.php';
-                    if (function_exists('gerid_oficio_auto_ativo') && gerid_oficio_auto_ativo()) {
-                        gerid_gerar_oficio_desconto($pdo, (int)$id);
-                    }
-                } catch (Throwable $e) { /* nao bloqueia fluxo */ }
+                // Amanda 09/07/2026 (revisao): oficio de desconto folha e MANUAL
+                // agora (botao no card). Automatico gera custo desnecessario em
+                // positivos que nao viram acao. Ver acao='gerar_oficio' abaixo.
             }
 
             audit_log('gerid_resultado', 'gerid', $id, $tem ? 'com vinculo' : 'sem vinculo');
@@ -659,6 +673,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <?php if (!empty($g['printscreen_path'])): ?>
           <br><a href="?baixar=<?= (int)$g['id'] ?>" target="_blank" rel="noopener" style="font-size:.72rem;color:#0c4a6e;text-decoration:none;font-weight:600;">📸 Ver print INSS</a>
         <?php endif; ?>
+        <?php if (!empty($g['tem_vinculo']) && !empty($g['case_id'])):
+            // Amanda 09/07/2026: botao manual pra gerar oficio de desconto folha via IA.
+            // Detecta se ja existe tarefa gerada pra essa pesquisa (dedup visual).
+            $_jaTemOficio = false;
+            try {
+                $stChkOf = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'oficio_desconto_folha' AND title LIKE ? LIMIT 1");
+                $stChkOf->execute(array((int)$g['case_id'], '%[gerid#' . (int)$g['id'] . ']%'));
+                $_jaTemOficio = (bool)$stChkOf->fetchColumn();
+            } catch (Throwable $e) {}
+        ?>
+          <?php if ($_jaTemOficio): ?>
+            <br><span style="font-size:.7rem;color:#059669;font-weight:600;" title="Oficio ja foi gerado — abra a tarefa na pasta do processo">✓ Oficio ja gerado</span>
+          <?php else: ?>
+            <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;margin-top:4px;" onsubmit="return gdConfirmarOficio(this);">
+              <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
+              <input type="hidden" name="acao" value="gerar_oficio">
+              <input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
+              <button type="submit" style="margin-top:5px;background:#7c3aed;color:#fff;border:none;border-radius:5px;padding:4px 9px;font-size:.7rem;font-weight:700;cursor:pointer;" title="IA (Sonnet + web search) busca contatos da empresa e redige oficio pronto pra revisao. Cria tarefa na pasta do caso.">🤖 Gerar oficio desconto folha</button>
+            </form>
+          <?php endif; ?>
+        <?php endif; ?>
       </td>
       <td style="padding:9px 11px;"><?= e($g['reg_por'] ?: '—') ?><br><span style="color:#999;font-size:.78rem;"><?= $g['created_at'] ? date('d/m/Y', strtotime($g['created_at'])) : '' ?></span></td>
       <td style="padding:9px 11px;"><?= e($g['pesq_por'] ?: '—') ?><br><span style="color:#999;font-size:.78rem;"><?= $g['pesquisado_em'] ? date('d/m/Y', strtotime($g['pesquisado_em'])) : '' ?></span></td>
@@ -699,6 +734,28 @@ function gdBuscarCli(q){
     });
   },250);
 }
+// Amanda 09/07/2026: aviso de custo antes de disparar geracao de oficio via IA.
+// Sonnet + web search custa ~R$ 0,15-0,30 por chamada — pedir com moderacao.
+function gdConfirmarOficio(f) {
+  var msg = '⚠️ ATENCAO: esta acao chama IA (Claude Sonnet + web search).\n\n'
+          + 'Cada geracao custa aproximadamente R$ 0,15 a R$ 0,30 do orcamento de IA do escritorio.\n\n'
+          + 'Peca com moderacao — so gere oficio para casos que voce vai realmente executar. A IA vai:\n'
+          + '  1. Identificar a empresa no texto do resultado\n'
+          + '  2. Buscar contatos de RH/juridico online (ate 3 buscas)\n'
+          + '  3. Redigir o oficio pronto pra revisao\n'
+          + '  4. Criar tarefa na pasta do caso\n\n'
+          + 'Confirma que quer gerar agora?';
+  if (!confirm(msg)) return false;
+  var btn = f.querySelector('button[type="submit"]');
+  if (btn) {
+    if (btn.disabled) return false;
+    btn.disabled = true;
+    btn.textContent = '⏳ Gerando... (10-30s)';
+    setTimeout(function(){ if (btn.disabled) { btn.disabled = false; btn.textContent = '🤖 Gerar oficio desconto folha'; } }, 60000);
+  }
+  return true;
+}
+
 // Amanda 09/07/2026: guard contra double-click no botao Registrar do resultado.
 // Backend tem UPDATE atomico como protecao real, mas isso reduz risco.
 function gdSubmitLock(f) {
