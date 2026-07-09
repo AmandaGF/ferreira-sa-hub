@@ -98,7 +98,7 @@ function claudin_log($msg) {
 // brevo_sender_email, brevo_sender_name). mail() nativo não
 // entregava porque o domínio não tinha SPF permitindo a
 // TurboCloud enviar — Brevo resolve isso.
-function claudin_enviar_email($assunto, $corpo) {
+function claudin_enviar_email($assunto, $corpo, $htmlCustom = null) {
     try {
         $pdo = db();
     } catch (Exception $e) {
@@ -123,10 +123,15 @@ function claudin_enviar_email($assunto, $corpo) {
         return;
     }
 
-    // Formata corpo como HTML simples (quebras de linha viram <br>, emails viram links)
-    $htmlBody = '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#222;line-height:1.55;padding:10px;">'
-              . nl2br(htmlspecialchars($corpo, ENT_QUOTES, 'UTF-8'))
-              . '</div>';
+    // Amanda 09/07/2026: se veio HTML pronto (email diário estilizado), usa direto;
+    // senão faz o fallback antigo (nl2br do texto plain).
+    if ($htmlCustom !== null && $htmlCustom !== '') {
+        $htmlBody = $htmlCustom;
+    } else {
+        $htmlBody = '<div style="font-family:Segoe UI,Arial,sans-serif;font-size:14px;color:#222;line-height:1.55;padding:10px;">'
+                  . nl2br(htmlspecialchars($corpo, ENT_QUOTES, 'UTF-8'))
+                  . '</div>';
+    }
 
     foreach (EMAIL_ALERTAS as $para) {
         $data = array(
@@ -612,8 +617,179 @@ function claudin_executar($horario, $dataAlvo) {
         claudin_enviar_email($assunto, $corpo);
     }
 
+    // Amanda 09/07/2026: email diário de recortes (estilo LegalOne).
+    // Envia SEMPRE que houver publicações importadas ou pendentes (sem case).
+    // Formato HTML rico, agrupado por tribunal, com botões clicáveis pra pasta.
+    try {
+        if ($contadores['imported'] > 0 || $contadores['pending'] > 0) {
+            $emailDiario = claudin_montar_email_diario_html($pdo, $dataAlvo, $contadores, $horario);
+            if ($emailDiario && !empty($emailDiario['html'])) {
+                claudin_enviar_email($emailDiario['assunto'], $emailDiario['texto'], $emailDiario['html']);
+                claudin_log('Email diário de recortes enviado ({assunto}=' . $emailDiario['assunto'] . ')');
+            }
+        }
+    } catch (Exception $eE) {
+        claudin_log('Falha ao montar/enviar email diário: ' . $eE->getMessage());
+    }
+
     claudin_log("Claudin finalizado com sucesso.");
     return array('status'=>$status,'contadores'=>$contadores,'tempo'=>$tempo);
+}
+
+// ============================================================
+// Email diário estilo LegalOne — Amanda 09/07/2026
+// Monta HTML rico com publicações capturadas hoje, agrupadas por tribunal,
+// com botões clicáveis pra abrir a pasta no Hub.
+// ============================================================
+function claudin_montar_email_diario_html($pdo, $dataAlvo, $contadores, $horario) {
+    // Busca publicações importadas HOJE (na tabela case_publicacoes),
+    // vinculadas a case + cliente pra ter dados completos
+    $st = $pdo->prepare(
+        "SELECT p.id, p.case_id, p.data_disponibilizacao, p.tribunal, p.tipo_publicacao,
+                p.prazo_dias, p.data_prazo_fim, p.resumo_ia, p.orientacao_ia, p.conteudo,
+                p.created_at,
+                c.title AS case_title, c.case_number,
+                cl.name AS client_name
+         FROM case_publicacoes p
+         LEFT JOIN cases c ON c.id = p.case_id
+         LEFT JOIN clients cl ON cl.id = c.client_id
+         WHERE p.data_disponibilizacao = ? OR DATE(p.created_at) = CURDATE()
+         ORDER BY p.tribunal, p.created_at DESC
+         LIMIT 100"
+    );
+    $st->execute(array($dataAlvo));
+    $pubs = $st->fetchAll(PDO::FETCH_ASSOC);
+    if (!$pubs) return null;
+
+    $totalCap = count($pubs);
+    $dataFmt = date('d/m/Y', strtotime($dataAlvo));
+    $assunto = '📬 Recortes DJEN ' . $dataFmt . ' — ' . $totalCap . ' publicaç' . ($totalCap === 1 ? 'ão' : 'ões') . ' capturada' . ($totalCap === 1 ? '' : 's');
+
+    // Agrupar por tribunal
+    $porTribunal = array();
+    foreach ($pubs as $p) {
+        $key = trim((string)$p['tribunal']) ?: 'Sem tribunal identificado';
+        if (!isset($porTribunal[$key])) $porTribunal[$key] = array();
+        $porTribunal[$key][] = $p;
+    }
+
+    $tiposLbl = array(
+        'intimacao' => '📢 Intimação', 'citacao' => '📩 Citação',
+        'despacho' => '⚖️ Despacho', 'decisao' => '⚖️ Decisão',
+        'sentenca' => '🏛️ Sentença', 'acordao' => '🏛️ Acórdão',
+        'edital' => '📃 Edital', 'outro' => '📄 Publicação',
+    );
+
+    // ---------- HTML ----------
+    $h = '<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>'
+       . '<body style="margin:0;background:#faf7f2;font-family:Georgia,\'Times New Roman\',serif;color:#1a1a1f;">'
+       . '<div style="max-width:660px;margin:0 auto;background:#faf7f2;">'
+
+       // Header
+       . '<div style="background:linear-gradient(135deg,#052228,#0a3238);color:#fff;padding:1.6rem 1.4rem;border-radius:0 0 12px 12px;">'
+       . '<div style="font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:#B87333;font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;font-weight:700;margin-bottom:.4rem;">Ferreira &amp; Sá Advocacia · Recortes do dia</div>'
+       . '<h1 style="margin:0;font-size:1.6rem;font-weight:600;line-height:1.2;font-family:Georgia,serif;">' . $totalCap . ' publicaç' . ($totalCap === 1 ? 'ão' : 'ões') . ' capturada' . ($totalCap === 1 ? '' : 's') . ' em ' . $dataFmt . '</h1>'
+       . '<p style="margin:.6rem 0 0;font-size:.9rem;opacity:.85;font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;">Execução ' . htmlspecialchars($horario, ENT_QUOTES, 'UTF-8') . 'h · '
+       . (int)$contadores['imported'] . ' importadas · ' . (int)$contadores['duplicated'] . ' duplicadas · '
+       . (int)$contadores['pending'] . ' aguardando vínculo</p>'
+       . '</div>';
+
+    // Blocos por tribunal
+    foreach ($porTribunal as $trib => $itens) {
+        $h .= '<div style="padding:1.4rem 1.2rem .4rem;">'
+            . '<div style="font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:#B87333;font-weight:700;padding-bottom:.4rem;border-bottom:1px solid #d5cdba;margin-bottom:.9rem;">🏛️ ' . htmlspecialchars($trib, ENT_QUOTES, 'UTF-8') . ' · ' . count($itens) . '</div>'
+            . '</div>';
+
+        foreach ($itens as $p) {
+            $tipoLbl = $tiposLbl[$p['tipo_publicacao']] ?? '📄 Publicação';
+            $temPasta = !empty($p['case_id']);
+            $urlPasta = $temPasta ? ('https://ferreiraesa.com.br/conecta/modules/operacional/caso_ver.php?id=' . (int)$p['case_id']) : '';
+            $descrPreview = trim(preg_replace('/\s+/', ' ', strip_tags((string)$p['conteudo'])));
+            if (mb_strlen($descrPreview) > 320) $descrPreview = mb_substr($descrPreview, 0, 320) . '…';
+
+            $prazoTxt = '';
+            if (!empty($p['data_prazo_fim'])) {
+                $diasRest = (int)((strtotime($p['data_prazo_fim']) - strtotime(date('Y-m-d'))) / 86400);
+                $corPrazo = $diasRest <= 3 ? '#a33a2a' : ($diasRest <= 7 ? '#c76e15' : '#065f46');
+                $prazoTxt = '<div style="display:inline-block;background:' . $corPrazo . '15;border:1px solid ' . $corPrazo . '40;color:' . $corPrazo . ';padding:4px 10px;border-radius:6px;font-size:.75rem;font-weight:700;margin-top:.5rem;">⏰ Prazo fatal ' . date('d/m/Y', strtotime($p['data_prazo_fim'])) . ' (' . $diasRest . 'd)</div>';
+            }
+
+            $h .= '<div style="margin:0 1.2rem 1rem;background:#fff;border:1px solid #e3ddcf;border-left:4px solid #B87333;border-radius:8px;padding:1rem 1.1rem;box-shadow:0 1px 2px rgba(5,34,40,.04);">'
+
+                // Cabeçalho do card
+                . '<div style="font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;font-size:.72rem;color:#6b6559;letter-spacing:.06em;text-transform:uppercase;font-weight:600;margin-bottom:.4rem;">'
+                . htmlspecialchars($tipoLbl, ENT_QUOTES, 'UTF-8')
+                . ' · ' . date('d/m/Y', strtotime($p['data_disponibilizacao']))
+                . '</div>'
+
+                // Titulo (case ou "sem vínculo")
+                . '<div style="font-family:Georgia,serif;font-size:1.05rem;color:#052228;font-weight:600;line-height:1.35;margin-bottom:.15rem;">'
+                . ($temPasta ? htmlspecialchars($p['case_title'] ?: 'Caso #' . $p['case_id'], ENT_QUOTES, 'UTF-8') : '<span style="color:#a33a2a;">⚠️ Sem pasta vinculada</span>')
+                . '</div>';
+
+            // Cliente + processo
+            $meta = array();
+            if (!empty($p['client_name'])) $meta[] = '👤 ' . htmlspecialchars($p['client_name'], ENT_QUOTES, 'UTF-8');
+            if (!empty($p['case_number'])) $meta[] = '<span style="font-family:ui-monospace,Consolas,monospace;color:#4a4740;">' . htmlspecialchars($p['case_number'], ENT_QUOTES, 'UTF-8') . '</span>';
+            if ($meta) $h .= '<div style="font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;font-size:.82rem;color:#4a4740;margin-bottom:.5rem;">' . implode(' · ', $meta) . '</div>';
+
+            // Resumo IA se houver, senão conteúdo curto
+            if (!empty($p['resumo_ia'])) {
+                $h .= '<div style="background:#faf7f2;border-left:2px solid #B87333;padding:.55rem .75rem;font-size:.85rem;line-height:1.5;color:#1a1a1f;font-family:Georgia,serif;margin:.4rem 0;border-radius:0 6px 6px 0;">'
+                    . '<span style="font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;font-size:.65rem;font-weight:700;color:#B87333;letter-spacing:.06em;text-transform:uppercase;">🤖 Resumo IA</span><br>'
+                    . nl2br(htmlspecialchars(mb_substr($p['resumo_ia'], 0, 500), ENT_QUOTES, 'UTF-8')) . '</div>';
+                if (!empty($p['orientacao_ia'])) {
+                    $h .= '<div style="background:#fff7ed;border-left:2px solid #c76e15;padding:.55rem .75rem;font-size:.82rem;line-height:1.5;color:#3d2b0e;font-family:Georgia,serif;margin:.4rem 0;border-radius:0 6px 6px 0;">'
+                        . '<span style="font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;font-size:.65rem;font-weight:700;color:#c76e15;letter-spacing:.06em;text-transform:uppercase;">💡 O que fazer</span><br>'
+                        . nl2br(htmlspecialchars(mb_substr($p['orientacao_ia'], 0, 400), ENT_QUOTES, 'UTF-8')) . '</div>';
+                }
+            } elseif ($descrPreview) {
+                $h .= '<div style="font-size:.82rem;color:#4a4740;line-height:1.5;font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;margin:.5rem 0;">'
+                    . htmlspecialchars($descrPreview, ENT_QUOTES, 'UTF-8') . '</div>';
+            }
+
+            // Prazo
+            if ($prazoTxt) $h .= $prazoTxt;
+
+            // Botões
+            $h .= '<div style="margin-top:.9rem;">';
+            if ($temPasta) {
+                $h .= '<a href="' . htmlspecialchars($urlPasta, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:#052228;color:#fff;padding:.55rem 1.1rem;border-radius:6px;text-decoration:none;font-size:.8rem;font-weight:600;font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;">Abrir pasta →</a> ';
+            } else {
+                $h .= '<a href="https://ferreiraesa.com.br/conecta/modules/admin/djen_importar.php" style="display:inline-block;background:#a33a2a;color:#fff;padding:.55rem 1.1rem;border-radius:6px;text-decoration:none;font-size:.8rem;font-weight:600;font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;">Vincular manualmente →</a> ';
+            }
+            $h .= '</div></div>';
+        }
+    }
+
+    // Rodapé
+    $h .= '<div style="margin-top:1.5rem;padding:1.4rem 1.2rem;background:#052228;color:#f2ede2;border-radius:12px 12px 0 0;text-align:center;font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;">'
+        . '<p style="margin:0 0 .5rem;font-size:.85rem;">'
+        . '<a href="https://ferreiraesa.com.br/conecta/modules/admin/djen_importar.php" style="color:#d29a5f;text-decoration:underline;font-weight:600;">Ver todas as publicações no Hub Conecta →</a></p>'
+        . '<p style="margin:0;font-size:.7rem;color:#8a8378;letter-spacing:.06em;">Claudin · Monitoramento diário do DJEN · Ferreira &amp; Sá Advocacia</p>'
+        . '</div>'
+        . '</div></body></html>';
+
+    // Texto fallback (pra clients que bloqueiam HTML)
+    $texto = "Recortes DJEN " . $dataFmt . " — " . $totalCap . " publicacoes capturadas.\n\n";
+    foreach ($porTribunal as $trib => $itens) {
+        $texto .= "== " . $trib . " (" . count($itens) . ") ==\n";
+        foreach ($itens as $p) {
+            $texto .= "  - " . ($tiposLbl[$p['tipo_publicacao']] ?? 'Publicacao') . " · " . date('d/m/Y', strtotime($p['data_disponibilizacao']));
+            if (!empty($p['case_number'])) $texto .= " · " . $p['case_number'];
+            if (!empty($p['client_name'])) $texto .= " · " . $p['client_name'];
+            if (!empty($p['data_prazo_fim'])) $texto .= " · PRAZO " . date('d/m/Y', strtotime($p['data_prazo_fim']));
+            $texto .= "\n";
+        }
+        $texto .= "\n";
+    }
+    $texto .= "Ver todas: https://ferreiraesa.com.br/conecta/modules/admin/djen_importar.php\n";
+
+    return array(
+        'assunto' => $assunto,
+        'html'    => $h,
+        'texto'   => $texto,
+    );
 }
 
 // ============================================================
