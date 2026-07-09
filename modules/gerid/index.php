@@ -344,21 +344,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     redirect(module_url('gerid'));
 }
 
-$pendentes = $pdo->query("SELECT g.*, cl.name AS client_name, c.case_number, c.title AS case_title,
-                                 u.name AS reg_por, u.email AS reg_email
-                          FROM gerid_pesquisas g
-                          LEFT JOIN clients cl ON cl.id=g.client_id
-                          LEFT JOIN cases c ON c.id=g.case_id
-                          LEFT JOIN users u ON u.id=g.created_by
-                          WHERE g.status='pendente' ORDER BY g.created_at ASC LIMIT 300")->fetchAll();
-$concluidas = $pdo->query("SELECT g.*, cl.name AS client_name, c.case_number, c.title AS case_title,
-                                  u.name AS reg_por, u.email AS reg_email, p.name AS pesq_por
-                           FROM gerid_pesquisas g
-                           LEFT JOIN clients cl ON cl.id=g.client_id
-                           LEFT JOIN cases c ON c.id=g.case_id
-                           LEFT JOIN users u ON u.id=g.created_by
-                           LEFT JOIN users p ON p.id=g.pesquisado_por
-                           WHERE g.status='concluida' ORDER BY g.pesquisado_em DESC LIMIT 200")->fetchAll();
+// Amanda 09/07/2026: busca livre por nome (parte OU nosso cliente) OU num processo
+$_qBusca = trim($_GET['q'] ?? '');
+$_qLike = '%' . $_qBusca . '%';
+$_qLikeDig = '%' . preg_replace('/\D/', '', $_qBusca) . '%'; // pra matchear CPF/CNJ sem mascara
+$_whereBusca = '';
+$_paramsBusca = array();
+if ($_qBusca !== '') {
+    // Busca em: parte pesquisada, CPF/CNJ (dígitos), nosso cliente (via g.client_id OU via case.client_id),
+    // numero do processo, titulo do caso
+    $_whereBusca = " AND (
+        g.parte_nome LIKE ?
+        OR g.parte_cpf LIKE ?
+        OR REPLACE(REPLACE(REPLACE(g.parte_cpf,'.',''),'-',''),'/','') LIKE ?
+        OR cl.name LIKE ?
+        OR cc.name LIKE ?
+        OR c.case_number LIKE ?
+        OR REPLACE(REPLACE(REPLACE(c.case_number,'.',''),'-',''),'/','') LIKE ?
+        OR c.title LIKE ?
+    )";
+    $_paramsBusca = array($_qLike, $_qLike, $_qLikeDig, $_qLike, $_qLike, $_qLike, $_qLikeDig, $_qLike);
+}
+
+$_stP = $pdo->prepare(
+    "SELECT g.*, cl.name AS client_name, cc.name AS case_client_name,
+            c.case_number, c.title AS case_title,
+            u.name AS reg_por, u.email AS reg_email
+     FROM gerid_pesquisas g
+     LEFT JOIN clients cl ON cl.id=g.client_id
+     LEFT JOIN cases c ON c.id=g.case_id
+     LEFT JOIN clients cc ON cc.id=c.client_id
+     LEFT JOIN users u ON u.id=g.created_by
+     WHERE g.status='pendente' $_whereBusca
+     ORDER BY g.created_at ASC LIMIT 300"
+);
+$_stP->execute($_paramsBusca);
+$pendentes = $_stP->fetchAll();
+
+$_stC = $pdo->prepare(
+    "SELECT g.*, cl.name AS client_name, cc.name AS case_client_name,
+            c.case_number, c.title AS case_title,
+            u.name AS reg_por, u.email AS reg_email, p.name AS pesq_por
+     FROM gerid_pesquisas g
+     LEFT JOIN clients cl ON cl.id=g.client_id
+     LEFT JOIN cases c ON c.id=g.case_id
+     LEFT JOIN clients cc ON cc.id=c.client_id
+     LEFT JOIN users u ON u.id=g.created_by
+     LEFT JOIN users p ON p.id=g.pesquisado_por
+     WHERE g.status='concluida' $_whereBusca
+     ORDER BY g.pesquisado_em DESC LIMIT 200"
+);
+$_stC->execute($_paramsBusca);
+$concluidas = $_stC->fetchAll();
 $csrf = generate_csrf_token();
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -383,6 +420,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
   <h1 style="margin:0;">🔎 Pesquisa GERID — Vínculo Empregatício</h1>
   <p style="color:#777;margin:4px 0 0;">Peça pra descobrir, via GERID/INSS Digital, se a parte (pai/mãe) tem vínculo de emprego. O Luiz Eduardo é avisado e a pesquisa é registrada aqui.</p>
 </div>
+
+<!-- Amanda 09/07/2026: busca por parte, nosso cliente, CPF ou numero de processo -->
+<form method="get" action="<?= module_url('gerid') ?>" style="margin:.5rem 0 1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;max-width:760px;">
+  <input type="text" name="q" value="<?= e($_qBusca) ?>" placeholder="🔍 Buscar por parte, nosso cliente, CPF ou nº do processo…" style="flex:1;min-width:280px;border:1px solid #ddd;border-radius:8px;padding:9px 12px;font-size:.92rem;">
+  <button type="submit" class="gd-btn" style="padding:9px 18px;">Buscar</button>
+  <?php if ($_qBusca !== ''): ?>
+    <a href="<?= module_url('gerid') ?>" style="font-size:.82rem;color:#b91c1c;text-decoration:none;font-weight:600;">✕ limpar</a>
+    <span style="font-size:.78rem;color:#666;background:#fef3c7;padding:4px 10px;border-radius:999px;border:1px solid #fbbf24;">Filtrando por: <strong><?= e($_qBusca) ?></strong> — <?= count($pendentes) + count($concluidas) ?> resultado(s)</span>
+  <?php endif; ?>
+</form>
 
 <details class="gd-card" style="max-width:760px;">
   <summary style="font-weight:700;color:#0e7490;cursor:pointer;">➕ Nova pesquisa (avulsa)</summary>
@@ -429,7 +476,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
             📄 <?= e($proc) ?> ·
         <?php endif; ?>
     <?php endif; ?>
-    <?= $g['client_name'] ? '👥 ' . e($g['client_name']) . ' · ' : '' ?>
+    <?php $_nossoCli = $g['client_name'] ?: ($g['case_client_name'] ?? ''); ?>
+    <?= $_nossoCli ? '<span style="color:#0e7490;font-weight:600;">👥 Nosso cliente: ' . e($_nossoCli) . '</span> · ' : '' ?>
     pedido por <?= e($g['reg_por'] ?: '—') ?> em <?= date('d/m/Y', strtotime($g['created_at'])) ?>
   </div>
   <?php if ($g['observacao']): ?><div style="font-size:.83rem;margin-top:5px;color:#444;"><?= e($g['observacao']) ?></div><?php endif; ?>
@@ -450,11 +498,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <h3 style="margin:22px 0 8px;">✅ Concluídas</h3>
 <?php if (!$concluidas): ?><div class="gd-empty">Nenhuma ainda.</div><?php else: ?>
 <div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.06);">
-  <thead><tr style="background:#fafafa;font-size:.72rem;text-transform:uppercase;color:#888;"><th style="padding:9px 11px;text-align:left;">Parte</th><th style="padding:9px 11px;text-align:left;">Processo</th><th style="padding:9px 11px;text-align:left;">Vínculo</th><th style="padding:9px 11px;text-align:left;">Detalhe</th><th style="padding:9px 11px;text-align:left;">Solicitado por</th><th style="padding:9px 11px;text-align:left;">Pesquisado por</th><th style="padding:9px 11px;text-align:left;">Tratado?</th><th style="padding:9px 11px;text-align:center;width:60px;"></th></tr></thead>
+  <thead><tr style="background:#fafafa;font-size:.72rem;text-transform:uppercase;color:#888;"><th style="padding:9px 11px;text-align:left;">Parte</th><th style="padding:9px 11px;text-align:left;">Nosso cliente</th><th style="padding:9px 11px;text-align:left;">Processo</th><th style="padding:9px 11px;text-align:left;">Vínculo</th><th style="padding:9px 11px;text-align:left;">Detalhe</th><th style="padding:9px 11px;text-align:left;">Solicitado por</th><th style="padding:9px 11px;text-align:left;">Pesquisado por</th><th style="padding:9px 11px;text-align:left;">Tratado?</th><th style="padding:9px 11px;text-align:center;width:60px;"></th></tr></thead>
   <tbody>
   <?php foreach ($concluidas as $g): ?>
     <tr style="border-bottom:1px solid #f0f0f0;font-size:.85rem;" id="gd-row-<?= (int)$g['id'] ?>">
       <td style="padding:9px 11px;"><?= e($g['parte_nome']) ?><?= $g['parte_cpf'] ? '<br><span style="color:#999;font-size:.78rem;">' . e($g['parte_cpf']) . '</span>' : '' ?></td>
+      <td style="padding:9px 11px;">
+        <?php $_nossoCliT = $g['client_name'] ?: ($g['case_client_name'] ?? ''); ?>
+        <?php if ($_nossoCliT): ?>
+          <span style="color:#0e7490;font-weight:600;"><?= e($_nossoCliT) ?></span>
+        <?php else: ?>
+          <span style="color:#999;">—</span>
+        <?php endif; ?>
+      </td>
       <td style="padding:9px 11px;">
         <?php $_procTxt = $g['case_number'] ?: ($g['case_title'] ?: '—'); ?>
         <?php if (!empty($g['case_id']) && $_procTxt !== '—'): ?>
