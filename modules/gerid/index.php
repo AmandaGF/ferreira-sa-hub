@@ -279,11 +279,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             }
-            $pdo->prepare("UPDATE gerid_pesquisas SET status='concluida', tem_vinculo=?, resultado=?, pesquisado_por=?, pesquisado_em=NOW(),
-                           printscreen_nome=COALESCE(?, printscreen_nome),
-                           printscreen_path=COALESCE(?, printscreen_path),
-                           printscreen_mime=COALESCE(?, printscreen_mime) WHERE id=?")
-                ->execute(array($tem, $res ?: null, current_user_id(), $psNome, $psPath, $psMime, $id));
+            // Amanda 09/07/2026: UPDATE ATOMICO com "reserva do envio de email".
+            // Bug real: double-click no botao Registrar disparava 2 POSTs quase
+            // simultaneos. Ambos liam $row['status']='pendente' antes do primeiro
+            // UPDATE completar → dispararam 2 emails identicos.
+            //
+            // Fix: 1o UPDATE serve de LOCK — inclui WHERE que exige status atual
+            // != status final desejado (ou tem_vinculo != novo). Se rowCount=0,
+            // significa que o 1o request ja processou. O 2o vira noop nos envios.
+            $stUp = $pdo->prepare(
+                "UPDATE gerid_pesquisas
+                 SET status='concluida', tem_vinculo=?, resultado=?,
+                     pesquisado_por=?, pesquisado_em=NOW(),
+                     printscreen_nome=COALESCE(?, printscreen_nome),
+                     printscreen_path=COALESCE(?, printscreen_path),
+                     printscreen_mime=COALESCE(?, printscreen_mime)
+                 WHERE id = ?
+                   AND (status != 'concluida' OR tem_vinculo != ? OR tem_vinculo IS NULL)"
+            );
+            $stUp->execute(array($tem, $res ?: null, current_user_id(), $psNome, $psPath, $psMime, $id, $tem));
+            $_geridMudou = $stUp->rowCount() > 0;
+            // Se rowCount == 0, foi request duplicado (double-click) OU re-save
+            // sem alterar valor. Nao envia emails/notif/tarefa denovo.
+            if (!$_geridMudou) {
+                $_geridEraPendente = false; // desliga guards que dependem disso
+                $_geridTinhaVinculo = (int)$tem; // finge que ja era o mesmo → nao dispara
+            }
             // fecha a tarefa
             if (!empty($row['task_id'])) {
                 try { $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=NOW() WHERE id=?")->execute(array($row['task_id'])); } catch (Exception $e) {}
@@ -585,7 +606,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     pedido por <?= e($g['reg_por'] ?: '—') ?> em <?= date('d/m/Y', strtotime($g['created_at'])) ?>
   </div>
   <?php if ($g['observacao']): ?><div style="font-size:.83rem;margin-top:5px;color:#444;"><?= e($g['observacao']) ?></div><?php endif; ?>
-  <form method="post" action="<?= module_url('gerid') ?>" enctype="multipart/form-data" style="margin-top:10px;border-top:1px solid #f0f0f0;padding-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+  <form method="post" action="<?= module_url('gerid') ?>" enctype="multipart/form-data" style="margin-top:10px;border-top:1px solid #f0f0f0;padding-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;" onsubmit="gdSubmitLock(this)">
     <input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="resultado"><input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
     <span style="font-size:.82rem;font-weight:700;">Resultado:</span>
     <label style="font-size:.85rem;display:flex;align-items:center;gap:5px;"><input type="radio" name="tem_vinculo" value="1" required> ✅ Tem vínculo</label>
@@ -667,6 +688,19 @@ function gdBuscarCli(q){
       box.innerHTML=h||'<div style="color:#999;cursor:default;">Nenhum</div>'; box.style.display='block';
     });
   },250);
+}
+// Amanda 09/07/2026: guard contra double-click no botao Registrar do resultado.
+// Backend tem UPDATE atomico como protecao real, mas isso reduz risco.
+function gdSubmitLock(f) {
+  var btn = f.querySelector('button[type="submit"]');
+  if (!btn) return true;
+  if (btn.disabled) return false; // ja processando
+  btn.disabled = true;
+  var textoAntigo = btn.textContent;
+  btn.textContent = '⏳ Registrando...';
+  // Failsafe: reabilita apos 20s caso o browser fique preso
+  setTimeout(function(){ if (btn.disabled) { btn.disabled = false; btn.textContent = textoAntigo; } }, 20000);
+  return true;
 }
 function gdSelCli(id,name){ document.getElementById('gdClientId').value=id; document.getElementById('gdBuscaCli').value=''; document.getElementById('gdCliBox').style.display='none'; document.getElementById('gdCliSel').innerHTML='👥 '+name+' <a href="javascript:void(0)" onclick="gdLimparCli()" style="color:#b91c1c;">×</a>'; }
 function gdLimparCli(){ document.getElementById('gdClientId').value=''; document.getElementById('gdCliSel').innerHTML=''; }
