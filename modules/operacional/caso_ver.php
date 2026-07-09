@@ -1490,6 +1490,27 @@ try {
     $stPB->execute(array($caseId));
     $_prazosBadge = (int)$stPB->fetchColumn();
 } catch (Exception $e) {}
+
+// Amanda 09/07/2026: pesquisas GERID deste case (aba dedicada)
+$_geridDoCase = array();
+$_geridBadge = 0; // total (pra badge no tab)
+$_geridPendCount = 0; // pendentes (destaque visual)
+try {
+    $_stG = $pdo->prepare(
+        "SELECT g.*, u.name AS pesquisado_por_nome, uc.name AS criado_por_nome
+         FROM gerid_pesquisas g
+         LEFT JOIN users u  ON u.id  = g.pesquisado_por
+         LEFT JOIN users uc ON uc.id = g.created_by
+         WHERE g.case_id = ?
+         ORDER BY g.created_at DESC"
+    );
+    $_stG->execute(array($caseId));
+    $_geridDoCase = $_stG->fetchAll(PDO::FETCH_ASSOC);
+    $_geridBadge = count($_geridDoCase);
+    foreach ($_geridDoCase as $_gr) {
+        if (($_gr['status'] ?? '') === 'pendente') $_geridPendCount++;
+    }
+} catch (Exception $e) {}
 ?>
 <div class="cv-tabs-wrap">
   <div class="cv-tabs">
@@ -1506,6 +1527,7 @@ try {
     <button type="button" class="cv-tab" data-aba="partes" onclick="cvAba('partes')">👥 Partes</button>
     <button type="button" class="cv-tab" data-aba="incidentais" onclick="cvAba('incidentais')">📎 Incidentais</button>
     <button type="button" class="cv-tab" data-aba="formularios" onclick="cvAba('formularios')">📝 Formulários<?php if (!empty($_formsCliente)): ?> <span class="cv-tab-badge"><?= count($_formsCliente) ?></span><?php endif; ?></button>
+    <button type="button" class="cv-tab" data-aba="gerid" onclick="cvAba('gerid')">🔎 GERID<?php if ($_geridBadge > 0): ?> <span class="cv-tab-badge" style="<?= $_geridPendCount > 0 ? 'background:#fbbf24;color:#78350f;' : '' ?>" title="<?= $_geridPendCount > 0 ? ($_geridPendCount . ' pendente(s), ' . $_geridBadge . ' total') : 'Total de pesquisas' ?>"><?= $_geridBadge ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="treinamentos" onclick="cvAba('treinamentos')">🎓 Treinamentos<?php if (!empty($_treinamentosCase)): ?> <span class="cv-tab-badge"><?= count($_treinamentosCase) ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="ia" onclick="cvAba('ia')">🧠 IA</button>
     <button type="button" class="cv-header-toggle" onclick="cvHeaderToggle()" style="margin-left:auto;" title="Minimizar/expandir cabeçalho do caso">▲ header</button>
@@ -2412,6 +2434,73 @@ try {
     }
 } catch (Exception $_e) {}
 ?>
+<!-- Amanda 09/07/2026: aba GERID — pesquisas de vinculo empregaticio deste case -->
+<div class="card mb-2 cv-secao" data-aba="gerid" id="cv-gerid">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
+    <h3 style="margin:0;">🔎 Pesquisas GERID (<?= $_geridBadge ?>)</h3>
+    <button type="button" onclick="gdOpen()" class="btn btn-sm" style="background:#0e7490;color:#fff;border:none;font-size:.78rem;">➕ Nova pesquisa</button>
+  </div>
+  <div class="card-body" style="padding:.6rem 1rem 1rem;">
+    <?php if (empty($_geridDoCase)): ?>
+      <p style="color:#666;font-size:.88rem;margin:.5rem 0;">Nenhuma pesquisa GERID neste caso ainda.</p>
+      <p style="font-size:.78rem;color:#888;margin:0;">Use <strong>➕ Nova pesquisa</strong> pra solicitar ao Luiz Eduardo verificar se a parte adversa tem vínculo empregatício (útil pra direcionar pensão ao empregador).</p>
+    <?php else: ?>
+      <?php foreach ($_geridDoCase as $_gr):
+          $_status = $_gr['status'] ?? 'pendente';
+          $_pendente = ($_status === 'pendente');
+          $_temVinc = isset($_gr['tem_vinculo']) ? (int)$_gr['tem_vinculo'] : null;
+          $_borderCor = $_pendente ? '#fbbf24' : ($_temVinc === 1 ? '#16a34a' : ($_temVinc === 0 ? '#94a3b8' : '#0e7490'));
+          $_bgCor = $_pendente ? '#fffbeb' : '#f8fafc';
+          $_parentesMap = array('pai'=>'Pai','mae'=>'Mãe','outro'=>'Outro');
+          $_paren = $_parentesMap[$_gr['parente'] ?? ''] ?? '';
+      ?>
+      <div style="border-left:4px solid <?= $_borderCor ?>;background:<?= $_bgCor ?>;border:1px solid var(--border);border-radius:8px;padding:.7rem .9rem;margin-bottom:.5rem;">
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.35rem;">
+          <?php if ($_pendente): ?>
+            <span style="font-size:.68rem;font-weight:700;color:#78350f;background:#fef3c7;padding:2px 7px;border-radius:4px;border:1px solid #fbbf24;">⏳ PENDENTE</span>
+          <?php elseif ($_temVinc === 1): ?>
+            <span style="font-size:.68rem;font-weight:700;color:#fff;background:#16a34a;padding:2px 7px;border-radius:4px;">✓ TEM VÍNCULO</span>
+          <?php elseif ($_temVinc === 0): ?>
+            <span style="font-size:.68rem;font-weight:700;color:#fff;background:#64748b;padding:2px 7px;border-radius:4px;">✗ SEM VÍNCULO</span>
+          <?php else: ?>
+            <span style="font-size:.68rem;font-weight:700;color:#fff;background:#0e7490;padding:2px 7px;border-radius:4px;">✓ CONCLUÍDA</span>
+          <?php endif; ?>
+          <span style="font-size:.9rem;font-weight:700;color:var(--petrol-900);"><?= e($_gr['parte_nome']) ?></span>
+          <?php if ($_paren): ?><span style="font-size:.7rem;color:#64748b;">(<?= e($_paren) ?>)</span><?php endif; ?>
+          <?php if (!empty($_gr['parte_cpf'])): ?>
+            <span style="font-size:.72rem;color:#64748b;font-family:monospace;">CPF: <?= e($_gr['parte_cpf']) ?></span>
+          <?php endif; ?>
+          <?php if (!empty($_gr['tratado_em'])): ?>
+            <span style="font-size:.65rem;font-weight:700;color:#166534;background:#dcfce7;padding:1px 6px;border-radius:3px;border:1px solid #86efac;" title="Tratado por Amanda em <?= date('d/m/Y H:i', strtotime($_gr['tratado_em'])) ?>">✓ tratada</span>
+          <?php endif; ?>
+        </div>
+        <?php if (!empty($_gr['observacao'])): ?>
+          <div style="font-size:.78rem;color:#334155;margin-bottom:.3rem;"><em>Obs:</em> <?= nl2br(e($_gr['observacao'])) ?></div>
+        <?php endif; ?>
+        <?php if (!empty($_gr['resultado'])): ?>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:6px;padding:.5rem .7rem;margin:.35rem 0;font-size:.82rem;color:#0f172a;">
+            <strong style="color:#0e7490;">Resultado:</strong><br>
+            <?= nl2br(e($_gr['resultado'])) ?>
+          </div>
+        <?php endif; ?>
+        <div style="display:flex;flex-wrap:wrap;gap:.75rem;font-size:.7rem;color:#64748b;align-items:center;">
+          <?php if (!empty($_gr['criado_por_nome'])): ?>
+            <span>📝 Pedido por <?= e(explode(' ', $_gr['criado_por_nome'])[0]) ?> em <?= date('d/m/Y', strtotime($_gr['created_at'])) ?></span>
+          <?php endif; ?>
+          <?php if (!empty($_gr['pesquisado_em'])): ?>
+            <span>🔍 Pesquisado por <?= e($_gr['pesquisado_por_nome'] ? explode(' ', $_gr['pesquisado_por_nome'])[0] : '?') ?> em <?= date('d/m/Y', strtotime($_gr['pesquisado_em'])) ?></span>
+          <?php endif; ?>
+          <?php if (!empty($_gr['printscreen_path'])): ?>
+            <a href="<?= module_url('gerid') ?>?baixar=<?= (int)$_gr['id'] ?>" target="_blank" style="color:#0e7490;text-decoration:none;font-weight:600;">📎 ver printscreen</a>
+          <?php endif; ?>
+          <a href="<?= module_url('gerid') ?>#pesquisa-<?= (int)$_gr['id'] ?>" style="color:#0e7490;text-decoration:none;font-weight:600;margin-left:auto;">abrir no módulo GERID →</a>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+</div>
+
 <!-- Modal: Pesquisar vínculo no GERID (pede nome+CPF, avisa Luiz Eduardo, abre tarefa) -->
 <div id="gdModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:12px;padding:22px;max-width:500px;width:94%;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3);">
@@ -8311,7 +8400,7 @@ window.pedirObsRealizado = function(form) {
         else if (polo === 'autor') document.body.classList.add('cv-polo-autor');
         // Aba inicial: hash da URL ou 'visao'
         var hashAba = (location.hash || '').replace('#', '');
-        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','treinamentos','ia'];
+        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','gerid','treinamentos','ia'];
         cvAba(abasValidas.indexOf(hashAba) !== -1 ? hashAba : 'visao');
         // Hash change (botão voltar do navegador, links externos)
         window.addEventListener('hashchange', function() {
