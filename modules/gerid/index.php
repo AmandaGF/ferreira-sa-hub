@@ -359,6 +359,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     } catch (Exception $e) {}
                 }
             }
+
+            // Amanda 09/07/2026: quando resultado for POSITIVO (POSSUI vinculo),
+            // notifica todo o escritorio por email — independente de quem
+            // solicitou. Ideia: acelerar decisao de proximos passos (ofício ao
+            // empregador, penhora de salario, execução).
+            if ((int)$tem === 1) {
+                try {
+                    $stEq = db()->query("SELECT id, name, email FROM users WHERE is_active = 1 AND email IS NOT NULL AND email <> ''");
+                    $equipe = $stEq->fetchAll(PDO::FETCH_ASSOC);
+                    $pesqNome = function_exists('user_display_name') ? user_display_name() : 'A equipe';
+                    $solicNome = '';
+                    if (!empty($row['created_by'])) {
+                        $stSN = db()->prepare("SELECT name FROM users WHERE id = ?");
+                        $stSN->execute(array((int)$row['created_by']));
+                        $solicNome = (string)$stSN->fetchColumn();
+                    }
+                    $linkPastaEq = !empty($row['case_id'])
+                        ? 'https://ferreiraesa.com.br/conecta/modules/operacional/caso_ver.php?id=' . (int)$row['case_id'] . '#gerid'
+                        : 'https://ferreiraesa.com.br/conecta/modules/gerid/';
+                    $bodyEq = '<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f7;padding:20px;">'
+                            . '<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">'
+                            . '<div style="background:linear-gradient(135deg,#065f46,#059669);padding:22px;text-align:center;">'
+                            . '<h1 style="color:#fff;font-size:20px;margin:0;font-family:Georgia,serif;">✅ Vínculo empregatício encontrado!</h1>'
+                            . '<p style="color:#d1fae5;font-size:12px;margin:4px 0 0;">Pesquisa GERID · Ferreira &amp; Sá Advocacia</p></div>'
+                            . '<div style="padding:24px;color:#374151;line-height:1.6;">'
+                            . '<p style="margin:0 0 14px;font-size:15px;">O escritório tem um resultado positivo pra comemorar 🎉</p>'
+                            . '<div style="background:#ecfdf5;border-left:4px solid #059669;border-radius:6px;padding:14px 16px;margin:16px 0;">'
+                            . '<p style="margin:0 0 6px;font-size:12px;color:#059669;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Parte pesquisada</p>'
+                            . '<p style="margin:0 0 14px;font-size:16px;font-weight:700;color:#065f46;">' . htmlspecialchars((string)$row['parte_nome'], ENT_QUOTES, 'UTF-8')
+                            . ($row['parte_cpf'] ? ' <span style="font-weight:400;color:#6b7280;font-size:13px;">(CPF ' . htmlspecialchars((string)$row['parte_cpf'], ENT_QUOTES, 'UTF-8') . ')</span>' : '') . '</p>'
+                            . '<p style="margin:0 0 6px;font-size:12px;color:#059669;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Resultado</p>'
+                            . '<p style="margin:0 0 10px;font-size:16px;font-weight:800;color:#065f46;">✅ POSSUI VÍNCULO EMPREGATÍCIO</p>'
+                            . ($res ? '<p style="margin:0;font-size:13.5px;color:#374151;">' . nl2br(htmlspecialchars((string)$res, ENT_QUOTES, 'UTF-8')) . '</p>' : '')
+                            . '</div>'
+                            . '<table style="width:100%;font-size:13px;color:#4b5563;margin-bottom:16px;">'
+                            . ($solicNome ? '<tr><td style="padding:4px 0;color:#94a3b8;width:130px;">Solicitado por</td><td style="padding:4px 0;font-weight:600;color:#0f172a;">' . htmlspecialchars($solicNome, ENT_QUOTES, 'UTF-8') . '</td></tr>' : '')
+                            . '<tr><td style="padding:4px 0;color:#94a3b8;">Pesquisado por</td><td style="padding:4px 0;font-weight:600;color:#0f172a;">' . htmlspecialchars($pesqNome, ENT_QUOTES, 'UTF-8') . '</td></tr>'
+                            . '<tr><td style="padding:4px 0;color:#94a3b8;">Concluído em</td><td style="padding:4px 0;font-weight:600;color:#0f172a;">' . date('d/m/Y H:i') . '</td></tr>'
+                            . '</table>'
+                            . '<div style="text-align:center;margin:24px 0 8px;">'
+                            . '<a href="' . htmlspecialchars($linkPastaEq, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:linear-gradient(135deg,#065f46,#059669);color:#fff;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">' . (!empty($row['case_id']) ? 'Abrir pasta do processo →' : 'Ver todas as pesquisas GERID →') . '</a></div>'
+                            . '<p style="margin:20px 0 0;font-size:12px;color:#94a3b8;">Comunicado enviado a toda equipe pra alinhar próximos passos: ofício ao empregador, penhora de salário, execução, etc.</p>'
+                            . '</div>'
+                            . '<div style="background:#f9fafb;padding:12px 20px;font-size:11px;color:#9ca3af;text-align:center;">Ferreira &amp; Sá Advocacia — Sistema Conecta</div>'
+                            . '</div></body></html>';
+                    $assunto = '✅ GERID POSITIVO: ' . $row['parte_nome'] . ' possui vínculo empregatício';
+                    $enviados = 0;
+                    foreach ($equipe as $u) {
+                        try {
+                            if (send_brevo_email_simple($u['email'], $u['name'], $assunto, $bodyEq)) $enviados++;
+                        } catch (Throwable $e) { /* envio silencioso por destinatario */ }
+                    }
+                    audit_log('gerid_email_equipe', 'gerid', (int)$id, $enviados . '/' . count($equipe) . ' emails de vinculo positivo enviados');
+                } catch (Throwable $e) { /* nao bloqueia fluxo */ }
+            }
+
             audit_log('gerid_resultado', 'gerid', $id, $tem ? 'com vinculo' : 'sem vinculo');
             flash_set('success', 'Resultado registrado.');
         }
