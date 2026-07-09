@@ -2326,6 +2326,20 @@ $_actAttBtn = $_actBlocked
 window.acompDiarioAbrir = function() { document.getElementById('acompDiarioOverlay').style.display = 'flex'; };
 window.acompDiarioFechar = function() { document.getElementById('acompDiarioOverlay').style.display = 'none'; };
 document.getElementById('acompDiarioOverlay').addEventListener('click', function(e) { if (e.target.id === 'acompDiarioOverlay') acompDiarioFechar(); });
+
+// Amanda 09/07/2026: se veio de /operacional/acomp_diario.php?edit_acomp=1,
+// abre o modal automaticamente. Tira o param da URL pra nao reabrir em F5.
+(function(){
+    try {
+        var qs = new URLSearchParams(window.location.search);
+        if (qs.get('edit_acomp') === '1') {
+            setTimeout(function(){ window.acompDiarioAbrir(); }, 100);
+            qs.delete('edit_acomp');
+            var novo = window.location.pathname + (qs.toString() ? '?' + qs.toString() : '') + window.location.hash;
+            window.history.replaceState({}, '', novo);
+        }
+    } catch (e) {}
+})();
 window.acompSetDias = function(dias) {
     document.querySelectorAll('input[name="dias_semana[]"]').forEach(function(cb) {
         var val = parseInt(cb.value, 10);

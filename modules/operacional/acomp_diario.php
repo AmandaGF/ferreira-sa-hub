@@ -239,7 +239,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <?= $c['ativo'] ? '⏸ Desligar' : '▶ Ligar' ?>
                     </button>
                 </form>
-                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$c['case_id']) ?>#msg-diaria" class="ad-btn-edit" title="Editar na pasta do caso">✏️ Editar</a>
+                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$c['case_id'] . '&edit_acomp=1') ?>" class="ad-btn-edit" title="Editar configuração da mensagem diária">✏️ Editar</a>
                 <form method="POST" style="display:inline;" onsubmit="return confirm('Remover a configuração de msg diária deste cliente? (não desliga o cron, só remove essa config)');">
                     <?= csrf_input() ?>
                     <input type="hidden" name="id" value="<?= (int)$c['id'] ?>">
