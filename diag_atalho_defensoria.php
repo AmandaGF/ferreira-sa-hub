@@ -7,8 +7,7 @@ error_reporting(E_ALL); ini_set('display_errors','1');
 $pdo = db();
 
 echo "-- Atalho /defensoria --\n";
-$st = $pdo->prepare("SELECT id, nome, atalho, categoria, canal, ativo, conteudo, created_at, updated_at
-                     FROM zapi_templates WHERE atalho = ? LIMIT 3");
+$st = $pdo->prepare("SELECT * FROM zapi_templates WHERE atalho = ? LIMIT 3");
 $st->execute(array('defensoria'));
 $rows = $st->fetchAll(PDO::FETCH_ASSOC);
 if (!$rows) {
