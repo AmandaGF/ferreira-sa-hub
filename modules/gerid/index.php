@@ -377,9 +377,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ((int)$tem === 1 && ($_geridEraPendente || $_geridTinhaVinculo === 0)) {
                 try {
                     // Amanda 09/07/2026: lista de user_ids que NAO recebem o email
-                    // geral de GERID positivo. Rodrigo pediu pra sair da lista.
-                    // Pra adicionar/remover outros, editar aqui.
-                    $_geridOptOutIds = array(4); // 4 = Rodrigo de Almeida Gustavo
+                    // geral de GERID positivo. Pra adicionar/remover, editar aqui.
+                    $_geridOptOutIds = array(
+                        3,  // Rodrigo de Almeida Gustavo (r.almeidagustavo@gmail.com)
+                        10, // Amanda Teste (amandaferreira@ferreiraesa.com.br) — duplicata
+                        14, // Admin Hub (admin.hub@ferreiraesa.com.br) — usuario tecnico
+                    );
                     $_optOutPh = implode(',', array_fill(0, count($_geridOptOutIds), '?'));
                     $stEq = db()->prepare("SELECT id, name, email FROM users
                                             WHERE is_active = 1
