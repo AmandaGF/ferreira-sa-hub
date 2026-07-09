@@ -69,6 +69,30 @@ if (($_GET['ajax'] ?? '') === 'buscar_cliente') {
     echo json_encode($st->fetchAll()); exit;
 }
 
+// Amanda 09/07/2026: AJAX — historico de pesquisas GERID pra um CPF (dedup cross-case)
+if (($_GET['ajax'] ?? '') === 'historico_cpf') {
+    header('Content-Type: application/json; charset=utf-8');
+    $cpfDig = preg_replace('/\D/', '', $_GET['cpf'] ?? '');
+    if (strlen($cpfDig) < 11) { echo '[]'; exit; }
+    $excluirCaseId = (int)($_GET['case_id'] ?? 0);
+    $st = $pdo->prepare(
+        "SELECT g.id, g.case_id, g.parte_nome, g.parte_cpf, g.status, g.tem_vinculo, g.resultado,
+                g.printscreen_path, g.created_at,
+                c.title AS case_title, c.case_number,
+                cl.name AS case_client_name
+         FROM gerid_pesquisas g
+         LEFT JOIN cases c    ON c.id  = g.case_id
+         LEFT JOIN clients cl ON cl.id = c.client_id
+         WHERE REPLACE(REPLACE(REPLACE(REPLACE(g.parte_cpf,'.',''),'-',''),'/',''),' ','') = ?
+           AND (? = 0 OR g.case_id IS NULL OR g.case_id <> ?)
+         ORDER BY g.created_at DESC
+         LIMIT 5"
+    );
+    $st->execute(array($cpfDig, $excluirCaseId, $excluirCaseId));
+    echo json_encode($st->fetchAll(PDO::FETCH_ASSOC));
+    exit;
+}
+
 // POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Endpoint AJAX leve: marcar/desmarcar tratado (resposta JSON, sem redirect)
@@ -439,8 +463,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <input type="hidden" name="client_id" id="gdClientId">
     <div class="gd-row">
       <div><label class="gd-label">Nome completo da parte *</label><input type="text" class="gd-input" name="parte_nome" required></div>
-      <div><label class="gd-label">CPF</label><input type="text" class="gd-input" name="parte_cpf" placeholder="000.000.000-00"></div>
+      <div><label class="gd-label">CPF</label><input type="text" class="gd-input" name="parte_cpf" id="gdCpf" placeholder="000.000.000-00" onblur="gdChecarCpf(this.value)"></div>
     </div>
+    <!-- Amanda 09/07/2026: alerta de CPF ja pesquisado (dedup cross-case) -->
+    <div id="gdAvisoDup" style="display:none;background:#fef3c7;border:1.5px solid #fbbf24;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:.8rem;color:#78350f;"></div>
     <div class="gd-row">
       <div><label class="gd-label">É o(a)…</label>
         <select class="gd-input" name="parente"><option value="">—</option><option value="pai">Pai</option><option value="mae">Mãe</option><option value="outro">Outro</option></select>
@@ -566,6 +592,35 @@ function gdBuscarCli(q){
 }
 function gdSelCli(id,name){ document.getElementById('gdClientId').value=id; document.getElementById('gdBuscaCli').value=''; document.getElementById('gdCliBox').style.display='none'; document.getElementById('gdCliSel').innerHTML='👥 '+name+' <a href="javascript:void(0)" onclick="gdLimparCli()" style="color:#b91c1c;">×</a>'; }
 function gdLimparCli(){ document.getElementById('gdClientId').value=''; document.getElementById('gdCliSel').innerHTML=''; }
+
+// Amanda 09/07/2026: checa se CPF ja foi pesquisado antes (dedup cross-case)
+function gdChecarCpf(cpf) {
+  var aviso = document.getElementById('gdAvisoDup');
+  var dig = (cpf || '').replace(/\D/g, '');
+  if (dig.length < 11) { aviso.style.display = 'none'; return; }
+  fetch(GD_URL + '?ajax=historico_cpf&cpf=' + encodeURIComponent(dig))
+    .then(function(r) { return r.json(); })
+    .then(function(arr) {
+      if (!arr || !arr.length) { aviso.style.display = 'none'; return; }
+      var html = '<strong>⚠️ Este CPF já foi pesquisado antes!</strong><p style="margin:.4rem 0 .3rem;font-size:.78rem;">Encontramos <strong>' + arr.length + '</strong> pesquisa(s) anterior(es):</p><ul style="margin:.3rem 0 .5rem;padding-left:1.2rem;font-size:.76rem;">';
+      arr.forEach(function(h) {
+        var status = '';
+        if (h.status === 'concluida' && h.tem_vinculo == 1)      status = '<strong style="color:#15803d;">✅ POSSUI</strong>';
+        else if (h.status === 'concluida')                        status = '<strong style="color:#64748b;">❌ SEM vínculo</strong>';
+        else                                                      status = '<strong style="color:#a16207;">⏳ pendente</strong>';
+        var caseLink = h.case_id
+          ? ('caso <a href="<?= url('modules/operacional/caso_ver.php?id=') ?>' + h.case_id + '#gerid" target="_blank" style="color:#0e7490;font-weight:600;text-decoration:underline;">' + (h.case_title || ('#' + h.case_id)) + '</a>' + (h.case_client_name ? ' <em>(cliente: ' + h.case_client_name + ')</em>' : ''))
+          : 'pesquisa avulsa';
+        var d = h.created_at ? h.created_at.substring(0, 10).split('-').reverse().join('/') : '';
+        var res = h.resultado ? '<br><em style="color:#451a03;">"' + (h.resultado.length > 120 ? h.resultado.substring(0, 120) + '…' : h.resultado) + '"</em>' : '';
+        html += '<li style="margin-bottom:.25rem;">' + status + ' — ' + caseLink + ' · pedido ' + d + res + '</li>';
+      });
+      html += '</ul><p style="margin:.4rem 0 0;font-size:.74rem;">Se ainda quiser pesquisar de novo (ex: verificar se mudou de emprego), pode continuar. Caso contrário, use o resultado anterior.</p>';
+      aviso.innerHTML = html;
+      aviso.style.display = 'block';
+    })
+    .catch(function() { aviso.style.display = 'none'; });
+}
 
 var GD_CSRF = '<?= $csrf ?>';
 function gdToggleTratado(id) {

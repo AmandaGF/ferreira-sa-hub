@@ -2501,6 +2501,37 @@ try {
   </div>
 </div>
 
+<?php
+// Amanda 09/07/2026: histórico de pesquisas GERID pra essa parte em OUTROS cases.
+// Bug real Wellington: 403.565.308-09 e 40356530809 (msm CPF, mascaras diferentes)
+// gerou 2 pedidos duplicados. Normaliza tanto o CPF sugerido quanto o do banco
+// (só dígitos) pra achar match cross-mascara.
+$_geridHistoricoParte = array();
+try {
+    $_cpfDig = preg_replace('/\D/', '', (string)$_geridCpfSug);
+    if (strlen($_cpfDig) >= 11) {
+        $_stH = $pdo->prepare(
+            "SELECT g.id, g.case_id, g.parte_nome, g.parte_cpf, g.status, g.tem_vinculo, g.resultado,
+                    g.printscreen_path, g.created_at, g.pesquisado_em,
+                    c.title AS case_title, c.case_number,
+                    cl.name AS case_client_name,
+                    u.name AS pesquisado_por_nome, uc.name AS criado_por_nome
+             FROM gerid_pesquisas g
+             LEFT JOIN cases c    ON c.id  = g.case_id
+             LEFT JOIN clients cl ON cl.id = c.client_id
+             LEFT JOIN users u    ON u.id  = g.pesquisado_por
+             LEFT JOIN users uc   ON uc.id = g.created_by
+             WHERE REPLACE(REPLACE(REPLACE(REPLACE(g.parte_cpf,'.',''),'-',''),'/',''),' ','') = ?
+               AND (g.case_id IS NULL OR g.case_id <> ?)
+             ORDER BY g.created_at DESC
+             LIMIT 5"
+        );
+        $_stH->execute(array($_cpfDig, $caseId));
+        $_geridHistoricoParte = $_stH->fetchAll(PDO::FETCH_ASSOC);
+    }
+} catch (Exception $_e) {}
+?>
+
 <!-- Modal: Pesquisar vínculo no GERID (pede nome+CPF, avisa Luiz Eduardo, abre tarefa) -->
 <div id="gdModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:12px;padding:22px;max-width:500px;width:94%;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3);">
@@ -2509,6 +2540,52 @@ try {
     <?php if ($_geridNomeSug && empty($case['parte_re_nome'])): ?>
     <div style="background:#dcfce7;color:#15803d;border-radius:6px;padding:6px 10px;margin-bottom:10px;font-size:.74rem;">
       ✓ Preenchido automaticamente com a parte adversa do processo (aba Partes).
+    </div>
+    <?php endif; ?>
+    <?php if (!empty($_geridHistoricoParte)):
+        // Amanda 09/07/2026: alerta duplicidade — este CPF ja foi pesquisado em outro case
+        $_ultima = $_geridHistoricoParte[0];
+        $_ultResultadoTxt = '';
+        if ($_ultima['status'] === 'concluida') {
+            $_ultResultadoTxt = ($_ultima['tem_vinculo'] ? '✅ POSSUI vínculo' : '❌ Sem vínculo')
+                              . ($_ultima['resultado'] ? ' — ' . mb_substr($_ultima['resultado'], 0, 100) : '');
+        } else {
+            $_ultResultadoTxt = '⏳ Ainda pendente';
+        }
+    ?>
+    <div style="background:#fef3c7;border:1.5px solid #fbbf24;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:.8rem;color:#78350f;">
+      <strong>⚠️ Esta parte já foi pesquisada antes!</strong>
+      <p style="margin:.4rem 0 .3rem;color:#78350f;font-size:.78rem;">
+        Encontramos <strong><?= count($_geridHistoricoParte) ?></strong> pesquisa(s) anterior(es) pro CPF <?= e($_geridCpfSug) ?>:
+      </p>
+      <ul style="margin:.3rem 0 .5rem;padding-left:1.2rem;font-size:.76rem;color:#451a03;">
+        <?php foreach ($_geridHistoricoParte as $_hp): ?>
+          <li style="margin-bottom:.25rem;">
+            <?php if ($_hp['status'] === 'concluida' && $_hp['tem_vinculo']): ?>
+              <strong style="color:#15803d;">✅ POSSUI</strong>
+            <?php elseif ($_hp['status'] === 'concluida'): ?>
+              <strong style="color:#64748b;">❌ SEM vínculo</strong>
+            <?php else: ?>
+              <strong style="color:#a16207;">⏳ pendente</strong>
+            <?php endif; ?>
+            —
+            <?php if ($_hp['case_id']): ?>
+              caso <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$_hp['case_id']) ?>#gerid" target="_blank" style="color:#0e7490;font-weight:600;text-decoration:underline;"><?= e($_hp['case_title'] ?: ('#' . $_hp['case_id'])) ?></a>
+              <?php if ($_hp['case_client_name']): ?><em>(cliente: <?= e($_hp['case_client_name']) ?>)</em><?php endif; ?>
+            <?php else: ?>
+              pesquisa avulsa
+            <?php endif; ?>
+            · pedido <?= date('d/m/Y', strtotime($_hp['created_at'])) ?>
+            <?php if ($_hp['resultado']): ?><br><span style="color:#451a03;font-style:italic;">"<?= e(mb_substr($_hp['resultado'], 0, 120)) ?><?= mb_strlen($_hp['resultado']) > 120 ? '…' : '' ?>"</span><?php endif; ?>
+            <?php if (!empty($_hp['printscreen_path'])): ?>
+              · <a href="<?= module_url('gerid') ?>?baixar=<?= (int)$_hp['id'] ?>" target="_blank" style="color:#0e7490;font-weight:600;">📸 print</a>
+            <?php endif; ?>
+          </li>
+        <?php endforeach; ?>
+      </ul>
+      <p style="margin:.4rem 0 0;font-size:.74rem;color:#78350f;">
+        Se ainda quiser fazer nova pesquisa (ex: verificar se mudou de emprego), continue abaixo. Caso contrário, <button type="button" onclick="gdClose()" style="background:none;border:none;color:#0e7490;text-decoration:underline;cursor:pointer;padding:0;font-size:.76rem;font-weight:600;">cancele</button> e use o resultado anterior.
+      </p>
     </div>
     <?php endif; ?>
     <form method="post" action="<?= module_url('gerid') ?>" onsubmit="return gdValidar(this);">
