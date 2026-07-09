@@ -78,6 +78,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         $descricao = clean_str($_POST['descricao_acao'] ?? '', 250);
         $prazoFatal = $_POST['prazo_fatal'] ?? '';
 
+        // Amanda 09/07/2026 (bug real): se Amanda digitou o CNJ mas nao selecionou
+        // do autocomplete (case_id vazio), tentar vincular automaticamente por CNJ.
+        // Sem isso, o prazo fica orfao — aparece no banner mas nao na pasta.
+        if (!$caseId && $numProcesso) {
+            $digitos = preg_replace('/\D/', '', $numProcesso);
+            if (strlen($digitos) >= 15) {
+                try {
+                    $stAuto = $pdo->prepare(
+                        "SELECT id, client_id FROM cases
+                         WHERE REPLACE(REPLACE(REPLACE(case_number,'.',''),'-',''),'/','') = ?
+                         ORDER BY CASE WHEN status IN ('arquivado','cancelado','concluido','finalizado') THEN 2 ELSE 1 END, id
+                         LIMIT 1"
+                    );
+                    $stAuto->execute(array($digitos));
+                    $auto = $stAuto->fetch(PDO::FETCH_ASSOC);
+                    if ($auto) {
+                        $caseId = (int)$auto['id'];
+                        if (!$clientId && !empty($auto['client_id'])) $clientId = (int)$auto['client_id'];
+                    }
+                } catch (Exception $e) {}
+            }
+        }
+
         if ($descricao && $prazoFatal) {
             $pdo->prepare("INSERT INTO prazos_processuais (client_id, case_id, numero_processo, descricao_acao, prazo_fatal, usuario_id) VALUES (?,?,?,?,?,?)")
                 ->execute(array($clientId, $caseId, $numProcesso ?: null, $descricao, $prazoFatal, current_user_id()));
