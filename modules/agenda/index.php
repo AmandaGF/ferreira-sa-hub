@@ -998,6 +998,7 @@ function renderLista() {
 
                 var msg1 = 'Ol\u00e1, ' + primeiroNome + '! Passando para te lembrar que sua ' + tipoMinusc + ' \u00e9 dia ' + dataFmt + ' \u00e0s ' + horaFmt + '. Qualquer d\u00favida, estamos \u00e0 disposi\u00e7\u00e3o!\nFerreira e S\u00e1 Advocacia';
                 var msg2 = 'Oi, ' + primeiroNome + '! Tudo bem?! Te lembrando que sua ' + tipoMinusc + ' \u00e9 amanh\u00e3, \u00e0s ' + horaFmt + 'h! Te vejo l\u00e1!\nFerreira e S\u00e1 Advocacia';
+                var msg3 = 'Oi, ' + primeiroNome + '! Passando pra avisar que sua ' + tipoMinusc + ' \u00e9 HOJE, \u00e0s ' + horaFmt + 'h. Te vejo l\u00e1! Qualquer imprevisto, me avisa por aqui.\nFerreira e S\u00e1 Advocacia';
 
                 var _clIdLem = ev.client_id || 0;
                 var _phoneDigLem = phone.replace(/^55/, '');
@@ -1005,11 +1006,14 @@ function renderLista() {
                 window.__agLembrete = window.__agLembrete || {};
                 var _keyLem1 = 'l' + ev.id + '_1';
                 var _keyLem2 = 'l' + ev.id + '_2';
+                var _keyLem3 = 'l' + ev.id + '_3';
                 window.__agLembrete[_keyLem1] = {telefone:_phoneDigLem,nome:(ev.client_name||''),clientId:_clIdLem,mensagem:msg1};
                 window.__agLembrete[_keyLem2] = {telefone:_phoneDigLem,nome:(ev.client_name||''),clientId:_clIdLem,mensagem:msg2};
+                window.__agLembrete[_keyLem3] = {telefone:_phoneDigLem,nome:(ev.client_name||''),clientId:_clIdLem,mensagem:msg3};
                 lembreteHtml = '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:4px;padding-top:6px;border-top:1px solid var(--border);">'
                     + '<button type="button" class="ag-btn-acao" style="background:#25D366;color:#fff;border-color:#25D366;font-size:.7rem;cursor:pointer;" onclick="waSenderOpen(window.__agLembrete[\'' + _keyLem1 + '\'])">Lembrar data</button>'
                     + '<button type="button" class="ag-btn-acao" style="background:#25D366;color:#fff;border-color:#25D366;font-size:.7rem;cursor:pointer;" onclick="waSenderOpen(window.__agLembrete[\'' + _keyLem2 + '\'])">Lembrar amanh\u00e3</button>'
+                    + '<button type="button" class="ag-btn-acao" style="background:#0369a1;color:#fff;border-color:#0369a1;font-size:.7rem;cursor:pointer;" onclick="waSenderOpen(window.__agLembrete[\'' + _keyLem3 + '\'])">Avisar hoje</button>'
                     + '</div>';
             }
 
@@ -1358,14 +1362,18 @@ function abrirModalEditar(id) {
                 var tL = (LABELS[ev.tipo]||'compromisso').toLowerCase();
                 var m1 = 'Ol\u00e1, '+pNome+'! Passando para te lembrar que sua '+tL+' \u00e9 dia '+dF+' \u00e0s '+hF+'. Qualquer d\u00favida, estamos \u00e0 disposi\u00e7\u00e3o!\nFerreira e S\u00e1 Advocacia';
                 var m2 = 'Oi, '+pNome+'! Tudo bem?! Te lembrando que sua '+tL+' \u00e9 amanh\u00e3, \u00e0s '+hF+'h! Te vejo l\u00e1!\nFerreira e S\u00e1 Advocacia';
+                var m3 = 'Oi, '+pNome+'! Passando pra avisar que sua '+tL+' \u00e9 HOJE, \u00e0s '+hF+'h. Te vejo l\u00e1! Qualquer imprevisto, me avisa por aqui.\nFerreira e S\u00e1 Advocacia';
                 var _phDig = ph.replace(/^55/, '');
                 window.__agLembrete = window.__agLembrete || {};
                 var _k1 = 'c' + ev.id + '_1';
                 var _k2 = 'c' + ev.id + '_2';
+                var _k3 = 'c' + ev.id + '_3';
                 window.__agLembrete[_k1] = {telefone:_phDig,nome:cName,clientId:ev.client_id||0,mensagem:m1};
                 window.__agLembrete[_k2] = {telefone:_phDig,nome:cName,clientId:ev.client_id||0,mensagem:m2};
+                window.__agLembrete[_k3] = {telefone:_phDig,nome:cName,clientId:ev.client_id||0,mensagem:m3};
                 atHtml += '<button type="button" onclick="waSenderOpen(window.__agLembrete[\'' + _k1 + '\'])" style="font-size:.75rem;padding:4px 10px;background:#25D366;color:#fff;border-radius:6px;border:none;font-weight:600;cursor:pointer;">Lembrar data</button>';
                 atHtml += '<button type="button" onclick="waSenderOpen(window.__agLembrete[\'' + _k2 + '\'])" style="font-size:.75rem;padding:4px 10px;background:#25D366;color:#fff;border-radius:6px;border:none;font-weight:600;cursor:pointer;">Lembrar amanh\u00e3</button>';
+                atHtml += '<button type="button" onclick="waSenderOpen(window.__agLembrete[\'' + _k3 + '\'])" style="font-size:.75rem;padding:4px 10px;background:#0369a1;color:#fff;border-radius:6px;border:none;font-weight:600;cursor:pointer;">Avisar hoje</button>';
             }
             atalhos.innerHTML = atHtml;
             atalhos.style.display = atHtml ? 'flex' : 'none';
