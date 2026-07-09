@@ -733,7 +733,7 @@ function claudin_montar_email_diario_html($pdo, $dataAlvo, $contadores, $horario
             if (!empty($p['case_number'])) $meta[] = '<span style="font-family:ui-monospace,Consolas,monospace;color:#4a4740;">' . htmlspecialchars($p['case_number'], ENT_QUOTES, 'UTF-8') . '</span>';
             if ($meta) $h .= '<div style="font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;font-size:.82rem;color:#4a4740;margin-bottom:.5rem;">' . implode(' · ', $meta) . '</div>';
 
-            // Resumo IA se houver, senão conteúdo curto
+            // Resumo IA (se houver) + orientação IA
             if (!empty($p['resumo_ia'])) {
                 $h .= '<div style="background:#faf7f2;border-left:2px solid #B87333;padding:.55rem .75rem;font-size:.85rem;line-height:1.5;color:#1a1a1f;font-family:Georgia,serif;margin:.4rem 0;border-radius:0 6px 6px 0;">'
                     . '<span style="font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;font-size:.65rem;font-weight:700;color:#B87333;letter-spacing:.06em;text-transform:uppercase;">🤖 Resumo IA</span><br>'
@@ -743,9 +743,37 @@ function claudin_montar_email_diario_html($pdo, $dataAlvo, $contadores, $horario
                         . '<span style="font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;font-size:.65rem;font-weight:700;color:#c76e15;letter-spacing:.06em;text-transform:uppercase;">💡 O que fazer</span><br>'
                         . nl2br(htmlspecialchars(mb_substr($p['orientacao_ia'], 0, 400), ENT_QUOTES, 'UTF-8')) . '</div>';
                 }
-            } elseif ($descrPreview) {
-                $h .= '<div style="font-size:.82rem;color:#4a4740;line-height:1.5;font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;margin:.5rem 0;">'
-                    . htmlspecialchars($descrPreview, ENT_QUOTES, 'UTF-8') . '</div>';
+            }
+
+            // Amanda 09/07/2026: TEXTO INTEGRO da publicação (sempre — nao so quando IA falha).
+            // Limita a 8000 chars pra nao estourar Gmail (que corta em ~102KB). Se exceder,
+            // avisa e linka pra pasta. Renderiza como HTML se veio com tags, senão nl2br
+            // do texto plain.
+            $conteudoCompleto = trim((string)$p['conteudo']);
+            if ($conteudoCompleto !== '') {
+                $temHtml = (strip_tags($conteudoCompleto) !== $conteudoCompleto);
+                $LIMITE = 4000; // seguro pra caber varias publicacoes sem Gmail truncar (102KB por email)
+                $foiCortado = false;
+                if (mb_strlen($conteudoCompleto) > $LIMITE) {
+                    if ($temHtml) {
+                        // Corta mantendo estrutura razoavel
+                        $conteudoCompleto = mb_substr($conteudoCompleto, 0, $LIMITE);
+                    } else {
+                        $conteudoCompleto = mb_substr($conteudoCompleto, 0, $LIMITE);
+                    }
+                    $foiCortado = true;
+                }
+                if ($temHtml) {
+                    // Sanitiza mantendo tags basicas
+                    $conteudoRender = strip_tags($conteudoCompleto, '<p><br><b><strong><i><em><ul><ol><li><span><div>');
+                } else {
+                    $conteudoRender = nl2br(htmlspecialchars($conteudoCompleto, ENT_QUOTES, 'UTF-8'));
+                }
+                $h .= '<div style="background:#fdfcf9;border:1px solid #e3ddcf;padding:.7rem .9rem;font-size:.82rem;line-height:1.6;color:#1a1a1f;font-family:Georgia,serif;margin:.5rem 0;border-radius:6px;">'
+                    . '<div style="font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;font-size:.65rem;font-weight:700;color:#052228;letter-spacing:.08em;text-transform:uppercase;margin-bottom:.4rem;padding-bottom:.35rem;border-bottom:1px solid #e3ddcf;">📄 Íntegra da publicação</div>'
+                    . '<div style="color:#1a1a1f;">' . $conteudoRender . '</div>'
+                    . ($foiCortado ? '<div style="margin-top:.5rem;padding-top:.4rem;border-top:1px dashed #d5cdba;font-size:.72rem;color:#8a8378;font-family:-apple-system,\'Segoe UI\',Arial,sans-serif;font-style:italic;">… texto truncado (' . number_format(mb_strlen(trim((string)$p['conteudo']))) . ' caracteres no total). Ver íntegra completa na pasta →</div>' : '')
+                    . '</div>';
             }
 
             // Prazo
