@@ -57,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         _cfg_set($pdo, 'jorjao_peticao_distribuida_ativo', !empty($_POST['peticao']) ? '1' : '0');
         _cfg_set($pdo, 'jorjao_prazo_cumprido_ativo',     !empty($_POST['prazo']) ? '1' : '0');
         _cfg_set($pdo, 'jorjao_novidade_hub_ativo',       !empty($_POST['novidade']) ? '1' : '0');
+        _cfg_set($pdo, 'jorjao_pasta_apta_ativa',         !empty($_POST['pasta_apta']) ? '1' : '0');
         _cfg_set($pdo, 'jorjao_resumo_diario_ativo',      !empty($_POST['resumo']) ? '1' : '0');
         $hora = (int)($_POST['resumo_hora'] ?? 19);
         if ($hora >= 0 && $hora <= 23) _cfg_set($pdo, 'jorjao_resumo_diario_hora', (string)$hora);
@@ -67,6 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         _cfg_set($pdo, 'jorjao_peticao_distribuida_modo_ia', !empty($_POST['ia_peticao'])    ? '1' : '0');
         _cfg_set($pdo, 'jorjao_prazo_cumprido_modo_ia',      !empty($_POST['ia_prazo'])      ? '1' : '0');
         _cfg_set($pdo, 'jorjao_novidade_hub_modo_ia',        !empty($_POST['ia_novidade'])   ? '1' : '0');
+        _cfg_set($pdo, 'jorjao_pasta_apta_modo_ia',          !empty($_POST['ia_pasta_apta']) ? '1' : '0');
         flash_set('success', '✓ Configurações salvas.');
         redirect($_SERVER['REQUEST_URI']);
     }
@@ -76,7 +78,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $tocada = $_POST['tocada'] ?? '';
         $tpl = trim($_POST['template'] ?? '');
         $ativo = !empty($_POST['ativo']) ? 1 : 0;
-        if (!in_array($tocada, array('contrato_assinado','peticao_distribuida','prazo_cumprido','novidade_hub'), true)) {
+        if (!in_array($tocada, array('contrato_assinado','peticao_distribuida','prazo_cumprido','novidade_hub','pasta_apta'), true)) {
             flash_set('error', 'Tocada inválida'); redirect($_SERVER['REQUEST_URI']);
         }
         if (!$tpl) { flash_set('error', 'Template vazio'); redirect($_SERVER['REQUEST_URI']); }
@@ -222,6 +224,7 @@ $cfgComemo = comemoracao_get_config(); // canal + grupo compartilhados
 $flagPeticao  = _cfg_get($pdo, 'jorjao_peticao_distribuida_ativo', '0') === '1';
 $flagPrazo    = _cfg_get($pdo, 'jorjao_prazo_cumprido_ativo', '0') === '1';
 $flagNovidade = _cfg_get($pdo, 'jorjao_novidade_hub_ativo', '1') === '1';
+$flagPastaApta = _cfg_get($pdo, 'jorjao_pasta_apta_ativa', '0') === '1';
 $flagResumo   = _cfg_get($pdo, 'jorjao_resumo_diario_ativo', '0') === '1';
 $resumoHora   = (int)_cfg_get($pdo, 'jorjao_resumo_diario_hora', '19');
 $resumoMinMsgs = (int)_cfg_get($pdo, 'jorjao_resumo_diario_min_msgs', '5');
@@ -231,16 +234,17 @@ $iaContrato  = _cfg_get($pdo, 'jorjao_contrato_assinado_modo_ia', '0') === '1';
 $iaPeticao   = _cfg_get($pdo, 'jorjao_peticao_distribuida_modo_ia', '0') === '1';
 $iaPrazo     = _cfg_get($pdo, 'jorjao_prazo_cumprido_modo_ia', '0') === '1';
 $iaNovidade  = _cfg_get($pdo, 'jorjao_novidade_hub_modo_ia', '0') === '1';
+$iaPastaApta = _cfg_get($pdo, 'jorjao_pasta_apta_modo_ia', '0') === '1';
 
 // Templates agrupados por tocada
-$tpls = array('contrato_assinado' => array(), 'peticao_distribuida' => array(), 'prazo_cumprido' => array(), 'novidade_hub' => array());
+$tpls = array('contrato_assinado' => array(), 'peticao_distribuida' => array(), 'prazo_cumprido' => array(), 'novidade_hub' => array(), 'pasta_apta' => array());
 $stTpl = $pdo->query("SELECT * FROM jorjao_templates ORDER BY tocada, ordem, id");
 foreach ($stTpl->fetchAll(PDO::FETCH_ASSOC) as $t) {
     if (isset($tpls[$t['tocada']])) $tpls[$t['tocada']][] = $t;
 }
 
 $abaAtiva = $_GET['aba'] ?? 'peticao_distribuida';
-if (!in_array($abaAtiva, array('peticao_distribuida','prazo_cumprido','novidade_hub','resumo_diario','contrato_assinado','templates'), true)) $abaAtiva = 'peticao_distribuida';
+if (!in_array($abaAtiva, array('peticao_distribuida','prazo_cumprido','novidade_hub','resumo_diario','contrato_assinado','pasta_apta','templates'), true)) $abaAtiva = 'peticao_distribuida';
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -360,6 +364,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 
     <div class="jz-toggle-line">
+      <input type="checkbox" name="pasta_apta" value="1" <?= $flagPastaApta ? 'checked' : '' ?> id="fpa">
+      <label for="fpa" class="info" style="cursor:pointer;">
+        <b>📂 Pasta apta (CX finalizou preparação)</b>
+        <small>Toca quando alguém move um caso pra "Pasta Apta" (status em_elaboracao) no Kanban Operacional. Parabeniza a CX pelo trabalho e passa o bastão pra redação.</small>
+      </label>
+    </div>
+
+    <div class="jz-toggle-line">
       <input type="checkbox" name="resumo" value="1" <?= $flagResumo ? 'checked' : '' ?> id="fr">
       <label for="fr" class="info" style="cursor:pointer;">
         <b>📆 Resumo diário do grupo (IA)</b>
@@ -391,6 +403,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;background:#fff;border-radius:7px;border:1px solid #bae6fd;cursor:pointer;font-size:.85rem;">
           <input type="checkbox" name="ia_novidade" value="1" <?= $iaNovidade ? 'checked' : '' ?>>
           🎁 Novidade no Hub
+        </label>
+        <label style="display:flex;align-items:center;gap:.4rem;padding:.5rem .7rem;background:#fff;border-radius:7px;border:1px solid #bae6fd;cursor:pointer;font-size:.85rem;">
+          <input type="checkbox" name="ia_pasta_apta" value="1" <?= $iaPastaApta ? 'checked' : '' ?>>
+          📂 Pasta apta
         </label>
       </div>
     </div>

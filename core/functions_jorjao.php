@@ -267,6 +267,15 @@ PROMPT;
                      . "Link do treinamento: {$vars['link']}\n"
                      . "\nGere a mensagem apresentando a novidade e pedindo pra galera fazer o treinamento (vale ponto no ranking).";
             break;
+        case 'pasta_apta':
+            $userMsg = "EVENTO: Pasta declarada APTA hoje ({$vars['hoje']}) — CX terminou de preparar (documentos, formulários, cadastro) e agora o time operacional vai começar a redigir a petição.\n"
+                     . "Cliente: {$vars['cliente']}\n"
+                     . "Tipo de caso: {$vars['tipo_caso']}\n"
+                     . "Quem preparou a pasta (CX que marcou como apta): {$vars['cx']}\n"
+                     . "Responsável do case (quem vai receber a redação, dado do sistema): {$vars['responsavel']}\n"
+                     . $blocoRastros
+                     . "\nGere mensagem parabenizando o encerramento do trabalho de preparação (mérito da CX) e passando o bastão pro time de redação. Cite {$vars['cx']} pelo nome (foi ela que finalizou).";
+            break;
         default:
             return null;
     }

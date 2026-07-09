@@ -1515,6 +1515,46 @@ switch ($action) {
                 ->execute(array($status, $closedAt, $caseId));
             audit_log('case_status', 'case', $caseId, $status);
 
+            // 🔔 Jorjao — PASTA APTA (Amanda 09/07/2026)
+            // CX termina de preparar a pasta e move pra em_elaboracao ("Pasta Apta")
+            // → Jorjao parabeniza no grupo. So dispara na transicao (nao no re-save).
+            if ($status === 'em_elaboracao' && $oldStatus !== 'em_elaboracao') {
+                try {
+                    require_once APP_ROOT . '/core/functions_jorjao.php';
+                    if (function_exists('jorjao_tocada_ativa') && jorjao_tocada_ativa('pasta_apta')) {
+                        // Nome da CX (quem esta movendo agora)
+                        $stCx = $pdo->prepare("SELECT name FROM users WHERE id = ?");
+                        $stCx->execute(array(current_user_id()));
+                        $cxNome = (string)$stCx->fetchColumn();
+                        $cxPrimeiro = $cxNome ? preg_split('/\s+/', $cxNome)[0] : 'CX';
+                        // Nome do responsavel do case
+                        $respNome = '';
+                        if ($currentCase && !empty($currentCase['responsible_user_id'])) {
+                            $stR = $pdo->prepare("SELECT name FROM users WHERE id = ?");
+                            $stR->execute(array((int)$currentCase['responsible_user_id']));
+                            $rn = (string)$stR->fetchColumn();
+                            if ($rn) $respNome = preg_split('/\s+/', $rn)[0];
+                        }
+                        // Nome do cliente
+                        $cliNome = '';
+                        if ($currentCase && !empty($currentCase['client_id'])) {
+                            $stCl = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
+                            $stCl->execute(array((int)$currentCase['client_id']));
+                            $cliNome = (string)$stCl->fetchColumn();
+                        }
+                        if (!$cliNome && $currentCase) $cliNome = $currentCase['title'] ?? 'Cliente';
+                        jorjao_enviar('pasta_apta', array(
+                            'cliente'     => $cliNome,
+                            'tipo_caso'   => $currentCase['case_type'] ?? 'não informado',
+                            'cx'          => $cxPrimeiro,
+                            'responsavel' => $respNome ?: 'time operacional',
+                            'hoje'        => date('d/m/Y'),
+                            '_case_id'    => $caseId,
+                        ));
+                    }
+                } catch (Throwable $e) { /* nao pode quebrar o fluxo do kanban */ }
+            }
+
             // ── ARQUIVADO/CANCELADO: propagar para Pipeline ──
             if (in_array($status, array('arquivado', 'cancelado'))) {
                 $leadRow = buscarLeadVinculado($pdo, $caseId, $clientId);
