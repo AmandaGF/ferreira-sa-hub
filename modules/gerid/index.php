@@ -254,6 +254,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $res = clean_str($_POST['resultado'] ?? '', 2000);
         $g = $pdo->prepare("SELECT * FROM gerid_pesquisas WHERE id=?"); $g->execute(array($id)); $row = $g->fetch();
         if ($row) {
+            // Amanda 09/07/2026: guarda o estado ANTES do UPDATE pra decidir se dispara
+            // emails/notificacoes. Ela reclamou 4 emails identicos pra mesma pesquisa —
+            // cada clique em Registrar re-disparava o envio pra equipe. Fix: so envia
+            // no TRANSIÇÃO real (pendente → tem_vinculo), nao em re-saves.
+            $_geridEraPendente = ($row['status'] === 'pendente');
+            $_geridTinhaVinculo = (int)($row['tem_vinculo'] ?? 0);
             // Upload printscreen INSS/GERID (opcional, PNG/JPG/PDF até 10MB)
             $psNome = null; $psPath = null; $psMime = null;
             if (!empty($_FILES['printscreen']) && (int)$_FILES['printscreen']['error'] === UPLOAD_ERR_OK) {
@@ -291,7 +297,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } catch (Exception $e) {}
             }
             // avisa quem pediu (notify + email + cria TAREFA na pasta pra revisar resultado)
-            if (!empty($row['created_by']) && (int)$row['created_by'] !== current_user_id()) {
+            // GUARD: so na TRANSIÇÃO pendente→concluida ou mudou tem_vinculo (nao re-save)
+            $_geridTrocouResultado = ($_geridEraPendente || $_geridTinhaVinculo !== (int)$tem);
+            if (!empty($row['created_by']) && (int)$row['created_by'] !== current_user_id() && $_geridTrocouResultado) {
                 $solicitante = (int)$row['created_by'];
                 $detalheRes = ($tem ? 'POSSUI vínculo' : 'sem vínculo') . ($res ? ' — ' . $res : '');
 
@@ -364,7 +372,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // notifica todo o escritorio por email — independente de quem
             // solicitou. Ideia: acelerar decisao de proximos passos (ofício ao
             // empregador, penhora de salario, execução).
-            if ((int)$tem === 1) {
+            // GUARD: só dispara na TRANSIÇÃO pendente→com_vinculo (bug 09/07:
+            // Amanda recebeu 4 emails iguais por re-cliques em 'Registrar').
+            if ((int)$tem === 1 && ($_geridEraPendente || $_geridTinhaVinculo === 0)) {
                 try {
                     $stEq = db()->query("SELECT id, name, email FROM users WHERE is_active = 1 AND email IS NOT NULL AND email <> ''");
                     $equipe = $stEq->fetchAll(PDO::FETCH_ASSOC);
