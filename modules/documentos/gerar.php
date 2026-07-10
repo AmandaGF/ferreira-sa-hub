@@ -212,8 +212,37 @@ $substAdvEndereco = $_POST['subst_adv_endereco'] ?? '';
 $substAdvNacionalidade = $_POST['subst_adv_nacionalidade'] ?? 'brasileiro(a)';
 $substAdvTelefone = $_POST['subst_adv_telefone'] ?? '';
 
+// Amanda 10/07/2026: mapa case_type (tecnico do banco) -> valor da option do select.
+// Bug real: os selects usavam strtoupper($tipoAcao) que virava 'ALIMENTOS' mas o
+// value da option eh 'AÇÃO DE ALIMENTOS' — nunca casava, sempre ficava '— Selecionar —'.
+$_mapaCaseTypeParaAcao = array(
+    'alimentos'               => 'AÇÃO DE ALIMENTOS',
+    'revisional_alimentos'    => 'AÇÃO REVISIONAL DE ALIMENTOS',
+    'execucao_alimentos'      => 'AÇÃO DE EXECUÇÃO DE ALIMENTOS',
+    'divorcio'                => 'AÇÃO DE DIVÓRCIO',
+    'divorcio_consensual'     => 'AÇÃO DE DIVÓRCIO CONSENSUAL',
+    'divorcio_litigioso'      => 'AÇÃO DE DIVÓRCIO LITIGIOSO',
+    'guarda'                  => 'AÇÃO DE GUARDA',
+    'guarda_compartilhada'    => 'AÇÃO DE GUARDA COMPARTILHADA',
+    'convivencia'             => 'AÇÃO DE REGULAMENTAÇÃO DE CONVIVÊNCIA',
+    'guarda_convivencia'      => 'AÇÃO DE REGULAMENTAÇÃO DE CONVIVÊNCIA',
+    'investigacao_paternidade'=> 'AÇÃO DE INVESTIGAÇÃO DE PATERNIDADE',
+    'abandono_afetivo'        => 'AÇÃO DE ABANDONO AFETIVO',
+    'indenizacao'             => 'AÇÃO INDENIZATÓRIA',
+    'danos_morais'            => 'AÇÃO INDENIZATÓRIA',
+    'responsabilidade_civil'  => 'AÇÃO INDENIZATÓRIA',
+    'consumidor'              => 'AÇÃO DO CONSUMIDOR',
+    'obrigacao_fazer'         => 'AÇÃO DE OBRIGAÇÃO DE FAZER',
+    'cobranca'                => 'AÇÃO DE COBRANÇA',
+    'usucapiao'               => 'AÇÃO DE USUCAPIÃO',
+    'inventario'              => 'INVENTÁRIO E PARTILHA',
+    'curatela'                => 'CURATELA',
+);
+$_caseTypeBruto = $caseData ? mb_strtolower(trim((string)($caseData['case_type'] ?? '')), 'UTF-8') : '';
+$_caseTypeConvertido = $_mapaCaseTypeParaAcao[$_caseTypeBruto] ?? '';
+
 // Campos habilitação
-$tipoAcaoHab = $_POST['tipo_acao_hab'] ?? ($caseData ? ($caseData['case_type'] ?: '') : '');
+$tipoAcaoHab = $_POST['tipo_acao_hab'] ?? $_caseTypeConvertido;
 $repLegal = $_POST['rep_legal'] ?? 'nao';
 $nomeParteContraria = $_POST['nome_parte_contraria'] ?? ($caseData ? ($caseData['parte_re_nome'] ?: '') : '');
 $papelCliente = $_POST['papel_cliente'] ?? 'autor';
@@ -330,7 +359,7 @@ $nomeGenitor = $_POST['nome_genitor'] ?? '';
 $cpfGenitor = $_POST['cpf_genitor'] ?? '';
 $nomeReu = $_POST['nome_reu'] ?? ($caseData ? ($caseData['parte_re_nome'] ?: '') : '');
 $whatsappReu = $_POST['whatsapp_reu'] ?? '';
-$tipoAcaoCitacao = $_POST['tipo_acao_citacao'] ?? ($caseData ? ($caseData['case_type'] ?: '') : '');
+$tipoAcaoCitacao = $_POST['tipo_acao_citacao'] ?? $_caseTypeConvertido;
 $justificativaCitacao = $_POST['justificativa_citacao'] ?? '';
 
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
@@ -1070,7 +1099,7 @@ if (!$showEditor) {
                             'CURATELA' => 'Curatela',
                         );
                         foreach ($opHab as $ohVal => $ohLabel): ?>
-                        <option value="<?= e($ohVal) ?>" <?= strtoupper($tipoAcaoHab) === $ohVal ? 'selected' : '' ?>><?= e($ohLabel) ?></option>
+                        <option value="<?= e($ohVal) ?>" <?= mb_strtoupper($tipoAcaoHab, 'UTF-8') === $ohVal ? 'selected' : '' ?>><?= e($ohLabel) ?></option>
                         <?php endforeach; ?>
                         <option value="outro">Outro (digitar)</option>
                     </select>
@@ -1383,7 +1412,7 @@ if (!$showEditor) {
                 <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família de Volta Redonda"></div>
             </div>
             <div class="row">
-                <div><label>Tipo de ação</label><input name="tipo_acao_renuncia" value="<?= e($caseData ? ($caseData['case_type'] ?: '') : '') ?>" placeholder="Ex: Ação de Divórcio"></div>
+                <div><label>Tipo de ação</label><input name="tipo_acao_renuncia" value="<?= e($_caseTypeConvertido ?: ($caseData['case_type'] ?? '')) ?>" placeholder="Ex: Ação de Divórcio"></div>
                 <div><label>Parte contrária / Ré (opcional)</label><input name="reu_renuncia" value="<?= e($reuRenuncia ?: ($caseData ? ($caseData['parte_re_nome'] ?: '') : '')) ?>" placeholder="Nome da parte contrária"></div>
             </div>
             <div class="row">
@@ -1419,7 +1448,7 @@ if (!$showEditor) {
                 <div><label>Vara / Juízo</label><input name="vara_juizo" value="<?= e($varaJuizo) ?>" placeholder="Ex: 1ª Vara de Família de Volta Redonda"></div>
             </div>
             <div class="row">
-                <div><label>Tipo de ação</label><input name="tipo_acao_desistencia" value="<?= e($caseData ? ($caseData['case_type'] ?: '') : '') ?>" placeholder="Ex: Ação de Divórcio"></div>
+                <div><label>Tipo de ação</label><input name="tipo_acao_desistencia" value="<?= e($_caseTypeConvertido ?: ($caseData['case_type'] ?? '')) ?>" placeholder="Ex: Ação de Divórcio"></div>
                 <div><label>Parte Ré (nome)</label><input name="reu_desistencia" value="<?= e($reuDesistencia ?: ($caseData ? ($caseData['parte_re_nome'] ?: '') : '')) ?>" placeholder="Nome da parte ré"></div>
             </div>
             <div class="row">
