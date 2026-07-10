@@ -8494,6 +8494,8 @@ window.pedirObsRealizado = function(form) {
         // Amanda 03/07: injeta/atualiza input hidden 'voltar_aba' em todos os forms
         // que dão POST pro api operacional — depois do submit o backend redireciona
         // pra caso_ver.php#ABA_ATUAL em vez de cair sempre em #visao.
+        // (Complementa o hook global de submit abaixo pra pegar forms adicionados
+        // por PHP na renderização inicial.)
         try {
             document.querySelectorAll('form[action*="operacional/api.php"], form[action*="/api.php"]').forEach(function(f){
                 var inp = f.querySelector('input[name="voltar_aba"]');
@@ -8507,6 +8509,30 @@ window.pedirObsRealizado = function(form) {
             });
         } catch(e) {}
     };
+
+    // Amanda 09/07/2026: hook GLOBAL de submit (delegation no document).
+    // Garante que TODO form que der POST — inclusive os criados dinamicamente
+    // via JS, ou renderizados depois do cvAba() rodar — carregue voltar_aba
+    // com o valor atual do hash. Assim o redirect do backend volta pra aba
+    // correta, mesmo sem trocar de aba manualmente antes de submeter.
+    document.addEventListener('submit', function(e) {
+        var f = e.target;
+        if (!f || !f.action) return;
+        // Só forms que POSTam pra api do Hub
+        if (!/\/api\.php/i.test(f.action)) return;
+        try {
+            var abaAgora = (location.hash || '').replace('#', '');
+            if (!abaAgora) abaAgora = document.body.dataset.abaAtiva || 'visao';
+            var inp = f.querySelector('input[name="voltar_aba"]');
+            if (!inp) {
+                inp = document.createElement('input');
+                inp.type = 'hidden';
+                inp.name = 'voltar_aba';
+                f.appendChild(inp);
+            }
+            inp.value = abaAgora;
+        } catch(e) {}
+    }, true); // capture: pega antes de qualquer stopPropagation
 
     window.cvHeaderToggle = function() {
         document.body.classList.toggle('cv-header-min');

@@ -30,7 +30,7 @@ function _json_clean_echo($data) {
  */
 function redirect_caso($caseId, $extra = '') {
     $url = module_url('operacional', 'caso_ver.php?id=' . (int)$caseId . $extra);
-    $abaWl = array('visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','treinamentos','ia');
+    $abaWl = array('visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','gerid','treinamentos','ia');
     $aba = isset($_POST['voltar_aba']) ? preg_replace('/[^a-z_]/', '', (string)$_POST['voltar_aba']) : '';
     if ($aba && in_array($aba, $abaWl, true)) $url .= '#' . $aba;
     redirect($url);
