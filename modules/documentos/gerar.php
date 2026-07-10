@@ -180,6 +180,27 @@ if ($caseIdDoc) {
     $caseData = $stmtCase->fetch();
 }
 
+// Amanda 10/07/2026: bug real — se veio pelo menu /documentos/ (form envia
+// so client_id, sem case_id), pega o case ATIVO mais recente do cliente
+// pra puxar case_type + comarca + vara etc. Sem isso, o select 'Tipo de
+// ação' ficava vazio mesmo com o cliente tendo processo cadastrado.
+if (!$caseData && !empty($clientId)) {
+    try {
+        $stmtCaseAuto = $pdo->prepare(
+            "SELECT id, case_number, court, comarca, comarca_uf, regional,
+                    parte_re_nome, parte_re_cpf_cnpj, case_type
+             FROM cases
+             WHERE client_id = ?
+               AND status NOT IN ('arquivado','cancelado','concluido','finalizado','renunciamos')
+             ORDER BY updated_at DESC
+             LIMIT 1"
+        );
+        $stmtCaseAuto->execute(array((int)$clientId));
+        $caseData = $stmtCaseAuto->fetch();
+        if ($caseData && empty($caseIdDoc)) $caseIdDoc = (int)$caseData['id'];
+    } catch (Exception $e) {}
+}
+
 // Campos extras para juntada/ciência — pré-preenchidos com dados do processo
 $numeroProcesso = $_POST['numero_processo'] ?? ($_GET['numero_processo'] ?? ($caseData ? ($caseData['case_number'] ?: '') : ''));
 // Montar vara com regional: "1ª Vara de Família da Comarca do Rio de Janeiro - Regional de Madureira"
@@ -241,8 +262,8 @@ $_mapaCaseTypeParaAcao = array(
 $_caseTypeBruto = $caseData ? mb_strtolower(trim((string)($caseData['case_type'] ?? '')), 'UTF-8') : '';
 $_caseTypeConvertido = $_mapaCaseTypeParaAcao[$_caseTypeBruto] ?? '';
 
-// Campos habilitação
-$tipoAcaoHab = $_POST['tipo_acao_hab'] ?? $_caseTypeConvertido;
+// Campos habilitação — prioridade: POST > tipo_acao no URL (history) > case_type traduzido
+$tipoAcaoHab = $_POST['tipo_acao_hab'] ?? ($tipoAcao ?: $_caseTypeConvertido);
 $repLegal = $_POST['rep_legal'] ?? 'nao';
 $nomeParteContraria = $_POST['nome_parte_contraria'] ?? ($caseData ? ($caseData['parte_re_nome'] ?: '') : '');
 $papelCliente = $_POST['papel_cliente'] ?? 'autor';
@@ -359,7 +380,7 @@ $nomeGenitor = $_POST['nome_genitor'] ?? '';
 $cpfGenitor = $_POST['cpf_genitor'] ?? '';
 $nomeReu = $_POST['nome_reu'] ?? ($caseData ? ($caseData['parte_re_nome'] ?: '') : '');
 $whatsappReu = $_POST['whatsapp_reu'] ?? '';
-$tipoAcaoCitacao = $_POST['tipo_acao_citacao'] ?? $_caseTypeConvertido;
+$tipoAcaoCitacao = $_POST['tipo_acao_citacao'] ?? ($tipoAcao ?: $_caseTypeConvertido);
 $justificativaCitacao = $_POST['justificativa_citacao'] ?? '';
 
 $showEditor = ($_SERVER['REQUEST_METHOD'] !== 'POST');
