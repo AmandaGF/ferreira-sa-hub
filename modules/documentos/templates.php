@@ -1193,7 +1193,7 @@ function template_audiencia_remota($d) {
 
     // Endereçamento
     $html .= enderecamento($d);
-    $html .= '<p style="text-indent:0;"><br>Processo n. <strong>' . f($numProcesso) . '</strong></p>';
+    $html .= '<p style="text-indent:0;margin-top:.6rem;">Processo n. <strong>' . f($numProcesso) . '</strong></p>';
 
     // Qualificação com legitimidade ativa
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">';
@@ -1216,35 +1216,31 @@ function template_audiencia_remota($d) {
     if ($dataAudFormatada) {
         $html .= ' designada para o dia <strong>' . $dataAudFormatada . '</strong>';
     }
-    $html .= ' <strong>' . $modalidadeTexto . '</strong>, pelos fundamentos a seguir expostos.</p>';
+    $html .= ' ' . $modalidadeTexto . ', pelos fundamentos a seguir expostos.</p>';
 
-    // Motivo/Justificativa livre (se preenchido)
+    // Amanda 10/07/2026: modelo REESCRITO — corpo corrido sem barrinhas
+    // decorativas ("1 — DA FUNDAMENTAÇÃO LEGAL"). Motivo (campo livre) ja
+    // costuma incluir contexto + argumento juridico (art. 236 §3º + Res 354).
+    // Amanda escreve la o motivo completo (ex: "A patrona da Autora exerce
+    // atividade docente… razão pela qual se requer designação em modalidade
+    // remota, com fundamento no art. 236, §3º, do CPC e na Resolução 354/2020").
+
+    // Motivo/Justificativa livre (se preenchido) — vira 1 ou mais paragrafos
+    // corridos (nl2br pra respeitar quebras que Amanda digitou)
     if ($motivo) {
         $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">' . nl2br(f($motivo)) . '</p>';
     }
 
-    // 1. DA FUNDAMENTAÇÃO LEGAL
-    $html .= '<div style="border-right:4px solid #B87333;padding:6px 14px 6px 0;text-align:right;font-weight:700;font-size:12px;color:#052228;text-transform:uppercase;letter-spacing:2px;margin:24px 0 10px;">1 &mdash; DA FUNDAMENTAÇÃO LEGAL</div>';
-
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A realização de audiências por meio de videoconferência ou outro recurso tecnológico de transmissão de sons e imagens em tempo real encontra amplo respaldo legal no ordenamento jurídico vigente, notadamente no <strong>art. 236, §3º, do Código de Processo Civil</strong>, com redação dada pela Lei n. 14.195/2021, que expressamente autoriza a prática de atos processuais por meio eletrônico.</p>';
-
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Também embasa o pedido a <strong>Resolução CNJ n. 354/2020</strong>, que instituiu e regulamentou o processo judicial eletrônico e o uso de ferramentas remotas para a prática de atos processuais, e a <strong>Resolução CNJ n. 385/2021</strong>, que disciplina o Juízo 100% Digital e faculta às partes a opção pela realização de atos de forma remota.</p>';
-
+    // Paragrafo padrao sobre oralidade/imediação/contraditorio (sempre entra)
     $parteTextoFund = ($papelCliente === 'reu') ? 'ré' : 'autora';
     if ($pleiteante === 'menor' && $nomeFilhos) {
         $parteTextoFund .= ' (representada)';
     }
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Ademais, a realização remota da audiência em nada prejudica os princípios da oralidade, da imediação e do contraditório (arts. 6º e 7º, CPC), porquanto a parte ' . $parteTextoFund . ' e sua patrona participarão integralmente do ato, com plena capacidade de sustentação oral, produção de prova e exercício do contraditório em tempo real.</p>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Insta esclarecer que a realização remota da audiência em nada prejudica os princípios da oralidade, da imediação e do contraditório (arts. 6º e 7º, CPC), porquanto a parte ' . $parteTextoFund . ' e sua patrona participarão integralmente do ato, com plena capacidade de sustentação oral, produção de prova e exercício do contraditório em tempo real.</p>';
 
-    // Parágrafo sobre justa causa — só aparece se motivo foi preenchido (o motivo já explica a circunstância)
-    if ($motivo) {
-        $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">A circunstância acima narrada configura hipótese de justa causa prevista no <strong>art. 223, §1º, do CPC</strong>, justificando a concessão da medida ora requerida.</p>';
-    }
-
-    // 2. DO PEDIDO
-    $html .= '<div style="border-right:4px solid #B87333;padding:6px 14px 6px 0;text-align:right;font-weight:700;font-size:12px;color:#052228;text-transform:uppercase;letter-spacing:2px;margin:24px 0 10px;">2 &mdash; DO PEDIDO</div>';
-
-    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Diante do exposto, requer a Vossa Excelência que se digne a determinar a realização da audiência <strong>' . $modalidadeTexto . '</strong>, com o envio do link de acesso às partes com antecedência razoável, nos termos da legislação e das resoluções do CNJ aplicáveis.</p>';
+    // DO PEDIDO — titulo simples em bold (sem barrinha cobre grande)
+    $html .= '<p style="font-weight:700;color:#052228;text-indent:0;margin-top:1.5rem;">DO PEDIDO</p>';
+    $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Diante do exposto, requer a Vossa Excelência a autorização para a realização da audiência ' . $modalidadeTexto . ', com o envio do link de acesso às partes com antecedência razoável, nos termos da legislação e das resoluções do CNJ aplicáveis.</p>';
 
     // E-mails — sempre incluir os do escritório
     $html .= '<p style="text-indent:4em;text-align:justify;line-height:2;">Em tempo, informa os endereços eletrônicos para recebimento do link de acesso:</p>';
