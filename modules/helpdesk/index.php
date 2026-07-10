@@ -698,8 +698,16 @@ $_hdPag = function($pos) use ($hdPageNum, $hdTotalPag, $hdTotalLista, $hdPerPage
                     <tr><td colspan="10" class="text-center text-muted" style="padding:2rem;">Nenhum chamado encontrado.</td></tr>
                 <?php else: ?>
                     <?php foreach ($tickets as $t):
-                        // Badge "NOVO" pra chamados criados nas ultimas 24h — chama atencao
-                        $_ehNovo = !empty($t['created_at']) && (time() - strtotime($t['created_at'])) < 86400;
+                        // Badge "NOVO" pra chamados criados nas ultimas 24h — chama atencao.
+                        // Amanda 10/07/2026: NAO mostrar em chamados ja resolvidos/fechados/
+                        // cancelados. Se ja resolveu, nao eh mais "novo" (ainda que criado
+                        // nas ultimas 24h). Considera tambem os status equivalentes do salavip
+                        // ('fechada' vem como 'resolvido' via mapeamento na query).
+                        $_statusAtual = mb_strtolower((string)($t['status'] ?? ($t['status_raw'] ?? '')));
+                        $_finalizados = array('resolvido','cancelado','fechada','concluido','encerrado');
+                        $_ehNovo = !empty($t['created_at'])
+                                && (time() - strtotime($t['created_at'])) < 86400
+                                && !in_array($_statusAtual, $_finalizados, true);
                     ?>
                     <tr<?= $_ehNovo ? ' style="background:rgba(251,191,36,.08);"' : '' ?>>
                         <td class="text-sm text-muted"><?= $t['id'] ?></td>
