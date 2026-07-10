@@ -171,13 +171,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'registr
         $renId = (int)$pdo->lastInsertId();
 
         $procRef   = $case['case_number'] ? $case['case_number'] : $case['title'];
-        $taskTitle = 'Juntar pedido de ' . $tipoLabel . ' na pasta';
+        $taskTitle = 'Peticionar ' . $tipoLabel . ' e juntar na pasta';
         $taskDesc  = 'Processo: ' . $procRef . '. Motivo: ' . $motivoLabel . '.'
                    . ($obs !== '' ? ' Obs: ' . $obs . '.' : '')
                    . ' O comprovante de comunicação com o cliente já está anexado no registro de ' . $tipoLabel
-                   . '. Juntar o pedido de ' . $tipoLabel . ' na pasta do processo no Drive.';
+                   . '. Peticionar o pedido de ' . $tipoLabel . ' e juntar na pasta do processo no Drive.';
         $assignedTo = !empty($case['responsible_user_id']) ? (int)$case['responsible_user_id'] : null;
-        $insTask->execute(array($cid, $taskTitle, 'juntar_documento', $taskDesc, $assignedTo, $due, 'alta', 'a_fazer', 0));
+        // Tipo dedicado (nao mais 'juntar_documento') pra ficar visivel na ficha
+        // do caso como banner destacado enquanto a renuncia nao for cumprida.
+        $insTask->execute(array($cid, $taskTitle, $tipo, $taskDesc, $assignedTo, $due, 'alta', 'a_fazer', 0));
         $taskId = (int)$pdo->lastInsertId();
         $pdo->prepare("UPDATE renuncias SET task_id = ? WHERE id = ?")->execute(array($taskId, $renId));
 
@@ -239,12 +241,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'toggle_
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'baixar_tarefa') {
     if (!validate_csrf()) { flash_set('error', 'Sessão expirada.'); redirect(module_url('processos', 'renuncias.php') . '#operacional'); }
     $tid = (int)($_POST['task_id'] ?? 0);
+    $vc  = (int)($_POST['voltar_caso'] ?? 0);
     if ($tid) {
         $pdo->prepare("UPDATE case_tasks SET status = 'concluido', completed_at = NOW() WHERE id = ?")->execute(array($tid));
         audit_log('renuncia_tarefa_baixa', 'task', $tid, 'baixa via renúncias');
-        flash_set('success', 'Tarefa concluída! 🎉');
+        flash_set('success', 'Renúncia/desistência marcada como cumprida! 🎉');
     }
-    redirect(module_url('processos', 'renuncias.php') . '#operacional');
+    redirect($vc ? module_url('operacional', 'caso_ver.php?id=' . $vc) : module_url('processos', 'renuncias.php') . '#operacional');
 }
 
 // ── Dados: histórico ─────────────────────────────────────

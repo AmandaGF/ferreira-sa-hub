@@ -108,6 +108,28 @@ $tasks = $pdo->prepare(
 $tasks->execute([$caseId]);
 $tasks = $tasks->fetchAll();
 
+// 10/07/2026 Amanda: renuncia/desistencia ainda pendente nesse case
+// (banner destacado no topo da ficha ate a tarefa ser marcada como cumprida).
+// Junta tudo em UMA query — pode ter mais de 1 registro (raro, mas possivel se
+// abriu, depois de anos abriu de novo).
+$_renuPend = array();
+try {
+    $stRp = $pdo->prepare("
+        SELECT r.id, r.tipo, r.motivo, r.motivo_outro, r.observacao, r.created_at,
+               r.comprovante_path, r.task_id,
+               t.status AS task_status, t.title AS task_title, t.due_date AS task_due,
+               u.name AS registrado_por
+        FROM renuncias r
+        LEFT JOIN case_tasks t ON t.id = r.task_id
+        LEFT JOIN users u ON u.id = r.created_by
+        WHERE r.case_id = ?
+          AND (t.status IS NULL OR t.status <> 'concluido')
+        ORDER BY r.created_at DESC
+    ");
+    $stRp->execute(array($caseId));
+    $_renuPend = $stRp->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
 // 01/07/2026 Amanda: config atual de acompanhamento diário via WhatsApp
 $_acompCfg = null;
 try {
@@ -662,6 +684,53 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
         </div>
     </div>
 </div>
+
+<?php // ── Banner: renuncia/desistencia PENDENTE (task_status != concluido) ──
+if (!empty($_renuPend)):
+    $_MOT_LBL = array(
+        'inadimplencia' => 'Inadimplência prolongada',
+        'cliente'       => 'Desistência pelo(a) cliente',
+        'demitido'      => 'Demitido — sem educação',
+        'sem_resposta'  => 'Ausência de resposta prolongada',
+        'outro'         => 'Outro',
+    );
+    foreach ($_renuPend as $_rp):
+        $_tipoLbl = $_rp['tipo'] === 'desistencia' ? 'Desistência' : 'Renúncia';
+        $_motLbl  = $_rp['motivo'] === 'outro' ? ($_rp['motivo_outro'] ?: 'Outro') : ($_MOT_LBL[$_rp['motivo']] ?? $_rp['motivo']);
+        $_petTpl  = $_rp['tipo'] === 'desistencia' ? 'desistencia_acao' : 'renuncia_poderes';
+        $_petUrl  = url('modules/documentos/gerar.php') . '?tipo=' . $_petTpl . '&client_id=' . (int)($case['client_id'] ?? 0) . '&case_id=' . $caseId;
+        $_diasAbertos = max(0, (int)((time() - strtotime($_rp['created_at'])) / 86400));
+?>
+<div style="background:linear-gradient(135deg,#faf5ff 0%,#fdf4ff 100%);border:2px solid #9333ea;border-left:6px solid #9333ea;border-radius:10px;padding:12px 16px;margin:0 0 12px;display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;box-shadow:0 2px 8px rgba(147,51,234,.1);">
+    <div style="flex:1;min-width:260px;">
+        <div style="font-weight:800;color:#6b21a8;font-size:.95rem;">
+            📤 <?= e($_tipoLbl) ?> ABERTA — falta peticionar
+            <span style="background:#9333ea;color:#fff;font-size:.7rem;padding:2px 8px;border-radius:999px;font-weight:700;margin-left:6px;">há <?= $_diasAbertos ?> dia<?= $_diasAbertos === 1 ? '' : 's' ?></span>
+        </div>
+        <div style="font-size:.85rem;color:#4b5563;margin-top:3px;">
+            Motivo: <strong><?= e($_motLbl) ?></strong>
+            <?php if ($_rp['registrado_por']): ?> · registrado por <?= e($_rp['registrado_por']) ?><?php endif; ?>
+            <?php if ($_rp['task_due']): ?> · prazo: <strong><?= data_br($_rp['task_due']) ?></strong><?php endif; ?>
+            <?php if ($_rp['comprovante_path']): ?> · <a href="<?= module_url('processos', 'renuncias.php') ?>?baixar=<?= (int)$_rp['id'] ?>" target="_blank" rel="noopener" style="color:#6b21a8;font-weight:600;">📎 comprovante</a><?php endif; ?>
+        </div>
+        <?php if (!empty($_rp['observacao'])): ?>
+        <div style="font-size:.8rem;color:#6b7280;margin-top:2px;font-style:italic;">"<?= e($_rp['observacao']) ?>"</div>
+        <?php endif; ?>
+    </div>
+    <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+        <a href="<?= e($_petUrl) ?>" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="border-color:#9333ea;color:#6b21a8;">📝 Elaborar petição</a>
+        <?php if (!empty($_rp['task_id'])): ?>
+        <form method="POST" action="<?= module_url('processos', 'renuncias.php') ?>" style="display:inline;" onsubmit="var b=this.querySelector('button[type=submit]');if(b.disabled)return false;b.disabled=true;b.style.opacity='.6';return confirm('Marcar esta <?= e($_tipoLbl) ?> como cumprida? A tarefa some da ficha e do painel operacional.');">
+            <?= csrf_input() ?>
+            <input type="hidden" name="acao" value="baixar_tarefa">
+            <input type="hidden" name="task_id" value="<?= (int)$_rp['task_id'] ?>">
+            <input type="hidden" name="voltar_caso" value="<?= $caseId ?>">
+            <button type="submit" class="btn btn-sm" style="background:#9333ea;color:#fff;border:none;font-weight:700;">✓ Cumprida</button>
+        </form>
+        <?php endif; ?>
+    </div>
+</div>
+<?php endforeach; endif; ?>
 
 <script>
 (function(){
@@ -5086,6 +5155,8 @@ foreach ($tarefasReais as $_t) {
                     <option value="prazo">Prazo Processual</option>
                     <option value="oficio">Ofício</option>
                     <option value="acordo">Acordo/Conciliação</option>
+                    <option value="renuncia">Renúncia</option>
+                    <option value="desistencia">Desistência</option>
                 </select>
                 <div class="multi-resp" data-multi-resp-wrap style="position:relative;width:140px;font-size:.8rem;">
                     <button type="button" class="form-input" data-multi-resp-btn style="width:100%;text-align:left;cursor:pointer;font-size:.8rem;background:#fff;">Quem?</button>
@@ -5257,6 +5328,8 @@ foreach ($tarefasReais as $_t) {
                 <option value="prazo">Prazo Processual</option>
                 <option value="oficio">Ofício</option>
                 <option value="acordo">Acordo/Conciliação</option>
+                <option value="renuncia">Renúncia</option>
+                <option value="desistencia">Desistência</option>
             </select>
             <div class="multi-resp" data-multi-resp-wrap style="position:relative;width:140px;">
                 <button type="button" class="form-input" data-multi-resp-btn style="width:100%;text-align:left;cursor:pointer;background:#fff;">Quem?</button>
