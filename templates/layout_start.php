@@ -383,7 +383,7 @@ require_once APP_ROOT . '/templates/sidebar.php';
                     <button id="ljBtn" onclick="document.getElementById('ljDrop').classList.toggle('lj-open');document.getElementById('ljBusca').value='';ljFiltrar('');" style="background:none;border:none;cursor:pointer;font-size:1rem;padding:4px 8px;border-radius:6px;color:var(--petrol-900);display:flex;align-items:center;gap:4px;" title="Links Jurídicos">
                         ⚖️ <span style="font-size:.72rem;font-weight:600;display:none;" class="lj-label-desk">Links</span>
                     </button>
-                    <div id="ljDrop" style="display:none;position:absolute;right:0;top:calc(100% + 6px);width:380px;max-height:520px;background:#052228;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.4);z-index:9999;overflow:hidden;flex-direction:column;pointer-events:none;">
+                    <div id="ljDrop" style="display:none;position:absolute;right:0;top:calc(100% + 6px);width:380px;max-height:520px;background:#052228;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.4);z-index:9999;overflow:hidden;flex-direction:column;">
                         <div style="padding:.6rem .8rem;border-bottom:1px solid rgba(255,255,255,.1);">
                             <div style="position:relative;">
                                 <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:.8rem;opacity:.5;">🔍</span>
@@ -395,11 +395,12 @@ require_once APP_ROOT . '/templates/sidebar.php';
                 </div>
                 <style>
                 /* Amanda 09/07/2026 (bug real): dropdown sem lj-open era invisivel
-                   mas continuava recebendo cliques em algumas situacoes, interceptando
-                   acoes de outros elementos abaixo. Fix: pointer-events:none quando
-                   fechado + auto quando aberto. */
-                #ljDrop{pointer-events:none;}
-                #ljDrop.lj-open{display:flex!important;pointer-events:auto;}
+                   mas continuava recebendo cliques em algumas situacoes. Fix:
+                   pointer-events:none quando fechado + auto quando aberto.
+                   IMPORTANTE: usar !important pra sobrescrever qualquer inline
+                   herdado. Sem inline no HTML pra input de busca funcionar. */
+                #ljDrop{pointer-events:none!important;}
+                #ljDrop.lj-open{display:flex!important;pointer-events:auto!important;}
                 .lj-cat{padding:.3rem .8rem;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#B87333;margin-top:.3rem;}
                 .lj-link{display:block;padding:.4rem .8rem .4rem 1.4rem;color:rgba(255,255,255,.85);text-decoration:none;font-size:.78rem;transition:all .12s;}
                 .lj-link:hover{background:#B87333;color:#fff;}
