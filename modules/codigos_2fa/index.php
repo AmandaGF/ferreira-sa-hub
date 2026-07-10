@@ -22,10 +22,47 @@ if (!can_access_codigos_2fa()) {
 $pdo = db();
 totp_ensure_schema($pdo);
 
+// Amanda 10/07/2026: self-heal tabela de favoritos por usuario
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS sistemas_2fa_favoritos (
+        user_id INT NOT NULL,
+        sistema_id INT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, sistema_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+} catch (Exception $e) {}
+
+// Amanda 10/07/2026: AJAX toggle favorito
+if (($_GET['ajax'] ?? '') === 'toggle_favorito' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+    $sid = (int)($_POST['sistema_id'] ?? 0);
+    $uid = (int)current_user_id();
+    if (!$sid || !$uid) { echo json_encode(array('ok'=>false,'erro'=>'params')); exit; }
+    $chk = $pdo->prepare("SELECT 1 FROM sistemas_2fa_favoritos WHERE user_id=? AND sistema_id=?");
+    $chk->execute(array($uid, $sid));
+    if ($chk->fetchColumn()) {
+        $pdo->prepare("DELETE FROM sistemas_2fa_favoritos WHERE user_id=? AND sistema_id=?")->execute(array($uid, $sid));
+        echo json_encode(array('ok'=>true, 'favorito'=>false));
+    } else {
+        $pdo->prepare("INSERT INTO sistemas_2fa_favoritos (user_id, sistema_id) VALUES (?,?)")->execute(array($uid, $sid));
+        echo json_encode(array('ok'=>true, 'favorito'=>true));
+    }
+    exit;
+}
+
 $isAdmin = can_admin_codigos_2fa();
 $pageTitle = 'Códigos 2FA';
 
-$sistemas = $pdo->query("SELECT * FROM sistemas_2fa ORDER BY ordem ASC, nome ASC")->fetchAll();
+// Amanda 10/07/2026: ORDER favoritos do usuario primeiro, depois ordem/nome.
+$_uidLogado = (int)current_user_id();
+$sistemas = $pdo->prepare(
+    "SELECT s.*, CASE WHEN f.sistema_id IS NULL THEN 0 ELSE 1 END AS eh_favorito
+     FROM sistemas_2fa s
+     LEFT JOIN sistemas_2fa_favoritos f ON f.sistema_id = s.id AND f.user_id = ?
+     ORDER BY eh_favorito DESC, s.ordem ASC, s.nome ASC"
+);
+$sistemas->execute(array($_uidLogado));
+$sistemas = $sistemas->fetchAll();
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -58,11 +95,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </style>
 
 <div style="max-width:1200px;margin:0 auto;">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:.75rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;flex-wrap:wrap;gap:.75rem;">
         <h2 style="margin:0;font-size:1.2rem;color:var(--petrol-900);">🔐 Códigos 2FA e Senhas — Sistemas</h2>
         <?php if ($isAdmin): ?>
         <button onclick="c2AbrirNovo()" class="btn btn-primary btn-sm" style="font-size:.78rem;">+ Adicionar sistema</button>
         <?php endif; ?>
+    </div>
+
+    <!-- Amanda 10/07/2026: barra de busca + toggle "só favoritos" -->
+    <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;">
+        <div style="position:relative;flex:1;min-width:260px;">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:.9rem;color:#94a3b8;">🔍</span>
+            <input type="text" id="c2Busca" placeholder="Buscar sistema (nome, ícone, notas)…" oninput="c2Filtrar(this.value)" autocomplete="off" style="width:100%;padding:.6rem .6rem .6rem 36px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:.88rem;background:#fff;">
+        </div>
+        <button type="button" id="c2BtnSoFav" onclick="c2ToggleSoFavoritos()" style="padding:.55rem 1rem;background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:10px;font-size:.82rem;font-weight:600;color:#4b5563;cursor:pointer;display:flex;align-items:center;gap:.4rem;">
+            ☆ <span>Só favoritos</span>
+        </button>
+        <span id="c2ContadorResultado" style="font-size:.75rem;color:#6b7280;"></span>
     </div>
 
     <div class="c2-aviso">
@@ -97,9 +146,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
             $_temSenha = !empty($s['senha_encrypted']);
             $_temEmail = !empty($s['email']);
             ?>
-            <div class="c2-card" data-sistema-id="<?= (int)$s['id'] ?>" data-tem-2fa="<?= $_tem2fa ? '1' : '0' ?>">
+            <?php
+            $_ehFav = !empty($s['eh_favorito']);
+            $_termoBusca = mb_strtolower(($s['nome'] ?? '') . ' ' . ($s['notas'] ?? '') . ' ' . ($s['login'] ?? '') . ' ' . ($s['email'] ?? ''));
+            ?>
+            <div class="c2-card" data-sistema-id="<?= (int)$s['id'] ?>" data-tem-2fa="<?= $_tem2fa ? '1' : '0' ?>" data-fav="<?= $_ehFav ? '1' : '0' ?>" data-busca="<?= e($_termoBusca) ?>">
                 <div class="c2-card-head">
                     <div class="c2-card-title">
+                        <button type="button" onclick="c2ToggleFavorito(<?= (int)$s['id'] ?>, this)" title="<?= $_ehFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos (fica no topo da lista)' ?>" style="background:none;border:none;cursor:pointer;font-size:1.05rem;padding:0 2px;color:<?= $_ehFav ? '#f59e0b' : '#d1d5db' ?>;line-height:1;" class="c2-fav-btn"><?= $_ehFav ? '★' : '☆' ?></button>
                         <span class="c2-card-icon"><?= e($icone) ?></span>
                         <span><?= e($s['nome']) ?></span>
                     </div>
@@ -345,6 +399,83 @@ window.c2CopiarSenha = function(sistemaId, btn) {
 // Polling: atualiza a UI a cada segundo (recalcula timer + busca novo codigo quando expira)
 setInterval(c2AtualizarUI, 1000);
 c2AtualizarUI(); // primeira execucao imediata
+
+// Amanda 10/07/2026: busca e favoritos
+var c2SoFav = false;
+function c2Filtrar(termo) {
+    var t = (termo || '').toLowerCase().trim();
+    var cards = document.querySelectorAll('.c2-card');
+    var visiveis = 0;
+    cards.forEach(function(card){
+        var busca = card.dataset.busca || '';
+        var ehFav = card.dataset.fav === '1';
+        var matchTexto = !t || busca.indexOf(t) !== -1;
+        var matchFav = !c2SoFav || ehFav;
+        if (matchTexto && matchFav) { card.style.display = ''; visiveis++; }
+        else { card.style.display = 'none'; }
+    });
+    var contador = document.getElementById('c2ContadorResultado');
+    if (contador) contador.textContent = (t || c2SoFav) ? (visiveis + ' de ' + cards.length + ' sistemas') : '';
+}
+
+function c2ToggleSoFavoritos() {
+    c2SoFav = !c2SoFav;
+    var btn = document.getElementById('c2BtnSoFav');
+    if (c2SoFav) {
+        btn.style.background = '#fef3c7';
+        btn.style.borderColor = '#f59e0b';
+        btn.style.color = '#92400e';
+        btn.innerHTML = '★ <span>Só favoritos</span>';
+    } else {
+        btn.style.background = '#f9fafb';
+        btn.style.borderColor = '#e5e7eb';
+        btn.style.color = '#4b5563';
+        btn.innerHTML = '☆ <span>Só favoritos</span>';
+    }
+    c2Filtrar(document.getElementById('c2Busca').value);
+}
+
+function c2ToggleFavorito(sistemaId, btn) {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    var textoAntigo = btn.textContent;
+    btn.textContent = '⋯';
+    var fd = new FormData();
+    fd.append('sistema_id', sistemaId);
+    fetch('<?= module_url('codigos_2fa') ?>?ajax=toggle_favorito', {
+        method: 'POST', body: fd, credentials: 'same-origin',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+        btn.disabled = false;
+        if (!j.ok) { btn.textContent = textoAntigo; alert('Erro: ' + (j.erro || 'tente de novo')); return; }
+        var card = btn.closest('.c2-card');
+        if (j.favorito) {
+            btn.textContent = '★';
+            btn.style.color = '#f59e0b';
+            btn.title = 'Remover dos favoritos';
+            if (card) card.dataset.fav = '1';
+        } else {
+            btn.textContent = '☆';
+            btn.style.color = '#d1d5db';
+            btn.title = 'Adicionar aos favoritos (fica no topo da lista)';
+            if (card) card.dataset.fav = '0';
+        }
+        // Re-filtra pra aplicar "só favoritos" se estiver ativo
+        if (c2SoFav) c2Filtrar(document.getElementById('c2Busca').value);
+    })
+    .catch(function(){ btn.disabled = false; btn.textContent = textoAntigo; alert('Erro de rede'); });
+}
+
+// Atalho de teclado: Ctrl+K / Cmd+K foca na busca
+document.addEventListener('keydown', function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        var busca = document.getElementById('c2Busca');
+        if (busca) { busca.focus(); busca.select(); }
+    }
+});
 
 <?php if ($isAdmin): ?>
 function c2AbrirNovo() {
