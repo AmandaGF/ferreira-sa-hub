@@ -72,8 +72,11 @@ define('DJEN_INGEST_URL', 'https://ferreiraesa.com.br/conecta/api/djen_ingest.ph
 //   - aconteceu erro de rede ou infraestrutura
 //   - invariante total_parsed ≠ imported+duplicated+pending
 // Quando tudo ocorre bem, silêncio total (não vira spam).
+// Amanda 10/07/2026: incluida no envio pra receber o email diario de recortes
+// (nao chegava antes porque so ia pra andamentosfes@gmail.com).
 define('EMAIL_ALERTAS', array(
     'andamentosfes@gmail.com',
+    'amandaguedesferreira@gmail.com',
 ));
 
 // Remetente "técnico" dos e-mails automáticos do Claudin.
