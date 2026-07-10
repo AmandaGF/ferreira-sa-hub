@@ -76,7 +76,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
         $caseId = (int)($_POST['case_id'] ?? 0) ?: null;
         $numProcesso = clean_str($_POST['numero_processo'] ?? '', 50);
         $descricao = clean_str($_POST['descricao_acao'] ?? '', 250);
-        $prazoFatal = $_POST['prazo_fatal'] ?? '';
+        $prazoFatal = trim((string)($_POST['prazo_fatal'] ?? ''));
+
+        // Amanda 09/07/2026 (bug real): input type=date aceita digitacao livre e
+        // grava data trocada dia<->mes se usuario digita mm/dd/yyyy. Valida
+        // formato YYYY-MM-DD estrito + data real + range razoavel.
+        if ($prazoFatal !== '') {
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $prazoFatal)) {
+                flash_set('error', 'Data invalida. Use o CALENDARIO em vez de digitar direto (formato exigido: DD/MM/AAAA).');
+                redirect($_redirectPreservando());
+            }
+            $partes = explode('-', $prazoFatal);
+            if (!checkdate((int)$partes[1], (int)$partes[2], (int)$partes[0])) {
+                flash_set('error', 'Data inexistente. Use o calendario.');
+                redirect($_redirectPreservando());
+            }
+            $anoP = (int)$partes[0];
+            if ($anoP < 2020 || $anoP > 2100) {
+                flash_set('error', 'Ano fora do intervalo (2020-2100). Confira a data.');
+                redirect($_redirectPreservando());
+            }
+        }
 
         // Amanda 09/07/2026 (bug real): se Amanda digitou o CNJ mas nao selecionou
         // do autocomplete (case_id vazio), tentar vincular automaticamente por CNJ.
@@ -134,6 +154,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
             }
 
             flash_set('success', 'Prazo cadastrado!' . ($caseId ? ' Tarefa criada automaticamente para 3 dias antes.' : ''));
+        }
+        redirect($_redirectPreservando());
+    }
+
+    // Amanda 09/07/2026: reabrir prazo marcado como concluido por engano.
+    // Antes nao tinha botao — se clicasse ✓ sem querer, era permanente.
+    if ($action === 'reabrir') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id > 0) {
+            $pdo->prepare("UPDATE prazos_processuais SET concluido = 0, concluido_em = NULL WHERE id = ?")
+                ->execute(array($id));
+            flash_set('success', 'Prazo reaberto — voltou pra pendentes.');
+        } elseif ($id < 0) {
+            $pdo->prepare("UPDATE agenda_eventos SET status = 'agendado' WHERE id = ?")
+                ->execute(array(abs($id)));
+            flash_set('success', 'Prazo (agenda) reaberto.');
         }
         redirect($_redirectPreservando());
     }
@@ -449,14 +485,17 @@ $_buildUrl = function($overrides = array()) use ($filtro, $tipoSel, $voltarCaso)
             <?php endif; ?>
             <div style="font-size:.65rem;font-weight:400;color:var(--text-muted);"><?= date('d/m/Y', strtotime($p['prazo_fatal'])) ?></div>
         </div>
-        <?php if (!$p['concluido']): ?>
         <form method="POST" style="display:flex;gap:.2rem;" onclick="event.stopPropagation()">
             <?= csrf_input() ?>
             <input type="hidden" name="id" value="<?= $p['id'] ?>">
-            <button type="submit" name="action" value="concluir" class="btn btn-success btn-sm" style="font-size:.65rem;padding:.2rem .4rem;" title="Concluir">✓</button>
-            <button type="submit" name="action" value="delete" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .4rem;opacity:.4;" title="Excluir" data-confirm="Excluir prazo?">🗑️</button>
+            <?php if (!$p['concluido']): ?>
+                <button type="submit" name="action" value="concluir" class="btn btn-success btn-sm" style="font-size:.65rem;padding:.2rem .4rem;" title="Concluir">✓</button>
+            <?php else: ?>
+                <!-- Amanda 09/07/2026: reabrir prazo concluido por engano -->
+                <button type="submit" name="action" value="reabrir" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .4rem;color:#0369a1;border-color:#7dd3fc;" title="Reabrir — volta pra pendentes" data-confirm="Reabrir este prazo? Ele volta pra lista de pendentes.">↩️</button>
+            <?php endif; ?>
+            <button type="submit" name="action" value="delete" class="btn btn-outline btn-sm" style="font-size:.65rem;padding:.2rem .4rem;opacity:.4;" title="Excluir definitivamente" data-confirm="Excluir prazo? Essa ação não pode ser desfeita.">🗑️</button>
         </form>
-        <?php endif; ?>
     </div>
     <?php endforeach; ?>
 <?php endif; ?>
@@ -490,13 +529,13 @@ $_buildUrl = function($overrides = array()) use ($filtro, $tipoSel, $voltarCaso)
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label class="form-label">Prazo fatal *</label>
-                        <input type="date" name="prazo_fatal" class="form-input" required>
+                        <label class="form-label">Prazo fatal * <span style="color:#64748b;font-weight:400;font-size:.7rem;">— use o calendário 📅</span></label>
+                        <input type="date" name="prazo_fatal" id="pzPrazoFatal" class="form-input" required min="2020-01-01" max="2100-12-31" title="Use o calendário para evitar erro de digitação (bug conhecido: digitar mm/dd/aaaa troca o dia com o mês)">
                     </div>
                     <div class="form-group">
-                        <label class="form-label">Nº do processo</label>
+                        <label class="form-label">Nº do processo <span style="color:#64748b;font-weight:400;font-size:.7rem;">— digite pra buscar processos já cadastrados</span></label>
                         <div class="pz-combo">
-                            <input type="text" name="numero_processo" id="pzProcesso" class="form-input" placeholder="Digite CNJ, título ou parte do número…" autocomplete="off">
+                            <input type="text" name="numero_processo" id="pzProcesso" class="form-input" placeholder="🔎 Digite CNJ, título ou parte do número…" autocomplete="off">
                             <div class="pz-combo-results" id="pzProcResults"></div>
                         </div>
                         <div id="pzProcVinculo"></div>
