@@ -106,7 +106,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <div style="display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;">
         <div style="position:relative;flex:1;min-width:260px;">
             <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:.9rem;color:#94a3b8;">🔍</span>
-            <input type="text" id="c2Busca" placeholder="Buscar sistema (nome, ícone, notas)…" oninput="c2Filtrar(this.value)" autocomplete="off" style="width:100%;padding:.6rem .6rem .6rem 36px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:.88rem;background:#fff;">
+            <!-- Amanda 10/07/2026: browser autofill (Chrome/1Password/LastPass) enchia
+                 o campo com email dela. Combinacao de hacks que efetivamente desliga: -->
+            <input type="search" id="c2Busca" name="filtro-sistemas-2fa" placeholder="Buscar sistema (nome, ícone, notas)…" oninput="c2Filtrar(this.value)"
+                   autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+                   data-lpignore="true" data-form-type="other" data-1p-ignore="true" data-bwignore="true"
+                   readonly onfocus="this.removeAttribute('readonly')"
+                   style="width:100%;padding:.6rem .6rem .6rem 36px;border:1.5px solid #e5e7eb;border-radius:10px;font-size:.88rem;background:#fff;">
         </div>
         <button type="button" id="c2BtnSoFav" onclick="c2ToggleSoFavoritos()" style="padding:.55rem 1rem;background:#f9fafb;border:1.5px solid #e5e7eb;border-radius:10px;font-size:.82rem;font-weight:600;color:#4b5563;cursor:pointer;display:flex;align-items:center;gap:.4rem;">
             ☆ <span>Só favoritos</span>
