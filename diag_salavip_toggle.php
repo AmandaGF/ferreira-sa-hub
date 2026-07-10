@@ -9,7 +9,7 @@ echo "=== ULTIMOS 30 toggles de salavip (audit_log) ===\n\n";
 $stmt = $pdo->query("
     SELECT al.id, al.created_at, al.user_id, u.name AS user_name,
            al.entity_id AS case_id, cs.title AS case_title,
-           al.description, cs.salavip_ativo AS estado_atual
+           al.details AS description, cs.salavip_ativo AS estado_atual
     FROM audit_log al
     LEFT JOIN users u  ON u.id  = al.user_id
     LEFT JOIN cases cs ON cs.id = al.entity_id
@@ -29,7 +29,7 @@ $stmt = $pdo->query("
     SELECT a1.created_at AS ts1, a2.created_at AS ts2,
            a1.user_id, u.name AS user_name,
            a1.entity_id AS case_id, cs.title AS case_title,
-           a1.description AS desc1, a2.description AS desc2,
+           a1.details AS desc1, a2.details AS desc2,
            TIMESTAMPDIFF(SECOND, a1.created_at, a2.created_at) AS gap_segs
     FROM audit_log a1
     JOIN audit_log a2 ON a2.action='toggle_salavip'
