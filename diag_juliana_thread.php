@@ -39,7 +39,7 @@ echo "\n";
 // Central VIP tem conta ativa da Juliana?
 echo "-- Central VIP usuario da Juliana --\n";
 try {
-    $st = $pdo->query("SELECT id, cliente_id, cpf, email, nome_exibicao, ativo, ultimo_acesso, tentativas_login, bloqueado_ate, created_at FROM salavip_usuarios WHERE cliente_id = 881 OR cpf LIKE '%19902303773%'");
+    $st = $pdo->query("SELECT id, cliente_id, cpf, email, nome_exibicao, ativo, ultimo_acesso, tentativas_login, bloqueado_ate, criado_em FROM salavip_usuarios WHERE cliente_id = 881 OR cpf LIKE '%19902303773%' OR cpf LIKE '%199.023.037-73%'");
     $usrs = $st->fetchAll(PDO::FETCH_ASSOC);
     echo "Total: " . count($usrs) . "\n";
     foreach ($usrs as $u) {
