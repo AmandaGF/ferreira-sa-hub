@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         _cfg_set($pdo, 'jorjao_peticao_distribuida_ativo', !empty($_POST['peticao']) ? '1' : '0');
         _cfg_set($pdo, 'jorjao_prazo_cumprido_ativo',     !empty($_POST['prazo']) ? '1' : '0');
         _cfg_set($pdo, 'jorjao_novidade_hub_ativo',       !empty($_POST['novidade']) ? '1' : '0');
-        _cfg_set($pdo, 'jorjao_pasta_apta_ativa',         !empty($_POST['pasta_apta']) ? '1' : '0');
+        _cfg_set($pdo, 'jorjao_pasta_apta_ativo',         !empty($_POST['pasta_apta']) ? '1' : '0');
         _cfg_set($pdo, 'jorjao_resumo_diario_ativo',      !empty($_POST['resumo']) ? '1' : '0');
         $hora = (int)($_POST['resumo_hora'] ?? 19);
         if ($hora >= 0 && $hora <= 23) _cfg_set($pdo, 'jorjao_resumo_diario_hora', (string)$hora);
@@ -224,7 +224,7 @@ $cfgComemo = comemoracao_get_config(); // canal + grupo compartilhados
 $flagPeticao  = _cfg_get($pdo, 'jorjao_peticao_distribuida_ativo', '0') === '1';
 $flagPrazo    = _cfg_get($pdo, 'jorjao_prazo_cumprido_ativo', '0') === '1';
 $flagNovidade = _cfg_get($pdo, 'jorjao_novidade_hub_ativo', '1') === '1';
-$flagPastaApta = _cfg_get($pdo, 'jorjao_pasta_apta_ativa', '0') === '1';
+$flagPastaApta = _cfg_get($pdo, 'jorjao_pasta_apta_ativo', '0') === '1';
 $flagResumo   = _cfg_get($pdo, 'jorjao_resumo_diario_ativo', '0') === '1';
 $resumoHora   = (int)_cfg_get($pdo, 'jorjao_resumo_diario_hora', '19');
 $resumoMinMsgs = (int)_cfg_get($pdo, 'jorjao_resumo_diario_min_msgs', '5');

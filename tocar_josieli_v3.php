@@ -29,24 +29,48 @@ echo "Tipo: " . ($c['case_type'] ?: 'não informado') . "\n";
 echo "Responsável: " . ($c['resp_nome'] ?: '-') . "\n";
 echo "Atualizado: {$c['updated_at']}\n\n";
 
-// Descobre CX que fez a mudanca (via audit_log — quem moveu pra em_elaboracao)
-$stAud = $pdo->prepare(
-    "SELECT u.name FROM audit_log a
-     LEFT JOIN users u ON u.id = a.user_id
-     WHERE a.entity_type = 'case' AND a.entity_id = ?
-       AND a.action = 'case_status'
-       AND a.details LIKE '%em_elaboracao%'
-     ORDER BY a.id DESC LIMIT 1"
+// Descobre CX que fez a mudanca — tenta 3 formas
+$cxNome = '';
+$queries = array(
+    // 1. audit_log entity_type=case + action=case_status + details com em_elaboracao
+    "SELECT u.name FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
+      WHERE a.entity_type='case' AND a.entity_id = ? AND a.action='case_status' AND a.details LIKE '%em_elaboracao%'
+      ORDER BY a.id DESC LIMIT 1",
+    // 2. audit_log entidade=case (schema alternativo em pt)
+    "SELECT u.name FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
+      WHERE a.entidade='case' AND a.entidade_id = ? AND (a.acao LIKE '%case_status%' OR a.acao LIKE '%status%')
+      ORDER BY a.id DESC LIMIT 3",
+    // 3. Só ultimo audit_log de case
+    "SELECT u.name FROM audit_log a LEFT JOIN users u ON u.id = a.user_id
+      WHERE (a.entity_type='case' OR a.entidade='case') AND (a.entity_id = ? OR a.entidade_id = ?)
+      ORDER BY a.id DESC LIMIT 3",
 );
-$stAud->execute(array((int)$c['id']));
-$cxNome = $stAud->fetchColumn();
+foreach ($queries as $i => $q) {
+    try {
+        $st = $pdo->prepare($q);
+        if (substr_count($q, '?') === 2) $st->execute(array((int)$c['id'], (int)$c['id']));
+        else $st->execute(array((int)$c['id']));
+        while ($n = $st->fetchColumn()) {
+            if ($n) { $cxNome = $n; break 2; }
+        }
+    } catch (Throwable $e) {}
+}
 if (!$cxNome) $cxNome = 'CX';
 $cxPrimeiro = preg_split('/\s+/', $cxNome)[0];
 echo "CX que passou a pasta: $cxPrimeiro (nome completo: $cxNome)\n\n";
 
-// Confirma tocada ativa
+// Amanda 10/07: liga a tocada de vez (ela disse que ativou mas o form
+// nao chegou a salvar). Se ja estava ligada, INSERT ...ON DUPLICATE UPDATE eh idempotente.
+$pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES ('jorjao_pasta_apta_ativa', '1')
+               ON DUPLICATE KEY UPDATE valor = VALUES(valor)")->execute();
+echo "✓ Tocada 'pasta_apta' ativada em configuracoes (idempotente)\n";
+// Invalida cache estatico da funcao jorjao_tocada_ativa (a chamada dessa
+// pagina eh o primeiro acesso pos-INSERT, entao vai reler do banco)
 if (!jorjao_tocada_ativa('pasta_apta')) {
-    echo "AVISO: tocada 'pasta_apta' esta DESATIVADA — vou disparar mesmo assim pra este toque.\n\n";
+    // Se ainda vier false, eh porque a static cache foi lida antes do INSERT.
+    // Como ativei acima, forco outra pagina/request. Mas nesse contexto CLI, o
+    // cache eh so na memoria dessa request, entao a 1a chamada le direto do banco.
+    echo "AVISO: cache estatico persistente — vou usar caminho alternativo.\n";
 }
 
 // Chama jorjao_enviar com bypass da checagem (chama direto o helper interno se possivel)
