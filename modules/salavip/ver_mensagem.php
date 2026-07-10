@@ -260,9 +260,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $userName = $pdo->prepare("SELECT name FROM users WHERE id = ?");
             $userName->execute([current_user_id()]);
             $userName = $userName->fetchColumn() ?: 'Equipe';
-            $pdo->prepare("INSERT INTO salavip_mensagens (thread_id, origem, remetente_id, remetente_nome, mensagem, lida_equipe, lida_cliente, criado_em)
-                           VALUES (?, 'conecta', ?, ?, ?, 1, 0, NOW())")
-                ->execute(array($threadId, current_user_id(), $userName, '[Conversa fechada sem resposta] Motivo: ' . $motivo));
+            // Amanda 10/07/2026 (bug real): cliente_id nao estava sendo salvo,
+            // caia no default 0. Dashboard da Central VIP conta nao-lidas
+            // por cliente_id — cliente nao via badge, achava que nao havia
+            // resposta. Fix: incluir cliente_id do thread.
+            $pdo->prepare("INSERT INTO salavip_mensagens (thread_id, cliente_id, origem, remetente_id, remetente_nome, mensagem, lida_equipe, lida_cliente, criado_em)
+                           VALUES (?, ?, 'conecta', ?, ?, ?, 1, 0, NOW())")
+                ->execute(array($threadId, (int)$thread['cliente_id'], current_user_id(), $userName, '[Conversa fechada sem resposta] Motivo: ' . $motivo));
         }
         audit_log('salavip_thread_fechar', 'salavip_threads', $threadId, $motivo);
         flash_set('success', 'Conversa fechada.');
@@ -377,11 +381,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Amanda 10/07/2026 (bug real): cliente_id do thread NAO estava sendo
+        // gravado nas respostas da equipe, ficava 0. Isso quebrava o contador
+        // de nao-lidas do dashboard da Central VIP (que filtra WHERE cliente_id=?).
+        // Cliente nao via badge de nova mensagem e achava que nao havia resposta.
         $stmt = $pdo->prepare(
-            "INSERT INTO salavip_mensagens (thread_id, origem, remetente_id, remetente_nome, mensagem, anexo_path, anexo_nome, lida_equipe, lida_cliente, criado_em)
-             VALUES (?, 'conecta', ?, ?, ?, ?, ?, 1, 0, NOW())"
+            "INSERT INTO salavip_mensagens (thread_id, cliente_id, origem, remetente_id, remetente_nome, mensagem, anexo_path, anexo_nome, lida_equipe, lida_cliente, criado_em)
+             VALUES (?, ?, 'conecta', ?, ?, ?, ?, ?, 1, 0, NOW())"
         );
-        $stmt->execute([$threadId, current_user_id(), $userName, $mensagem, $anexo, $anexoNome]);
+        $stmt->execute([$threadId, (int)$thread['cliente_id'], current_user_id(), $userName, $mensagem, $anexo, $anexoNome]);
         $mensagemId = (int)$pdo->lastInsertId();
 
         // Amanda 08/06/2026: tracking dos processos incluidos via "Inserir status dos processos"
