@@ -843,7 +843,7 @@ if ($action === 'salvar') {
         // - audiencia presencial mudou data/titulo -> ATUALIZA lembrete existente
         // - deixou de ser audiencia presencial (mudou tipo/modalidade) -> CANCELA lembrete
         // O helper detecta sozinho qual acao tomar baseado em referencia_evento_id.
-        try { _agenda_sync_lembrete_audiencia($pdo, $id, $tipo, $modalidade, $dataInicio, $titulo, $clientId, $caseId, current_user_id()); }
+        try { _agenda_sync_lembrete_audiencia($pdo, $id, $tipo, $modalidade, $dataInicio, $titulo, $caseId, $clientId, current_user_id()); }
         catch (Throwable $eAud2) { @error_log('[audiencia auto-lembrete UPDATE] ' . $eAud2->getMessage()); }
 
         // Andamento de ALTERAÇÃO: quando data/hora/local/modalidade/link mudam
@@ -958,7 +958,7 @@ if ($action === 'salvar') {
 
             // AUDIENCIA PRESENCIAL: helper centralizado cria lembrete 15d antes.
             // Throwable em vez de Exception pra pegar fatal errors (TypeError, etc).
-            try { _agenda_sync_lembrete_audiencia($pdo, $newId, $tipo, $modalidade, $dataInicio, $titulo, $clientId, $caseId, current_user_id()); }
+            try { _agenda_sync_lembrete_audiencia($pdo, $newId, $tipo, $modalidade, $dataInicio, $titulo, $caseId, $clientId, current_user_id()); }
             catch (Throwable $eAud) { @error_log('[audiencia auto-lembrete INSERT] ' . $eAud->getMessage()); }
         } catch (Exception $e) {
             echo json_encode(array('error' => 'Erro BD: ' . $e->getMessage(), 'csrf' => $newCsrf));
