@@ -65,6 +65,7 @@ function _permission_defaults()
         'formularios'         => $todos,
         'relatorios'          => $todos,
         'executivo'           => array('admin','gestao'),
+        'ranking_clientes'    => array('admin','gestao'),
         'usuarios'            => array('admin'), // manter só admin
         'financeiro'          => $todos,
         'faturamento'         => $todos,
