@@ -3587,15 +3587,31 @@ switch ($action) {
         break;
 
     case 'toggle_salavip':
+        // Amanda 10/07/2026: agora aceita 'desired_state' (0/1) do form pra
+        // ser idempotente. Antes so invertia o valor atual do banco, o que
+        // quebrava em 2 cenarios:
+        //   1) tela mostrando estado stale (cache/PWA) -> clique invertia
+        //      o estado REAL do banco, nao o percebido pelo usuario;
+        //   2) duplo submit (double-click) -> 2 toggles se cancelam.
+        // Auditoria confirmou o padrao no historico: cases 1592, 848, 956,
+        // 926, 903 tiveram sequencias "Desativado -> Ativado" em <10s.
         $caseId = (int)($_POST['case_id'] ?? 0);
         if ($caseId && has_min_role('gestao')) {
             $stmtSv = $pdo->prepare("SELECT salavip_ativo FROM cases WHERE id = ?");
             $stmtSv->execute([$caseId]);
             $current = (int)$stmtSv->fetchColumn();
-            $new = $current ? 0 : 1;
-            $pdo->prepare("UPDATE cases SET salavip_ativo = ? WHERE id = ?")->execute([$new, $caseId]);
-            audit_log('toggle_salavip', 'case', $caseId, $new ? 'Ativado' : 'Desativado');
-            flash_set('success', $new ? 'Caso visível na Central VIP.' : 'Caso oculto da Central VIP.');
+            if (isset($_POST['desired_state'])) {
+                $new = (int)$_POST['desired_state'] ? 1 : 0;
+            } else {
+                $new = $current ? 0 : 1; // fallback legado
+            }
+            if ($new !== $current) {
+                $pdo->prepare("UPDATE cases SET salavip_ativo = ? WHERE id = ?")->execute([$new, $caseId]);
+                audit_log('toggle_salavip', 'case', $caseId, $new ? 'Ativado' : 'Desativado');
+                flash_set('success', $new ? 'Caso visível na Central VIP.' : 'Caso oculto da Central VIP.');
+            } else {
+                flash_set('success', $new ? 'Caso já está visível na Central VIP.' : 'Caso já está oculto.');
+            }
         }
         redirect_caso($caseId);
         break;

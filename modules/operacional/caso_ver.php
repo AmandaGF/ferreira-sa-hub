@@ -576,10 +576,13 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
     <!-- Inline: os mais usados -->
     <a href="<?= $voltarUrl ?>" class="btn btn-outline btn-sm">&larr; <?= $voltarLabel ?></a>
     <?php if (has_min_role('gestao')): ?>
-    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;">
+    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="var b=this.querySelector('button[type=submit]');if(b.disabled)return false;b.disabled=true;b.style.opacity='.6';">
         <?= csrf_input() ?>
         <input type="hidden" name="action" value="toggle_salavip">
         <input type="hidden" name="case_id" value="<?= $caseId ?>">
+        <!-- desired_state = oposto do estado atual mostrado. Backend usa isso
+             em vez de inverter cegamente, evitando bug de estado stale. -->
+        <input type="hidden" name="desired_state" value="<?= $case['salavip_ativo'] ? 0 : 1 ?>">
         <button type="submit" class="btn btn-primary btn-sm" style="background:<?= $case['salavip_ativo'] ? '#059669' : '#94a3b8' ?>;" title="<?= $case['salavip_ativo'] ? 'Visível na Central VIP — clique para ocultar' : 'Oculto da Central VIP — clique para tornar visível' ?>">
             <?= $case['salavip_ativo'] ? '🟢' : '⚪' ?> Central VIP
         </button>
