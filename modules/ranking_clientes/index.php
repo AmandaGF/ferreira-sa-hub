@@ -17,22 +17,37 @@ require_min_role('gestao');
 $pdo = db();
 $pageTitle = '🏆 Ranking de Clientes Engajados';
 
-// Periodo: mensal / anual / geral
-$periodo = $_GET['periodo'] ?? 'mensal';
-if (!in_array($periodo, array('mensal', 'anual', 'geral'), true)) $periodo = 'mensal';
-
-$hoje = date('Y-m-d');
-$dtRef = ($periodo === 'mensal') ? date('Y-m-01 00:00:00')
-       : (($periodo === 'anual') ? date('Y-01-01 00:00:00') : '2020-01-01 00:00:00');
-$dtLabel = ($periodo === 'mensal') ? mb_strtoupper(strftime_local(date('F Y')))
-         : (($periodo === 'anual') ? date('Y') : 'Sempre');
-
 function strftime_local($str) {
     $meses = array('January'=>'Janeiro','February'=>'Fevereiro','March'=>'Março','April'=>'Abril',
                    'May'=>'Maio','June'=>'Junho','July'=>'Julho','August'=>'Agosto',
                    'September'=>'Setembro','October'=>'Outubro','November'=>'Novembro','December'=>'Dezembro');
     return strtr($str, $meses);
 }
+
+// Amanda 10/07/2026: filtros de periodo com janelas mais uteis.
+// - '7d' e '30d' pra ver quem esta MUITO ativo agora
+// - 'mensal' ainda usa o mes civil corrente
+// - 'trimestre' ultimos 3 meses (janela deslizante)
+// - 'ano' ANO CIVIL corrente (janeiro-hoje)
+// - '12m' ultimos 12 meses (janela deslizante — util quando escritorio
+//   novo e nao tem historico completo)
+// - 'geral' desde sempre (sem filtro)
+$periodo = $_GET['periodo'] ?? 'mensal';
+$periodos = array('7d','30d','mensal','trimestre','ano','12m','geral');
+if (!in_array($periodo, $periodos, true)) $periodo = 'mensal';
+
+$hoje = date('Y-m-d');
+switch ($periodo) {
+    case '7d':        $dtRef = date('Y-m-d 00:00:00', strtotime('-6 days'));           $dtLabel = 'Últimos 7 dias'; break;
+    case '30d':       $dtRef = date('Y-m-d 00:00:00', strtotime('-29 days'));          $dtLabel = 'Últimos 30 dias'; break;
+    case 'trimestre': $dtRef = date('Y-m-d 00:00:00', strtotime('-90 days'));          $dtLabel = 'Últimos 3 meses'; break;
+    case 'ano':       $dtRef = date('Y-01-01 00:00:00');                                $dtLabel = 'Ano de ' . date('Y'); break;
+    case '12m':       $dtRef = date('Y-m-d 00:00:00', strtotime('-364 days'));          $dtLabel = 'Últimos 12 meses'; break;
+    case 'geral':     $dtRef = '2020-01-01 00:00:00';                                   $dtLabel = 'Desde sempre'; break;
+    case 'mensal':
+    default:          $dtRef = date('Y-m-01 00:00:00');                                 $dtLabel = mb_strtoupper(strftime_local(date('F Y'))); break;
+}
+$dtLabelRange = date('d/m/Y', strtotime($dtRef)) . ' → ' . date('d/m/Y');
 
 // ═══════════════════════════════════════════════════════════
 // COLETA DE DADOS
@@ -282,14 +297,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <h1>🏆 Ranking de Clientes Engajados</h1>
         <p class="lede">Quem mais interagiu com o escritório neste período. Bora premiar os campeões no final do ano com um mimo especial! 🎁</p>
         <div class="periodo-atual"><?= e($dtLabel) ?></div>
+        <div style="margin-top:.5rem;font-size:.72rem;opacity:.75;letter-spacing:.02em;">Janela: <?= e($dtLabelRange) ?></div>
     </div>
 
     <div class="rk-filtros">
+        <a href="?periodo=7d" class="rk-filtro-chip <?= $periodo === '7d' ? 'ativo' : '' ?>">🔥 7 dias</a>
+        <a href="?periodo=30d" class="rk-filtro-chip <?= $periodo === '30d' ? 'ativo' : '' ?>">📊 30 dias</a>
         <a href="?periodo=mensal" class="rk-filtro-chip <?= $periodo === 'mensal' ? 'ativo' : '' ?>">📅 Este mês</a>
-        <a href="?periodo=anual" class="rk-filtro-chip <?= $periodo === 'anual' ? 'ativo' : '' ?>">📆 Este ano</a>
+        <a href="?periodo=trimestre" class="rk-filtro-chip <?= $periodo === 'trimestre' ? 'ativo' : '' ?>">🗓️ 3 meses</a>
+        <a href="?periodo=ano" class="rk-filtro-chip <?= $periodo === 'ano' ? 'ativo' : '' ?>">📆 <?= date('Y') ?></a>
+        <a href="?periodo=12m" class="rk-filtro-chip <?= $periodo === '12m' ? 'ativo' : '' ?>">📈 12 meses</a>
         <a href="?periodo=geral" class="rk-filtro-chip <?= $periodo === 'geral' ? 'ativo' : '' ?>">🌍 Sempre</a>
         <span style="margin-left:auto;font-size:.72rem;color:#6b6559;font-style:italic;">
-            Cálculo = mensagens WhatsApp recebidas + chamados + Central VIP + balcões virtuais
+            Score = msg WA + chamados + Central VIP + balcões
         </span>
     </div>
 
