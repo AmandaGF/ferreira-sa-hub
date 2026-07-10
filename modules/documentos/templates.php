@@ -970,6 +970,12 @@ function template_habilitacao($d) {
     $nomeFilhos = isset($d['child_names']) && $d['child_names'] ? $d['child_names'] : '';
     $nomeParteContraria = isset($d['nome_parte_contraria']) && $d['nome_parte_contraria'] ? $d['nome_parte_contraria'] : '_______________';
     $papelCliente = isset($d['papel_cliente']) && $d['papel_cliente'] ? $d['papel_cliente'] : 'autor';
+    // Amanda 10/07/2026: 'representante_legal' vem do dropdown quando o cliente
+    // eh mae/pai representando menor. A PARTE nos autos eh o menor (autor) —
+    // representante_legal so descreve quem CONSTITUI a advogada, nao o polo.
+    // Portanto, normaliza pra 'autor' pro texto processual. O menor sendo
+    // representado ja aparece na qualificacao acima.
+    if ($papelCliente === 'representante_legal') $papelCliente = 'autor';
     // Flag setada pelo gerar.php quando o tipo é 'habilitacao_desarquivamento' —
     // adiciona pedido de desarquivamento + fundamentação + reordena pedidos
     $incluirDesarq = !empty($d['incluir_desarquivamento']);
