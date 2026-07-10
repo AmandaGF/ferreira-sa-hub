@@ -1483,13 +1483,15 @@ body.cv-polo-reu .cv-tabs-wrap { background:#fff5f6; border-color:#fecdd3; }
 body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
 </style>
 <?php
-// Amanda 10/07/2026: pre-carrega tickets do helpdesk vinculados ao case
-// ou ao cliente (avulsos, sem case_id). Ordenados: abertos primeiro, depois
-// por data recente. Badge com abertos + total.
+// Amanda 10/07/2026: pre-carrega chamados vinculados ao case ou cliente.
+// Duas fontes: tickets (helpdesk interno) + salavip_threads (Central VIP).
+// Ordenados: abertos primeiro, depois por data recente. Badge com abertos.
 $_helpdeskTickets = array();
 $_helpdeskBadge = 0;
 $_helpdeskAbertos = 0;
+$_cliId = (int)($case['client_id'] ?? 0);
 try {
+    // 1) Tickets do helpdesk interno
     $stHd = $pdo->prepare(
         "SELECT t.id, t.title, t.category, t.priority, t.status, t.due_date,
                 t.created_at, t.resolved_at, t.case_id, t.client_id, t.origem,
@@ -1499,18 +1501,56 @@ try {
          LEFT JOIN users u ON u.id = t.requester_id
          LEFT JOIN clients cl ON cl.id = t.client_id
          WHERE t.case_id = ?
-            OR (t.case_id IS NULL AND t.client_id = ? AND t.client_id > 0)
-         ORDER BY CASE WHEN t.status IN ('resolvido','cancelado') THEN 2 ELSE 1 END,
-                  t.created_at DESC
-         LIMIT 30"
+            OR (t.case_id IS NULL AND t.client_id = ? AND t.client_id > 0)"
     );
-    $stHd->execute(array($caseId, (int)($case['client_id'] ?? 0)));
-    $_helpdeskTickets = $stHd->fetchAll(PDO::FETCH_ASSOC);
-    $_helpdeskBadge = count($_helpdeskTickets);
-    foreach ($_helpdeskTickets as $_t) {
-        if (!in_array($_t['status'], array('resolvido','cancelado'), true)) $_helpdeskAbertos++;
+    $stHd->execute(array($caseId, $_cliId));
+    foreach ($stHd->fetchAll(PDO::FETCH_ASSOC) as $_r) {
+        $_r['_fonte'] = 'ticket';
+        $_r['_url'] = url('modules/helpdesk/ver.php?id=' . (int)$_r['id']);
+        $_helpdeskTickets[] = $_r;
     }
 } catch (Throwable $e) {}
+try {
+    // 2) Threads da Central VIP (salavip_threads) — a Amanda ve como 'chamados'.
+    // Mapeia status salavip pros equivalentes do helpdesk pra UI ficar consistente.
+    $stHd2 = $pdo->prepare(
+        "SELECT st.id, st.assunto AS title, 'Central VIP' AS category, 'normal' AS priority,
+                CASE st.status
+                    WHEN 'aberta' THEN 'aberto'
+                    WHEN 'respondida' THEN 'em_andamento'
+                    WHEN 'fechada' THEN 'resolvido'
+                    ELSE st.status
+                END AS status,
+                NULL AS due_date, NULL AS resolved_at,
+                st.processo_id AS case_id, st.cliente_id AS client_id,
+                'salavip' AS origem,
+                NULL AS requester_name,
+                cl2.name AS ticket_client_name,
+                st.criado_em AS created_at
+         FROM salavip_threads st
+         LEFT JOIN clients cl2 ON cl2.id = st.cliente_id
+         WHERE st.processo_id = ?
+            OR (st.processo_id IS NULL AND st.cliente_id = ? AND st.cliente_id > 0)"
+    );
+    $stHd2->execute(array($caseId, $_cliId));
+    foreach ($stHd2->fetchAll(PDO::FETCH_ASSOC) as $_r) {
+        $_r['_fonte'] = 'thread';
+        $_r['_url'] = url('modules/salavip/ver_mensagem.php?thread_id=' . (int)$_r['id']);
+        $_helpdeskTickets[] = $_r;
+    }
+} catch (Throwable $e) {}
+// Ordena: abertos primeiro, mais recentes primeiro
+usort($_helpdeskTickets, function($a, $b) {
+    $aFechado = in_array($a['status'], array('resolvido','cancelado'), true) ? 1 : 0;
+    $bFechado = in_array($b['status'], array('resolvido','cancelado'), true) ? 1 : 0;
+    if ($aFechado !== $bFechado) return $aFechado - $bFechado;
+    return strcmp((string)$b['created_at'], (string)$a['created_at']);
+});
+if (count($_helpdeskTickets) > 30) $_helpdeskTickets = array_slice($_helpdeskTickets, 0, 30);
+$_helpdeskBadge = count($_helpdeskTickets);
+foreach ($_helpdeskTickets as $_t) {
+    if (!in_array($_t['status'], array('resolvido','cancelado'), true)) $_helpdeskAbertos++;
+}
 
 // Amanda 09/07/2026: pre-computa count de prazos em aberto pro badge no tab
 $_prazosBadge = 0;
@@ -2673,7 +2713,8 @@ try {
       foreach ($_helpdeskTickets as $_hd):
           $_stCfg = $_stMap[$_hd['status']] ?? array('#f1f5f9', '#334155', '#94a3b8', strtoupper($_hd['status']));
           $_prCfg = $_prioMap[$_hd['priority']] ?? null;
-          $_ticketUrl = url('modules/helpdesk/ver.php?id=' . (int)$_hd['id']);
+          // Amanda 10/07/2026: URL vem de _url pre-computado (pode ser helpdesk ou salavip)
+          $_ticketUrl = $_hd['_url'] ?? url('modules/helpdesk/ver.php?id=' . (int)$_hd['id']);
           $_avulso = empty($_hd['case_id']);
       ?>
       <div style="border-left:4px solid <?= $_stCfg[2] ?>;background:#fff;border:1px solid var(--border);border-radius:8px;padding:.7rem .9rem;margin-bottom:.5rem;">
