@@ -26,6 +26,24 @@ foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
     echo "     title: $r[title]\n";
 }
 
+echo "\n-- salavip_threads Juliana / quebra de sigilo --\n";
+try {
+    $st = $pdo->query("SELECT t.*, c.name AS cli_nome FROM salavip_threads t LEFT JOIN clients c ON c.id = t.cliente_id WHERE t.assunto LIKE '%quebra%sigilo%' OR t.assunto LIKE '%sigilo%' OR c.name LIKE '%Juliana%Ferreira%'");
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        echo str_repeat('-',60)."\n";
+        foreach ($r as $k=>$v) if ($v !== null && $v !== '') echo str_pad($k,25).": $v\n";
+    }
+} catch (Throwable $e) { echo "ERRO: " . $e->getMessage() . "\n"; }
+
+echo "\n-- Ultimas 10 salavip_threads --\n";
+try {
+    $st = $pdo->query("SELECT t.id, t.cliente_id, t.assunto, t.status, t.categoria, t.processo_id, t.criado_em, c.name AS cli_nome FROM salavip_threads t LEFT JOIN clients c ON c.id = t.cliente_id ORDER BY t.criado_em DESC LIMIT 10");
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        echo "  #$r[id] cli=#$r[cliente_id] ($r[cli_nome]) proc=" . ($r['processo_id']?:'NULL') . " status=$r[status] cat=$r[categoria] em=$r[criado_em]\n";
+        echo "     assunto: $r[assunto]\n";
+    }
+} catch (Throwable $e) { echo "ERRO: " . $e->getMessage() . "\n"; }
+
 echo "\n-- Colunas da tabela tickets --\n";
 $cols = $pdo->query("SHOW COLUMNS FROM tickets")->fetchAll(PDO::FETCH_COLUMN, 0);
 echo implode(', ', $cols) . "\n";
