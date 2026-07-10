@@ -83,6 +83,8 @@ $links = array(
     array('Tribunais - Sudeste', 'TJRJ — Rio de Janeiro — Portal de Serviços (DCP/legado)', 'https://www3.tjrj.jus.br/portalservicos/', 'Portal de Serviços legado do TJRJ — 1º Grau'),
     array('Tribunais - Sudeste', 'TJRJ — Rio de Janeiro — IdServerJus', 'https://www3.tjrj.jus.br/idserverjus-front/', 'Autenticação institucional do TJRJ'),
     array('Tribunais - Sudeste', 'TJSP — São Paulo — e-SAJ (1º/2º Grau)', 'https://esaj.tjsp.jus.br/sajcas/login', 'Tribunal de Justiça de SP — e-SAJ'),
+    array('Tribunais - Sudeste', 'TJSP — São Paulo — e-Proc 1º Grau', 'https://eproc1g.tjsp.jus.br/eproc', 'e-Proc TJSP — 1º Grau (novo sistema)'),
+    array('Tribunais - Sudeste', 'TJSP — São Paulo — e-Proc 2º Grau', 'https://eproc2g.tjsp.jus.br/eproc', 'e-Proc TJSP — 2º Grau (novo sistema)'),
 
     // ════════ SUL (PR, RS, SC) ════════
     array('Tribunais - Sul', 'TJPR — Paraná — Projudi 1º Grau', 'https://projudi.tjpr.jus.br/projudi/', 'Projudi TJPR — 1º Grau'),
