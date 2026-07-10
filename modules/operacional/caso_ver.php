@@ -1483,6 +1483,33 @@ body.cv-polo-reu .cv-tabs-wrap { background:#fff5f6; border-color:#fecdd3; }
 body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
 </style>
 <?php
+// Amanda 10/07/2026: pre-carrega tickets do helpdesk vinculados ao case
+// ou ao cliente (avulsos, sem case_id). Ordenados: abertos primeiro, depois
+// por data recente. Badge com abertos + total.
+$_helpdeskTickets = array();
+$_helpdeskBadge = 0;
+$_helpdeskAbertos = 0;
+try {
+    $stHd = $pdo->prepare(
+        "SELECT t.id, t.title, t.category, t.priority, t.status, t.due_date,
+                t.created_at, t.resolved_at, t.case_id, t.client_id,
+                u.name AS requester_name
+         FROM tickets t
+         LEFT JOIN users u ON u.id = t.requester_id
+         WHERE t.case_id = ?
+            OR (t.case_id IS NULL AND t.client_id = ? AND t.client_id > 0)
+         ORDER BY CASE WHEN t.status IN ('resolvido','cancelado') THEN 2 ELSE 1 END,
+                  t.created_at DESC
+         LIMIT 30"
+    );
+    $stHd->execute(array($caseId, (int)($case['client_id'] ?? 0)));
+    $_helpdeskTickets = $stHd->fetchAll(PDO::FETCH_ASSOC);
+    $_helpdeskBadge = count($_helpdeskTickets);
+    foreach ($_helpdeskTickets as $_t) {
+        if (!in_array($_t['status'], array('resolvido','cancelado'), true)) $_helpdeskAbertos++;
+    }
+} catch (Throwable $e) {}
+
 // Amanda 09/07/2026: pre-computa count de prazos em aberto pro badge no tab
 $_prazosBadge = 0;
 try {
@@ -1528,6 +1555,7 @@ try {
     <button type="button" class="cv-tab" data-aba="incidentais" onclick="cvAba('incidentais')">📎 Incidentais</button>
     <button type="button" class="cv-tab" data-aba="formularios" onclick="cvAba('formularios')">📝 Formulários<?php if (!empty($_formsCliente)): ?> <span class="cv-tab-badge"><?= count($_formsCliente) ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="gerid" onclick="cvAba('gerid')">🔎 GERID<?php if ($_geridBadge > 0): ?> <span class="cv-tab-badge" style="<?= $_geridPendCount > 0 ? 'background:#fbbf24;color:#78350f;' : '' ?>" title="<?= $_geridPendCount > 0 ? ($_geridPendCount . ' pendente(s), ' . $_geridBadge . ' total') : 'Total de pesquisas' ?>"><?= $_geridBadge ?></span><?php endif; ?></button>
+    <button type="button" class="cv-tab" data-aba="helpdesk" onclick="cvAba('helpdesk')">🎫 Helpdesk<?php if ($_helpdeskBadge > 0): ?> <span class="cv-tab-badge" style="<?= $_helpdeskAbertos > 0 ? 'background:#dc2626;color:#fff;' : '' ?>" title="<?= $_helpdeskAbertos > 0 ? ($_helpdeskAbertos . ' aberto(s), ' . $_helpdeskBadge . ' total') : 'Total de chamados' ?>"><?= $_helpdeskAbertos > 0 ? $_helpdeskAbertos : $_helpdeskBadge ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="treinamentos" onclick="cvAba('treinamentos')">🎓 Treinamentos<?php if (!empty($_treinamentosCase)): ?> <span class="cv-tab-badge"><?= count($_treinamentosCase) ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="ia" onclick="cvAba('ia')">🧠 IA</button>
     <button type="button" class="cv-header-toggle" onclick="cvHeaderToggle()" style="margin-left:auto;" title="Minimizar/expandir cabeçalho do caso">▲ header</button>
@@ -2607,6 +2635,79 @@ try {
               <?php endif; ?>
           <?php endif; ?>
           <a href="<?= module_url('gerid') ?>#pesquisa-<?= (int)$_gr['id'] ?>" style="color:#0e7490;text-decoration:none;font-weight:600;margin-left:auto;">abrir no módulo GERID →</a>
+        </div>
+      </div>
+      <?php endforeach; ?>
+    <?php endif; ?>
+  </div>
+</div>
+
+<!-- Amanda 10/07/2026: aba Helpdesk — chamados vinculados ao case ou ao cliente -->
+<div class="card mb-2 cv-secao" data-aba="helpdesk" id="cv-helpdesk">
+  <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
+    <h3 style="margin:0;">🎫 Chamados do Helpdesk (<?= $_helpdeskBadge ?><?= $_helpdeskAbertos > 0 ? ' · <span style="color:#dc2626;">' . $_helpdeskAbertos . ' aberto' . ($_helpdeskAbertos > 1 ? 's' : '') . '</span>' : '' ?>)</h3>
+    <?php $_novoTicketHref = url('modules/helpdesk/novo.php?case_id=' . $caseId . (!empty($case['client_id']) ? '&client_id=' . (int)$case['client_id'] : '')); ?>
+    <a href="<?= e($_novoTicketHref) ?>" class="btn btn-sm" style="background:#059669;color:#fff;border:none;font-size:.78rem;">➕ Abrir chamado</a>
+  </div>
+  <div class="card-body" style="padding:.6rem 1rem 1rem;">
+    <?php if (empty($_helpdeskTickets)): ?>
+      <p style="color:#666;font-size:.88rem;margin:.5rem 0;">Nenhum chamado do Helpdesk vinculado a este caso ou cliente.</p>
+      <p style="font-size:.78rem;color:#888;margin:0;">Use <strong>➕ Abrir chamado</strong> pra reportar bug, pedir suporte técnico ou registrar demanda vinculada a este caso.</p>
+    <?php else: ?>
+      <?php
+      $_stMap = array(
+          'aberto' => array('#fee2e2', '#991b1b', '#dc2626', '🔴 ABERTO'),
+          'em_andamento' => array('#fef3c7', '#78350f', '#f59e0b', '🟡 EM ANDAMENTO'),
+          'aguardando' => array('#e0e7ff', '#3730a3', '#6366f1', '⏸ AGUARDANDO'),
+          'resolvido' => array('#dcfce7', '#166534', '#059669', '✅ RESOLVIDO'),
+          'cancelado' => array('#f1f5f9', '#64748b', '#94a3b8', '⊘ CANCELADO'),
+      );
+      $_prioMap = array(
+          'baixa' => array('#f0f9ff', '#0369a1', 'Baixa'),
+          'media' => array('#fef3c7', '#78350f', 'Média'),
+          'alta' => array('#fee2e2', '#991b1b', 'Alta'),
+          'urgente' => array('#7f1d1d', '#fff', 'URGENTE'),
+      );
+      foreach ($_helpdeskTickets as $_hd):
+          $_stCfg = $_stMap[$_hd['status']] ?? array('#f1f5f9', '#334155', '#94a3b8', strtoupper($_hd['status']));
+          $_prCfg = $_prioMap[$_hd['priority']] ?? null;
+          $_ticketUrl = url('modules/helpdesk/ver.php?id=' . (int)$_hd['id']);
+          $_avulso = empty($_hd['case_id']);
+      ?>
+      <div style="border-left:4px solid <?= $_stCfg[2] ?>;background:#fff;border:1px solid var(--border);border-radius:8px;padding:.7rem .9rem;margin-bottom:.5rem;">
+        <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.35rem;">
+          <span style="font-size:.68rem;font-weight:700;background:<?= $_stCfg[0] ?>;color:<?= $_stCfg[1] ?>;padding:2px 8px;border-radius:4px;"><?= $_stCfg[3] ?></span>
+          <?php if ($_prCfg): ?>
+            <span style="font-size:.65rem;font-weight:700;background:<?= $_prCfg[0] ?>;color:<?= $_prCfg[1] ?>;padding:2px 7px;border-radius:4px;text-transform:uppercase;letter-spacing:.03em;"><?= $_prCfg[2] ?></span>
+          <?php endif; ?>
+          <span style="font-size:.65rem;color:#64748b;font-family:monospace;">#<?= (int)$_hd['id'] ?></span>
+          <?php if ($_avulso): ?>
+            <span style="font-size:.6rem;color:#c2410c;background:#fff7ed;padding:1px 6px;border-radius:3px;border:1px solid #fdba74;" title="Chamado vinculado ao cliente mas não a este case específico">📌 do cliente</span>
+          <?php endif; ?>
+        </div>
+        <div style="font-size:.9rem;font-weight:700;color:var(--petrol-900);margin-bottom:.25rem;line-height:1.3;">
+          <a href="<?= e($_ticketUrl) ?>" style="color:inherit;text-decoration:none;"><?= e($_hd['title']) ?></a>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:.75rem;font-size:.7rem;color:#64748b;align-items:center;">
+          <?php if (!empty($_hd['category'])): ?>
+            <span title="Categoria">📂 <?= e($_hd['category']) ?></span>
+          <?php endif; ?>
+          <?php if (!empty($_hd['requester_name'])): ?>
+            <span title="Solicitante">📝 Aberto por <?= e(explode(' ', $_hd['requester_name'])[0]) ?></span>
+          <?php endif; ?>
+          <span title="Criado em">🕐 <?= date('d/m/Y', strtotime($_hd['created_at'])) ?></span>
+          <?php if (!empty($_hd['due_date'])):
+            $_diasVenc = (int)((strtotime($_hd['due_date']) - strtotime('today')) / 86400);
+            $_corVenc = $_diasVenc < 0 ? '#dc2626' : ($_diasVenc <= 2 ? '#f59e0b' : '#059669');
+          ?>
+            <span style="color:<?= $_corVenc ?>;font-weight:600;" title="Prazo do chamado">
+              ⏰ <?= $_diasVenc < 0 ? 'Venceu há ' . abs($_diasVenc) . 'd' : ($_diasVenc === 0 ? 'HOJE' : 'Em ' . $_diasVenc . 'd') ?>
+            </span>
+          <?php endif; ?>
+          <?php if (!empty($_hd['resolved_at'])): ?>
+            <span style="color:#059669;font-weight:600;">✓ Resolvido em <?= date('d/m/Y', strtotime($_hd['resolved_at'])) ?></span>
+          <?php endif; ?>
+          <a href="<?= e($_ticketUrl) ?>" style="color:#0e7490;text-decoration:none;font-weight:600;margin-left:auto;">abrir chamado →</a>
         </div>
       </div>
       <?php endforeach; ?>
@@ -8616,7 +8717,7 @@ window.pedirObsRealizado = function(form) {
         else if (polo === 'autor') document.body.classList.add('cv-polo-autor');
         // Aba inicial: hash da URL ou 'visao'
         var hashAba = (location.hash || '').replace('#', '');
-        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','gerid','treinamentos','ia'];
+        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','gerid','helpdesk','treinamentos','ia'];
         cvAba(abasValidas.indexOf(hashAba) !== -1 ? hashAba : 'visao');
         // Hash change (botão voltar do navegador, links externos)
         window.addEventListener('hashchange', function() {
