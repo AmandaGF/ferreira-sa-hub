@@ -74,9 +74,12 @@ define('DJEN_INGEST_URL', 'https://ferreiraesa.com.br/conecta/api/djen_ingest.ph
 // Quando tudo ocorre bem, silêncio total (não vira spam).
 // Amanda 10/07/2026: incluida no envio pra receber o email diario de recortes
 // (nao chegava antes porque so ia pra andamentosfes@gmail.com).
+// Amanda 10/07/2026 (tarde): adicionados Luiz Eduardo e Carina.
 define('EMAIL_ALERTAS', array(
     'andamentosfes@gmail.com',
     'amandaguedesferreira@gmail.com',
+    'luizeduardo.sa.adv@gmail.com',
+    'carinacastro@ferreiraesa.com.br',
 ));
 
 // Remetente "técnico" dos e-mails automáticos do Claudin.
