@@ -4442,9 +4442,11 @@ if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('chat_caso')):
                 </select>
                 <?php elseif ($isSelect):
                     $opcoes = $selectOptsMap[$cp['field']];
-                    $extraOnChange = ($cp['field'] === 'comarca_uf') ? '_atualizarRegionaisCv();' : '';
+                    $extraOnChange = ($cp['field'] === 'comarca_uf') ? '_atualizarRegionaisCv(); _cvCarregarCidadesIBGE(this.value);' : '';
+                    $selectId = ($cp['field'] === 'comarca_uf') ? 'cvCampoUf' : '';
                 ?>
                 <select data-id="<?= $caseId ?>" data-field="<?= $cp['field'] ?>"
+                        <?= $selectId ? 'id="' . $selectId . '"' : '' ?>
                         onchange="salvarCampoProcesso(this); <?= $extraOnChange ?>"
                         style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;cursor:pointer;"
                         onfocus="this.style.background='#eff6ff';this.style.borderRadius='4px'"
@@ -4460,8 +4462,10 @@ if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('chat_caso')):
                 <?php elseif ($isDataList):
                     $listId = $cp['field'] === 'comarca' ? 'dlComarcasCv' : 'dlVarasCv';
                     $extraOnChange = ($cp['field'] === 'comarca') ? '_atualizarRegionaisCv();' : '';
+                    $inputId = ($cp['field'] === 'comarca') ? 'cvCampoComarca' : '';
                 ?>
                 <input type="text" value="<?= e($cp['value']) ?>"
+                       <?= $inputId ? 'id="' . $inputId . '"' : '' ?>
                        data-id="<?= $caseId ?>" data-field="<?= $cp['field'] ?>"
                        list="<?= $listId ?>" autocomplete="off"
                        onchange="salvarCampoProcesso(this); <?= $extraOnChange ?>"
@@ -4512,6 +4516,54 @@ if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('chat_caso')):
         <datalist id="dlVarasCv">
             <?php foreach ($varasExistentes as $_va): ?><option value="<?= e($_va) ?>"><?php endforeach; ?>
         </datalist>
+        <!-- Amanda 10/07/2026: autocomplete de cidades via API IBGE.
+             Ao selecionar UF, carrega municipios daquele estado no datalist
+             de comarca. Cache em memoria evita re-fetch. Preserva comarcas
+             legadas ja no datalist (nao apaga). -->
+        <script>
+        (function(){
+            var cacheUf = {};
+            var comarcaLegadas = [];
+            var dl = document.getElementById('dlComarcasCv');
+            if (dl) {
+                Array.prototype.forEach.call(dl.querySelectorAll('option'), function(o){
+                    if (o.value) comarcaLegadas.push(o.value);
+                });
+            }
+            function repovoar(uf) {
+                if (!dl) return;
+                var cidades = cacheUf[uf] || [];
+                var conj = {};
+                comarcaLegadas.forEach(function(v){ conj[v] = true; });
+                cidades.forEach(function(v){ conj[v] = true; });
+                var nomes = Object.keys(conj).sort(function(a,b){
+                    return a.localeCompare(b, 'pt-BR', {sensitivity:'base'});
+                });
+                dl.innerHTML = '';
+                nomes.forEach(function(v){
+                    var o = document.createElement('option');
+                    o.value = v;
+                    dl.appendChild(o);
+                });
+            }
+            window._cvCarregarCidadesIBGE = function(uf) {
+                uf = (uf || '').toUpperCase().trim();
+                if (!uf || !/^[A-Z]{2}$/.test(uf)) return;
+                if (cacheUf[uf]) { repovoar(uf); return; }
+                fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados/' + uf + '/municipios?orderBy=nome')
+                    .then(function(r){ return r.json(); })
+                    .then(function(arr){
+                        if (!Array.isArray(arr)) return;
+                        cacheUf[uf] = arr.map(function(m){ return m.nome; });
+                        repovoar(uf);
+                    })
+                    .catch(function(){ /* offline / bloqueado — silencioso, legadas continuam disponiveis */ });
+            };
+            // Dispara na carga se ja tem UF preenchida
+            var sel = document.getElementById('cvCampoUf');
+            if (sel && sel.value) window._cvCarregarCidadesIBGE(sel.value);
+        })();
+        </script>
 
         <!-- Competência (multi-select) + Vara mista -->
         <?php
