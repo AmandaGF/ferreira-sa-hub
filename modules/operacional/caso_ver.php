@@ -1492,10 +1492,12 @@ $_helpdeskAbertos = 0;
 try {
     $stHd = $pdo->prepare(
         "SELECT t.id, t.title, t.category, t.priority, t.status, t.due_date,
-                t.created_at, t.resolved_at, t.case_id, t.client_id,
-                u.name AS requester_name
+                t.created_at, t.resolved_at, t.case_id, t.client_id, t.origem,
+                u.name AS requester_name,
+                cl.name AS ticket_client_name
          FROM tickets t
          LEFT JOIN users u ON u.id = t.requester_id
+         LEFT JOIN clients cl ON cl.id = t.client_id
          WHERE t.case_id = ?
             OR (t.case_id IS NULL AND t.client_id = ? AND t.client_id > 0)
          ORDER BY CASE WHEN t.status IN ('resolvido','cancelado') THEN 2 ELSE 1 END,
@@ -2684,6 +2686,9 @@ try {
           <?php if ($_avulso): ?>
             <span style="font-size:.6rem;color:#c2410c;background:#fff7ed;padding:1px 6px;border-radius:3px;border:1px solid #fdba74;" title="Chamado vinculado ao cliente mas não a este case específico">📌 do cliente</span>
           <?php endif; ?>
+          <?php if (($_hd['origem'] ?? '') === 'salavip'): ?>
+            <span style="font-size:.6rem;color:#6d28d9;background:#f5f3ff;padding:1px 6px;border-radius:3px;border:1px solid #c4b5fd;" title="Chamado aberto pelo(a) cliente na Central VIP">🔒 via Central VIP</span>
+          <?php endif; ?>
         </div>
         <div style="font-size:.9rem;font-weight:700;color:var(--petrol-900);margin-bottom:.25rem;line-height:1.3;">
           <a href="<?= e($_ticketUrl) ?>" style="color:inherit;text-decoration:none;"><?= e($_hd['title']) ?></a>
@@ -2692,9 +2697,16 @@ try {
           <?php if (!empty($_hd['category'])): ?>
             <span title="Categoria">📂 <?= e($_hd['category']) ?></span>
           <?php endif; ?>
-          <?php if (!empty($_hd['requester_name'])): ?>
-            <span title="Solicitante">📝 Aberto por <?= e(explode(' ', $_hd['requester_name'])[0]) ?></span>
-          <?php endif; ?>
+          <?php
+          // Amanda 10/07/2026: se veio da Central VIP, requester_id eh NULL —
+          // mostra o nome do cliente que abriu em vez de deixar em branco.
+          $_hdOrigem = $_hd['origem'] ?? '';
+          if (!empty($_hd['requester_name'])) {
+              echo '<span title="Solicitante">📝 Aberto por ' . e(explode(' ', $_hd['requester_name'])[0]) . '</span>';
+          } elseif ($_hdOrigem === 'salavip' && !empty($_hd['ticket_client_name'])) {
+              echo '<span title="Aberto pelo(a) cliente na Central VIP">🔒 Aberto por ' . e(explode(' ', $_hd['ticket_client_name'])[0]) . ' <em style="opacity:.7;">(cliente)</em></span>';
+          }
+          ?>
           <span title="Criado em">🕐 <?= date('d/m/Y', strtotime($_hd['created_at'])) ?></span>
           <?php if (!empty($_hd['due_date'])):
             $_diasVenc = (int)((strtotime($_hd['due_date']) - strtotime('today')) / 86400);
