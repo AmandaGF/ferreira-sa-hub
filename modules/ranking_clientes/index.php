@@ -53,19 +53,25 @@ $dtLabelRange = date('d/m/Y', strtotime($dtRef)) . ' → ' . date('d/m/Y');
 // COLETA DE DADOS
 // ═══════════════════════════════════════════════════════════
 
-$scores = array(); // client_id => ['msg' => X, 'ticket' => Y, 'thread' => Z, 'balcao' => W]
+$scores = array(); // client_id => ['msg' => X, 'dias_ativos' => Y, 'ticket' => Z, 'thread' => W, 'balcao' => V]
 
 function _acc(&$scores, $cid, $tipo, $qtd) {
     if (!$cid) return;
     $cid = (int)$cid;
-    if (!isset($scores[$cid])) $scores[$cid] = array('msg'=>0,'ticket'=>0,'thread'=>0,'balcao'=>0);
+    if (!isset($scores[$cid])) $scores[$cid] = array('msg'=>0,'dias_ativos'=>0,'ticket'=>0,'thread'=>0,'balcao'=>0);
     $scores[$cid][$tipo] += (int)$qtd;
 }
 
-// 1. Mensagens WhatsApp RECEBIDAS (direção=recebida) — cliente mandou pra nós
+// Total de dias no periodo — pra mostrar "X de Y dias ativa"
+$_totalDiasPeriodo = max(1, (int)((strtotime(date('Y-m-d 23:59:59')) - strtotime($dtRef)) / 86400) + 1);
+
+// 1. Mensagens WhatsApp RECEBIDAS (direção=recebida) — cliente mandou pra nós.
+// Amanda 10/07: alem do total, tambem coleta DIAS DISTINTOS com mensagem
+// (COUNT DISTINCT DATE) — diferencia cliente que manda 100 msgs num dia so
+// (spike) do que manda todo dia (frequente/persistente).
 try {
     $st = $pdo->prepare(
-        "SELECT co.client_id, COUNT(m.id) AS n
+        "SELECT co.client_id, COUNT(m.id) AS n, COUNT(DISTINCT DATE(m.created_at)) AS dias
          FROM zapi_mensagens m
          JOIN zapi_conversas co ON co.id = m.conversa_id
          WHERE m.direcao = 'recebida'
@@ -74,7 +80,10 @@ try {
          GROUP BY co.client_id"
     );
     $st->execute(array($dtRef));
-    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) _acc($scores, $r['client_id'], 'msg', $r['n']);
+    foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        _acc($scores, $r['client_id'], 'msg', $r['n']);
+        _acc($scores, $r['client_id'], 'dias_ativos', $r['dias']);
+    }
 } catch (Exception $e) {}
 
 // 2. Chamados abertos no helpdesk (equipe abriu em nome do cliente OU cliente via chamados.php antigo)
@@ -113,7 +122,7 @@ try {
     foreach ($st->fetchAll(PDO::FETCH_ASSOC) as $r) _acc($scores, $r['client_id'], 'balcao', $r['n']);
 } catch (Exception $e) {}
 
-// Ordenar por score total DESC
+// Ordenar por score total DESC (dias_ativos entra so como metrica de exibicao)
 $ranking = array();
 foreach ($scores as $cid => $s) {
     $total = $s['msg'] + $s['ticket'] + $s['thread'] + $s['balcao'];
@@ -136,6 +145,8 @@ if ($topIds) {
 // KPIs gerais
 $totalClientes = count($ranking);
 $totalMsg = array_sum(array_column($ranking, 'msg'));
+$totalDiasAtivos = array_sum(array_column($ranking, 'dias_ativos'));
+$mediaDiasAtivos = $totalClientes > 0 ? round($totalDiasAtivos / $totalClientes, 1) : 0;
 $totalTicket = array_sum(array_column($ranking, 'ticket'));
 $totalThread = array_sum(array_column($ranking, 'thread'));
 $totalBalcao = array_sum(array_column($ranking, 'balcao'));
@@ -331,6 +342,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div class="rk-kpi-num"><?= number_format($totalMsg, 0, ',', '.') ?></div>
             <div class="rk-kpi-lbl">💬 Mensagens WA</div>
         </div>
+        <div class="rk-kpi" title="Média de dias diferentes que os top clientes mandaram mensagem no período. Média mais alta = clientes MUITO persistentes.">
+            <div class="rk-kpi-num"><?= number_format($mediaDiasAtivos, 1, ',', '.') ?></div>
+            <div class="rk-kpi-lbl">📆 Média dias ativos</div>
+        </div>
         <div class="rk-kpi">
             <div class="rk-kpi-num"><?= number_format($totalTicket + $totalThread, 0, ',', '.') ?></div>
             <div class="rk-kpi-lbl">🎫 Chamados</div>
@@ -363,10 +378,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div class="rk-pod-lbl">Score total</div>
             <div class="rk-pod-score"><?= number_format($r['total'], 0, ',', '.') ?></div>
             <div class="rk-pod-breakdown">
-                <?php if ($r['msg']): ?><span class="rk-pod-b">💬 <?= $r['msg'] ?></span><?php endif; ?>
-                <?php if ($r['ticket']): ?><span class="rk-pod-b">🎫 <?= $r['ticket'] ?></span><?php endif; ?>
-                <?php if ($r['thread']): ?><span class="rk-pod-b">🔒 <?= $r['thread'] ?></span><?php endif; ?>
-                <?php if ($r['balcao']): ?><span class="rk-pod-b">🏛️ <?= $r['balcao'] ?></span><?php endif; ?>
+                <?php if ($r['msg']): ?><span class="rk-pod-b" title="<?= $r['msg'] ?> mensagens WhatsApp recebidas">💬 <?= $r['msg'] ?></span><?php endif; ?>
+                <?php if (!empty($r['dias_ativos'])): ?><span class="rk-pod-b" title="Mandou mensagem em <?= $r['dias_ativos'] ?> dias diferentes (do total de <?= $_totalDiasPeriodo ?> no período)">📆 <?= $r['dias_ativos'] ?>d</span><?php endif; ?>
+                <?php if ($r['ticket']): ?><span class="rk-pod-b" title="Chamados no helpdesk">🎫 <?= $r['ticket'] ?></span><?php endif; ?>
+                <?php if ($r['thread']): ?><span class="rk-pod-b" title="Chamados na Central VIP">🔒 <?= $r['thread'] ?></span><?php endif; ?>
+                <?php if ($r['balcao']): ?><span class="rk-pod-b" title="Compareceu em balcão virtual">🏛️ <?= $r['balcao'] ?></span><?php endif; ?>
             </div>
         </div>
         <?php endforeach; ?>
@@ -391,7 +407,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div>
                 <div class="rk-item-nome"><?= e($c['name']) ?></div>
                 <div class="rk-item-breakdown">
-                    <?php if ($r['msg']): ?><span>💬 <?= $r['msg'] ?> msg</span><?php endif; ?>
+                    <?php if ($r['msg']): ?><span title="Mensagens WA recebidas">💬 <?= $r['msg'] ?> msg</span><?php endif; ?>
+                    <?php if (!empty($r['dias_ativos'])): ?>
+                        <?php $_pct = $_totalDiasPeriodo > 0 ? round(($r['dias_ativos'] / $_totalDiasPeriodo) * 100) : 0; ?>
+                        <span title="Mandou mensagem em <?= $r['dias_ativos'] ?> dias diferentes de <?= $_totalDiasPeriodo ?> no período — <?= $_pct ?>% dos dias" style="color:#0e7490;font-weight:600;">📆 <?= $r['dias_ativos'] ?>/<?= $_totalDiasPeriodo ?>d</span>
+                    <?php endif; ?>
                     <?php if ($r['ticket']): ?><span>🎫 <?= $r['ticket'] ?> chamado<?= $r['ticket']>1?'s':'' ?></span><?php endif; ?>
                     <?php if ($r['thread']): ?><span>🔒 <?= $r['thread'] ?> Central VIP</span><?php endif; ?>
                     <?php if ($r['balcao']): ?><span>🏛️ <?= $r['balcao'] ?> balcão</span><?php endif; ?>
