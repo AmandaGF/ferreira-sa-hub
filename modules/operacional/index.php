@@ -114,7 +114,10 @@ $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as r
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status NOT IN ('concluido','feito')) as pending_tasks,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks,
         (SELECT MAX(a.data_andamento) FROM case_andamentos a
-         WHERE a.case_id = cs.id AND a.data_andamento > cs.distribution_date) as andamento_pos_distrib
+         WHERE a.case_id = cs.id AND a.data_andamento > cs.distribution_date) as andamento_pos_distrib,
+        -- 10/07/2026 Amanda: destaca cases com renuncia/desistencia registrada
+        -- (cor puxada pro vermelho). Pega o tipo do registro mais recente.
+        (SELECT r.tipo FROM renuncias r WHERE r.case_id = cs.id ORDER BY r.created_at DESC LIMIT 1) as renuncia_tipo
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
@@ -284,6 +287,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .op-card.cancelado-comercial { border:2px solid #dc2626 !important; border-left:5px solid #7f1d1d !important; background:linear-gradient(135deg,#fff1f2 0%,#fee2e2 100%); box-shadow:0 0 0 2px rgba(220,38,38,.15); }
 .op-card.cancelado-comercial:hover { box-shadow:0 4px 14px rgba(220,38,38,.35); }
 .op-card.cancelado-comercial .op-card-name { color:#7f1d1d; text-decoration:line-through; }
+/* 10/07/2026 Amanda: cor puxada pro vermelho quando ha renuncia/desistencia
+   registrada (independente de status da tarefa) — pra chamar atencao no Kanban. */
+.op-card.renunciado { border:2px solid #b91c1c !important; border-left:5px solid #7f1d1d !important; background:linear-gradient(135deg,#fef2f2 0%,#fecaca 100%); box-shadow:0 0 0 2px rgba(185,28,28,.18); }
+.op-card.renunciado:hover { box-shadow:0 4px 14px rgba(185,28,28,.4); }
+.op-card.renunciado .op-card-name { color:#7f1d1d; }
 .op-card.prazo-hoje { border-left-color:#dc2626 !important; animation:pulsePrazo 1.5s ease-in-out infinite; }
 .op-card.prazo-3d { border-left-color:#f59e0b !important; animation:pulsePrazoSuave 2s ease-in-out infinite; }
 /* Acompanhamento externo: processo de outro escritorio. Cinza-azulado, com indicador no canto. */
@@ -498,14 +506,20 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 $_isAcompExt = (int)($cs['acompanhamento_externo'] ?? 0) === 1;
                 // 01/07/2026 Amanda: card cancelado pelo comercial ganha destaque vermelho
                 $_isCanceladoCom = !empty($cs['cancelado_pelo_comercial']);
+                // 10/07/2026 Amanda: card com renuncia/desistencia registrada -> vermelho
+                $_renuTipo   = $cs['renuncia_tipo'] ?? null;
+                $_isRenunciado = !empty($_renuTipo);
+                $_renuLabel  = $_renuTipo === 'desistencia' ? 'Desistência' : 'Renúncia';
                 ?>
-                <div class="op-card <?= $prazoClass ?><?= $_isAcompExt ? ' acomp-externo' : '' ?><?= $_isCanceladoCom ? ' cancelado-comercial' : '' ?>" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" data-responsible-id="<?= (int)($cs['responsible_user_id'] ?? 0) ?>" style="<?= $_isCanceladoCom ? '' : ($_isAcompExt ? '' : 'border-left-color:' . $pColor . ';') ?>"
+                <div class="op-card <?= $prazoClass ?><?= $_isAcompExt ? ' acomp-externo' : '' ?><?= $_isCanceladoCom ? ' cancelado-comercial' : '' ?><?= $_isRenunciado ? ' renunciado' : '' ?>" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" data-responsible-id="<?= (int)($cs['responsible_user_id'] ?? 0) ?>" style="<?= $_isCanceladoCom || $_isRenunciado ? '' : ($_isAcompExt ? '' : 'border-left-color:' . $pColor . ';') ?>"
                      onclick="if(!event.target.closest('select,form,.op-card-move,button'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
                     <?php if ($_isCanceladoCom): ?>
                     <div style="background:#dc2626;color:#fff;font-size:.62rem;font-weight:800;padding:2px 6px;border-radius:4px;text-align:center;margin-bottom:.35rem;letter-spacing:.03em;text-transform:uppercase;">❌ Cancelado pelo comercial</div>
                     <?php if (!empty($cs['cancelado_motivo'])): ?>
                     <div style="font-size:.62rem;color:#7f1d1d;font-style:italic;background:rgba(220,38,38,.08);padding:2px 5px;border-radius:3px;margin-bottom:.3rem;line-height:1.3;" title="<?= e($cs['cancelado_motivo']) ?>">💬 <?= e(mb_substr($cs['cancelado_motivo'], 0, 60)) ?><?= mb_strlen($cs['cancelado_motivo']) > 60 ? '…' : '' ?></div>
                     <?php endif; ?>
+                    <?php elseif ($_isRenunciado): ?>
+                    <div style="background:#b91c1c;color:#fff;font-size:.62rem;font-weight:800;padding:2px 6px;border-radius:4px;text-align:center;margin-bottom:.35rem;letter-spacing:.03em;text-transform:uppercase;">📤 <?= e($_renuLabel) ?></div>
                     <?php endif; ?>
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;">
                         <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
