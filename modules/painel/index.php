@@ -711,7 +711,23 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-brilhos text{animation:pdBrilhaPulse 1.4s ease-in-out infinite;transform-origin:center;}
 .pd-brilhos text:nth-child(2){animation-delay:.35s;}
 .pd-brilhos text:nth-child(3){animation-delay:.7s;}
+.pd-brilhos text:nth-child(4){animation-delay:1.05s;}
 @keyframes pdBrilhaPulse{0%,100%{opacity:.5;transform:scale(1);}50%{opacity:1;transform:scale(1.25);}}
+/* Sway idle da balança — oscilação constante de ±0.8deg como se estivesse leve na brisa */
+.pd-sway{animation:pdSway 4.5s ease-in-out infinite;transform-box:fill-box;transform-origin:110px 46px;}
+@keyframes pdSway{0%,100%{transform:rotate(0deg);}25%{transform:rotate(.8deg);}75%{transform:rotate(-.8deg);}}
+/* Gema do fulcro pulsando */
+.pd-gema{animation:pdGemaPulse 2.4s ease-in-out infinite;transform-origin:center;transform-box:fill-box;}
+@keyframes pdGemaPulse{0%,100%{opacity:.55;}50%{opacity:1;}}
+/* Brilho passando pelo travessão — barra branca em diagonal */
+.pd-shimmer{animation:pdShimmerMove 5s linear infinite;}
+@keyframes pdShimmerMove{0%{transform:translateX(-60px);}100%{transform:translateX(220px);}}
+/* Pasta caindo do céu ao empilhar */
+.pd-pasta-cai{animation:pdPastaCai .7s cubic-bezier(.34,1.56,.64,1) both;}
+@keyframes pdPastaCai{0%{transform:translateY(-30px);opacity:0;}60%{transform:translateY(2px);opacity:1;}80%{transform:translateY(-1px);}100%{transform:translateY(0);opacity:1;}}
+/* Medalhão % pulsando suavemente quando meta batida */
+.pd-medalha-batida{animation:pdMedalhaPulse 2s ease-in-out infinite;transform-box:fill-box;transform-origin:center;}
+@keyframes pdMedalhaPulse{0%,100%{transform:scale(1);filter:drop-shadow(0 0 3px rgba(250,204,21,.6));}50%{transform:scale(1.08);filter:drop-shadow(0 0 12px rgba(250,204,21,1));}}
 .pd-meta-garrafa svg{filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));}
 .pd-meta-confete{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:1.3rem;animation:pdMetaSpark 1.5s ease-in-out infinite;pointer-events:none;}
 @keyframes pdMetaSpark{0%,100%{opacity:.7;transform:translateX(-50%) scale(1);}50%{opacity:1;transform:translateX(-50%) scale(1.15) rotate(-5deg);}}
@@ -1184,17 +1200,27 @@ function confirmarCancelamento(caseId, btn) {
                     <rect x="101" y="55" width="18" height="6" rx="1" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
                     <rect x="104" y="49" width="12" height="7" rx="1" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
 
-                    <!-- ═══ FULCRO ORNAMENTADO (bola + gema) ═══ -->
+                    <!-- ═══ FULCRO ORNAMENTADO (bola + gema pulsante) ═══ -->
                     <circle cx="110" cy="46" r="7" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".6"/>
                     <circle cx="110" cy="46" r="3" fill="#0E2E36" opacity=".7"/>
-                    <circle cx="108.5" cy="44.5" r="1.2" fill="#facc15" opacity=".8"/>
+                    <circle cx="108.5" cy="44.5" r="1.2" fill="#facc15" class="pd-gema"/>
 
-                    <!-- ═══ TRAVESSAO + CORRENTES + PRATOS (rotacionam juntos) ═══ -->
+                    <!-- Máscara pro shimmer não vazar do travessão -->
+                    <clipPath id="<?= $__uniq ?>-clip-travessao"><rect x="24" y="42" width="172" height="8" rx="2.5"/></clipPath>
+
+                    <!-- ═══ TRAVESSAO + CORRENTES + PRATOS (rotacionam com transição + sway) ═══ -->
                     <g style="transform: rotate(<?= $__ang ?>deg); transform-origin: 110px 46px; transition: transform 1.4s cubic-bezier(.4,.2,.3,1);">
+                    <g class="pd-sway">
                         <!-- Travessão horizontal ornamentado -->
                         <rect x="24" y="42" width="172" height="8" rx="2.5" fill="url(#<?= $__uniq ?>-latao-h)" stroke="#5a3a18" stroke-width=".5"/>
-                        <!-- Highlight no travessão -->
+                        <!-- Highlight fixo no travessão -->
                         <rect x="26" y="43" width="168" height="1.5" fill="#f7d597" opacity=".7"/>
+                        <!-- Shimmer passando pelo travessão (brilho em movimento) -->
+                        <g clip-path="url(#<?= $__uniq ?>-clip-travessao)">
+                            <g class="pd-shimmer">
+                                <rect x="0" y="42" width="18" height="8" fill="#fff" opacity=".55" transform="skewX(-20)"/>
+                            </g>
+                        </g>
                         <!-- Ponteiras torneadas nas extremidades -->
                         <ellipse cx="28" cy="46" rx="6" ry="5" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
                         <ellipse cx="192" cy="46" rx="6" ry="5" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
@@ -1253,8 +1279,7 @@ function confirmarCancelamento(caseId, btn) {
                                 $offset = ($i % 2 === 0) ? 0 : 1.5;
                                 $x = 175 + $offset;
                             ?>
-                                <g opacity="0">
-                                    <animate attributeName="opacity" from="0" to="1" dur=".35s" begin="<?= 0.4 + $i * 0.12 ?>s" fill="freeze"/>
+                                <g class="pd-pasta-cai" style="animation-delay:<?= 0.4 + $i * 0.14 ?>s;">
                                     <!-- Sombra da pasta -->
                                     <rect x="<?= $x + .5 ?>" y="<?= $y + .5 ?>" width="30" height="4" rx=".5" fill="#000" opacity=".25"/>
                                     <!-- Pasta creme -->
@@ -1269,10 +1294,11 @@ function confirmarCancelamento(caseId, btn) {
                                 </g>
                             <?php endfor; ?>
                         </g>
-                    </g>
+                    </g><!-- /pd-sway -->
+                    </g><!-- /rotate outer -->
 
-                    <!-- ═══ SELO % (medalhão dourado no topo) ═══ -->
-                    <g transform="translate(110, 25)">
+                    <!-- ═══ SELO % (medalhão dourado no topo, pulsa quando meta batida) ═══ -->
+                    <g transform="translate(110, 25)" class="<?= $metaBatida ? 'pd-medalha-batida' : '' ?>">
                         <!-- Fita/laço -->
                         <path d="M -14 3 L -8 -8 L 0 -3 L 8 -8 L 14 3 Z" fill="#8a1e1e" stroke="#5a1010" stroke-width=".4"/>
                         <path d="M -8 -8 L -6 -3 L -2 -6 Z" fill="#5a1010"/>
