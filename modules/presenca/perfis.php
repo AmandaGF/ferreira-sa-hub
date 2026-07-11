@@ -154,9 +154,17 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <a href="<?= module_url('presenca') ?>" class="pp-back">← Voltar</a>
 </div>
 
-<!-- Marker de deploy — Amanda: se ver esta linha, servidor deu resposta atualizada -->
-<div style="background:#052228;color:#d7ab90;padding:6px 12px;border-radius:6px;margin-bottom:14px;font-family:'JetBrains Mono',Consolas,monospace;font-size:.72rem;letter-spacing:.03em;">
-    🔧 DEPLOY MARKER · <?= e($deployMarker) ?>
+<!-- DIAG: instrumentacao minha (Amanda 11/07 review). Confirmando que servidor
+     entrega os dados esperados. Se voce ler isso, foi eu no commit. -->
+<div style="background:#052228;color:#d7ab90;padding:10px 14px;border-radius:6px;margin-bottom:14px;font-family:'JetBrains Mono',Consolas,monospace;font-size:.72rem;letter-spacing:.03em;">
+    🔧 DEPLOY MARKER (instrumentação minha) · <?= e($deployMarker) ?>
+    <div style="margin-top:6px;color:#d7ab90;opacity:.85;font-size:.68rem;">
+        Dados brutos que o servidor entregou pra este render:
+    </div>
+    <pre style="background:#000;color:#7fd8b8;padding:8px;border-radius:4px;margin:6px 0 0;font-size:.68rem;overflow-x:auto;max-height:200px;"><?= e(json_encode($perfis, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) ?></pre>
+    <div style="margin-top:6px;color:#d7ab90;opacity:.85;font-size:.68rem;">
+        Se aqui aparecem 3 objetos (Essencial/Premium/Alta) mas a lista visual embaixo mostra 1 só, é bug de renderização de CSS (não de banco). Se aqui mostra 1 zerado, é bug de banco.
+    </div>
 </div>
 
 <div class="pp-explica">
