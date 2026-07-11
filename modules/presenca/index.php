@@ -266,14 +266,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div class="s">CRUD + galeria de mockups + composição de kit</div>
         </div>
     </a>
-    <a class="pr-nav-card soon">
+    <a class="pr-nav-card" href="<?= module_url('presenca', 'frases.php') ?>">
         <div class="ico">📚</div>
         <div class="txt">
             <div class="t">Banco de Frases</div>
             <div class="s">Por fase e universais</div>
         </div>
     </a>
-    <a class="pr-nav-card soon">
+    <a class="pr-nav-card" href="<?= module_url('presenca', 'fases.php') ?>">
         <div class="ico">🛤️</div>
         <div class="txt">
             <div class="t">Fases da Jornada</div>
