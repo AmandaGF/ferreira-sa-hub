@@ -317,7 +317,7 @@ if ($isGestao) {
 // Conta por $viewUserId no dia de hoje: tarefas concluídas, prazos cumpridos,
 // compromissos da agenda dados baixa (realizado) e chamados resolvidos.
 // ══════════════════════════════════════════════════════════════════════
-$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0);
+$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0, 'entregas_puxadas' => 0);
 try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE status='concluido' AND assigned_to=? AND DATE(completed_at)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['tarefas'] = (int)$q->fetchColumn();
@@ -413,6 +413,9 @@ try {
 try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND DATE(created_at)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['renuncias'] = (int)$q->fetchColumn();
+    // Amanda 11/07: caso puxado na tela "Entregas Pendentes"
+    $q = $pdo->prepare("SELECT COUNT(DISTINCT entity_id) FROM audit_log WHERE action='entrega_puxada' AND entity_type='case' AND user_id=? AND DATE(created_at)=?");
+    $q->execute(array($viewUserId, $hoje)); $dopa['entregas_puxadas'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
 // Amanda 11/07: peso duplo em distribuicoes (trabalhosas). Central em 1 lugar
 // pra facilitar mudanca futura de pesos por categoria.
@@ -441,7 +444,7 @@ $dias7 = array(); $dias7det = array();
 for ($i = 6; $i >= 0; $i--) {
     $d = date('Y-m-d', strtotime("-$i day"));
     $dias7[$d] = 0;
-    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0);
+    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0, 'entregas_puxadas' => 0);
 }
 $desde7 = date('Y-m-d', strtotime('-6 day')) . ' 00:00:00';
 $histQ = array(
@@ -458,6 +461,7 @@ $histQ = array(
     'pasta_apta'    => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND created_at>=? AND details LIKE '% -> pasta_apta' GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
     'onboarding'    => array("SELECT DATE(al.created_at) d, COUNT(*) c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? AND al.created_at>=? GROUP BY DATE(al.created_at)", array($viewUserId, $desde7)),
     'balcao'        => array("SELECT DATE(d) d, COUNT(*) c FROM (SELECT DATE(created_at) d, id FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? AND created_at>=? UNION SELECT DATE(al.created_at) d, al.id FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='balcao_virtual' AND al.user_id=? AND al.created_at>=?) u GROUP BY DATE(d)", array($viewUserId, $desde7, $viewUserId, $desde7)),
+    'entregas_puxadas' => array("SELECT DATE(created_at) d, COUNT(DISTINCT entity_id) c FROM audit_log WHERE action='entrega_puxada' AND entity_type='case' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
 );
 foreach ($histQ as $cat => $h) {
     try { $q = $pdo->prepare($h[0]); $q->execute($h[1]); foreach ($q->fetchAll() as $row) {
@@ -488,8 +492,9 @@ try {
         UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND details LIKE '% -> pasta_apta' GROUP BY DATE(created_at)
         UNION ALL SELECT DATE(al.created_at) d, COUNT(*) c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? GROUP BY DATE(al.created_at)
         UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? GROUP BY DATE(created_at)
+        UNION ALL SELECT DATE(created_at) d, COUNT(DISTINCT entity_id) c FROM audit_log WHERE action='entrega_puxada' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
     ) u GROUP BY d ORDER BY tot DESC LIMIT 1");
-    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
+    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
     $rt = (int)$q->fetchColumn();
     if ($rt > $dopaRecorde) $dopaRecorde = $rt;
 } catch (Exception $e) {}
@@ -517,10 +522,11 @@ $dopaSomaDesde = function($pdo, $uid, $desde) {
         UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND created_at>=? AND details LIKE '% -> pasta_apta'
         UNION ALL SELECT COUNT(*) c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? AND al.created_at>=?
         UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? AND created_at>=?
+        UNION ALL SELECT COUNT(DISTINCT entity_id) c FROM audit_log WHERE action='entrega_puxada' AND entity_type='case' AND user_id=? AND created_at>=?
     ) u";
     try {
         $q = $pdo->prepare($sql);
-        $q->execute(array($uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde));
+        $q->execute(array($uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde));
         return (int)$q->fetchColumn();
     } catch (Exception $e) { return 0; }
 };
@@ -1115,6 +1121,7 @@ function confirmarCancelamento(caseId, btn) {
             <div class="pd-dopa-stat <?= $dopa['pasta_apta'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['pasta_apta'] ?></span><span class="l">📂 Pasta Apta</span></div>
             <div class="pd-dopa-stat <?= $dopa['onboarding'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['onboarding'] ?></span><span class="l">🎯 Onboard</span></div>
             <div class="pd-dopa-stat <?= $dopa['balcao'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['balcao'] ?></span><span class="l">🏛️ Balcão</span></div>
+            <div class="pd-dopa-stat <?= $dopa['entregas_puxadas'] ? '' : 'z' ?>" title="Casos puxados na tela Entregas Pendentes"><span class="n"><?= (int)$dopa['entregas_puxadas'] ?></span><span class="l">⏳ Puxadas</span></div>
         </div>
 
         <div class="pd-dopa-totais">
@@ -1221,7 +1228,7 @@ function pdConfete(){
 
 // Detalhe do dia ao clicar numa barra
 var PD_DIAS = <?= json_encode($dias7det, JSON_UNESCAPED_UNICODE) ?>;
-var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', movimentacoes:'🔄 Movimentações', leads21:'👋 Leads (21)', clientes24:'💬 Clientes (24)', helpdesk:'🎫 Chamados', gerid:'🔎 GERID', renuncias:'📤 Renúncias', pasta_apta:'📂 Pasta Apta', onboarding:'🎯 Onboard', balcao:'🏛️ Balcão' };
+var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', movimentacoes:'🔄 Movimentações', leads21:'👋 Leads (21)', clientes24:'💬 Clientes (24)', helpdesk:'🎫 Chamados', gerid:'🔎 GERID', renuncias:'📤 Renúncias', pasta_apta:'📂 Pasta Apta', onboarding:'🎯 Onboard', balcao:'🏛️ Balcão', entregas_puxadas:'⏳ Puxadas' };
 function pdDopaDia(date, el){
     var ex = document.getElementById('pdDopaPop');
     if (ex){ var was = ex.dataset.date; ex.remove(); document.removeEventListener('click', pdPopClose); if (was === date) return; }
@@ -1824,7 +1831,36 @@ if ($_painelMostraEsfriando) {
         )->fetchColumn();
     } catch (Exception $e) {}
 }
-if ($_painelMostraEsfriando):
+<?php
+// ── Amanda 11/07: mini-card de Entregas Pendentes (contratados sem CNJ) ──
+$_epTot = 0; $_epCrit = 0; $_epAten = 0;
+try {
+    $_epPend = array('aguardando_docs','em_elaboracao','para_execucao_ia','em_andamento','doc_faltante','aguardando_prazo');
+    $_epIn = implode(',', array_fill(0, count($_epPend), '?'));
+    $q = $pdo->prepare("SELECT
+        COUNT(*) AS tot,
+        SUM(CASE WHEN DATEDIFF(NOW(), created_at) >= 60 THEN 1 ELSE 0 END) AS criticos,
+        SUM(CASE WHEN DATEDIFF(NOW(), created_at) >= 30 AND DATEDIFF(NOW(), created_at) < 60 THEN 1 ELSE 0 END) AS atencao
+        FROM cases WHERE status IN ($_epIn) AND (case_number IS NULL OR case_number='') AND COALESCE(kanban_oculto,0)=0");
+    $q->execute($_epPend);
+    if ($r = $q->fetch()) { $_epTot = (int)$r['tot']; $_epCrit = (int)$r['criticos']; $_epAten = (int)$r['atencao']; }
+} catch (Exception $e) {}
+if ($_epTot > 0): ?>
+<a href="<?= module_url('entregas_pendentes') ?>" class="pd-card" style="margin-top:1rem;border-left:4px solid #B87333;background:linear-gradient(135deg,#fff,#faf6ef);display:flex;justify-content:space-between;align-items:center;text-decoration:none;color:inherit;gap:1rem;flex-wrap:wrap;transition:transform .1s;">
+    <div style="flex:1;min-width:220px;">
+        <h3 style="margin:0 0 .3rem;color:#0E2E36;">⏳ Entregas Pendentes <span style="font-weight:400;font-size:.78rem;color:#6b7280;">— contratados sem CNJ</span></h3>
+        <div style="display:flex;gap:.7rem;flex-wrap:wrap;align-items:center;font-size:.82rem;color:#374151;">
+            <span><strong style="font-size:1.35rem;font-family:'Cormorant Garamond',serif;color:#0E2E36;"><?= $_epTot ?></strong> caso(s)</span>
+            <?php if ($_epCrit > 0): ?><span style="background:#fee2e2;color:#b91c1c;padding:2px 10px;border-radius:999px;font-weight:700;font-size:.75rem;">🚨 <?= $_epCrit ?> crítico(s)</span><?php endif; ?>
+            <?php if ($_epAten > 0): ?><span style="background:#fef3c7;color:#92400e;padding:2px 10px;border-radius:999px;font-weight:700;font-size:.75rem;">⚠ <?= $_epAten ?> em atenção</span><?php endif; ?>
+        </div>
+        <div style="font-size:.72rem;color:#6b7280;margin-top:.3rem;">Bora sortear um pra pegar? Clique aqui →</div>
+    </div>
+    <div style="font-size:2.4rem;opacity:.4;flex-shrink:0;">🎲</div>
+</a>
+<?php endif; ?>
+
+<?php if ($_painelMostraEsfriando):
 ?>
 <div class="pd-card" style="margin-top:1rem;border-left:4px solid #f59e0b;">
     <h3 style="justify-content:space-between;">
