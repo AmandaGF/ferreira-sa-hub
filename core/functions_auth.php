@@ -50,6 +50,7 @@ function _permission_defaults()
         'clientes'            => $todos,
         'crm_comercial'       => $todos,
         'crm_operacional'     => array('admin','gestao','operacional','cx','estagiario'),
+        'entregas_pendentes'  => array('admin','gestao','operacional','cx','estagiario'), // Amanda 11/07: contratados sem CNJ + sorteio
         'pipeline'            => $todos,
         'pipeline_mover_comercial' => $todos,
         'pipeline_mover_cx'   => $todos,

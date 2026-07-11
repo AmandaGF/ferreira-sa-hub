@@ -139,6 +139,7 @@ $menuItems = array(
 
     array('section' => '⚙️ Operacional'),
     array('label' => 'Kanban Operacional','icon' => '📋', 'href' => url('modules/operacional/'),    'id' => 'operacional',     'roles' => $_rolesEquipe),
+    array('label' => 'Entregas Pendentes', 'icon' => '⏳', 'href' => url('modules/entregas_pendentes/'), 'id' => 'entregas_pendentes', 'roles' => array('admin','gestao','operacional','cx','estagiario')),
     array('label' => 'CRM Operacional/CX', 'icon' => '🛠️', 'href' => url('modules/crm_operacional/'), 'id' => 'crm_operacional', 'roles' => array('admin','gestao','operacional','cx','estagiario')),
     array('label' => 'Kanban PREV',    'icon' => '🏛️', 'href' => url('modules/prev/'),             'id' => 'prev',            'roles' => $all),
     array('label' => 'Processos',       'icon' => '⚖️', 'href' => url('modules/processos/'),       'id' => 'processos',       'roles' => $_rolesEquipe),
