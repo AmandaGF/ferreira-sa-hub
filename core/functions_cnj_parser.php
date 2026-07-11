@@ -125,10 +125,11 @@ function parse_cnj($cnj) {
             if (isset($trUfEstadual[$tr])) {
                 $out['uf'] = $trUfEstadual[$tr];
                 $out['tribunal_nome'] = 'TJ-' . $trUfEstadual[$tr];
-                // Comarca — so temos tabela do TJRJ por ora (Amanda usa >85% RJ)
-                if ($out['uf'] === 'RJ') {
-                    $out['comarca'] = _cnj_comarca_tjrj($out['origem_codigo']);
-                }
+                // Comarca DESATIVADA temporariamente (Amanda 10/07 apontou codigos
+                // errados — inventei sem consultar a tabela oficial do TJRJ).
+                // Reativar so quando tabela vier de fonte oficial (CNJ Codificacao
+                // do TJRJ ou API SGT). Ate la, UF ja e ganho grande.
+                // if ($out['uf'] === 'RJ') { $out['comarca'] = _cnj_comarca_tjrj(...); }
             }
             break;
         case '9':
@@ -150,13 +151,17 @@ function parse_cnj($cnj) {
 }
 
 /**
- * Tabela parcial de codigos de origem (comarca/vara) do TJRJ.
- * Baseada nos codigos oficiais publicados pelo TJRJ. Incluidas apenas as
- * comarcas com mais processos no Hub (Capital + Baixada + principais interior).
- * Retorna string vazia se codigo nao mapeado (Amanda pode preencher manual).
+ * DESATIVADA em 10/07 apos Amanda testar e apontar codigos errados
+ * (colei 0066 = "Tres Rios" mas o certo era Volta Redonda). A tabela foi
+ * montada por chute e nao bate com a Codificacao Uniforme (SGT/CNJ) do TJRJ.
+ *
+ * Antes de reativar, buscar a tabela OFICIAL — CNJ SGT (Sistema de Gestao
+ * de Tabelas Processuais Unificadas) ou tabela publicada pelo TJRJ direto.
+ * Enquanto isso, o parser retorna comarca vazia e o usuario preenche manual.
  */
 function _cnj_comarca_tjrj($codigo) {
-    static $map = array(
+    return ''; // desativada — ver nota acima
+    static $map = array( // codigos abaixo NAO usar sem verificar oficial
         // Capital
         '0001' => 'Capital',
         '0209' => 'Regional da Barra da Tijuca (Capital)',
