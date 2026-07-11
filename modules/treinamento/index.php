@@ -33,6 +33,7 @@ $filtroBusca = trim($_GET['q'] ?? '');
 // Mapa slug → categoria temática (filtro "Tipo de conteúdo")
 $catMap = array(
     // 🚀 Iniciantes
+    'onboarding-colaborador'       => 'iniciantes',
     'visao-geral'                  => 'iniciantes',
     'painel-dia'                   => 'iniciantes',
     'drawer-card'                  => 'iniciantes',

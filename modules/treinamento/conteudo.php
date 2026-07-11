@@ -1531,4 +1531,152 @@ HTML,
     'missao' => 'Agende uma mensagem de teste pra você mesma (seu próprio WhatsApp), pra daqui a 3 minutos, usando pelo menos uma variável tipo `{{primeiro_nome}}`. Confira: (1) chegou no horário, (2) a variável foi substituída pelo seu nome, (3) sumiu de Pendentes e apareceu em Histórico como ✓ Enviado.',
 ),
 
+// ═══════════════════════════════════════════════════════════════════
+// ONBOARDING DO COLABORADOR — módulo introdutório (Amanda 10/07/2026)
+// Tour completo do Hub. Serve de "mapa" — apresenta cada área rapidamente,
+// aponta pros treinamentos específicos e ensina as regras da casa que
+// atravessam todos os módulos.
+// ═══════════════════════════════════════════════════════════════════
+'onboarding-colaborador' => array(
+    'por_que' => 'Bem-vindo(a) à **Ferreira & Sá Advocacia**! 👋 Este é seu ponto de partida no **Conecta**, o sistema interno do escritório. Aqui você vai aprender: como o sistema pensa (por cliente → por processo → por tarefa), quais ferramentas do dia a dia existem, quais são as **regras não-negociáveis da casa**, e por onde continuar seu treinamento. Ao terminar este módulo, você tem o mapa. Depois, cada treinamento específico entra em profundidade na sua área.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Sua primeira semana no Conecta — visão geral</span>
+  </div>
+  <div class="tm-screen-body" style="padding:1.2rem 1.4rem;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:.8rem;">
+      <div style="background:#f5ede3;border-left:4px solid #B87333;padding:.85rem 1rem;border-radius:8px;">
+        <div style="font-size:.7rem;color:#78350f;font-weight:800;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;">DIA 1</div>
+        <div style="font-size:.85rem;color:#052228;font-weight:600;">Entrar no Hub, trocar senha, conhecer o menu lateral e o Painel do Dia.</div>
+      </div>
+      <div style="background:#eef6f4;border-left:4px solid #0d9488;padding:.85rem 1rem;border-radius:8px;">
+        <div style="font-size:.7rem;color:#065f46;font-weight:800;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;">DIA 2-3</div>
+        <div style="font-size:.85rem;color:#052228;font-weight:600;">Entender a ficha do cliente / pasta do processo (o coração do sistema).</div>
+      </div>
+      <div style="background:#e0f2fe;border-left:4px solid #0369a1;padding:.85rem 1rem;border-radius:8px;">
+        <div style="font-size:.7rem;color:#075985;font-weight:800;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;">SEMANA 1</div>
+        <div style="font-size:.85rem;color:#052228;font-weight:600;">Aprender WhatsApp CRM, Agenda e Helpdesk (as ferramentas do dia a dia).</div>
+      </div>
+      <div style="background:#faf5ff;border-left:4px solid #9333ea;padding:.85rem 1rem;border-radius:8px;">
+        <div style="font-size:.7rem;color:#6b21a8;font-weight:800;letter-spacing:.05em;text-transform:uppercase;margin-bottom:4px;">SEMANA 2</div>
+        <div style="font-size:.85rem;color:#052228;font-weight:600;">Aprofundar na sua área (Comercial, Operacional, CX ou Gestão).</div>
+      </div>
+    </div>
+    <div style="margin-top:1rem;padding:.75rem 1rem;background:#fef3c7;border-radius:8px;font-size:.8rem;color:#78350f;">💡 Cada linha do roteiro tem um treinamento específico no Hub. Aqui você vê a visão geral; os outros módulos entram em profundidade.</div>
+  </div>
+  <p class="tm-screen-caption">Roteiro sugerido — sua jornada nas primeiras duas semanas. Se você já usa há mais tempo, vale como checklist do que talvez ainda não conhece.</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Como o Conecta pensa — modelo mental</span>
+  </div>
+  <div class="tm-screen-body" style="padding:1.2rem 1.4rem;">
+    <div style="text-align:center;font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:#052228;margin-bottom:.6rem;">Toda informação orbita em torno destes 3 conceitos:</div>
+    <div style="display:flex;gap:.4rem;justify-content:center;flex-wrap:wrap;align-items:stretch;">
+      <div style="flex:1;min-width:180px;background:#fff;border:2px solid #B87333;border-radius:10px;padding:.85rem;text-align:center;">
+        <div style="font-size:1.8rem;">👤</div>
+        <div style="font-weight:800;color:#052228;">Cliente</div>
+        <div style="font-size:.72rem;color:#6b7280;margin-top:4px;">Uma pessoa. Único registro no sistema. Pode ter várias ações.</div>
+      </div>
+      <div style="font-size:1.5rem;align-self:center;color:#9ca3af;">→</div>
+      <div style="flex:1;min-width:180px;background:#fff;border:2px solid #059669;border-radius:10px;padding:.85rem;text-align:center;">
+        <div style="font-size:1.8rem;">⚖️</div>
+        <div style="font-weight:800;color:#052228;">Processo (Case)</div>
+        <div style="font-size:.72rem;color:#6b7280;margin-top:4px;">Uma ação judicial. Tem sua pasta com docs, andamentos e tarefas.</div>
+      </div>
+      <div style="font-size:1.5rem;align-self:center;color:#9ca3af;">→</div>
+      <div style="flex:1;min-width:180px;background:#fff;border:2px solid #0369a1;border-radius:10px;padding:.85rem;text-align:center;">
+        <div style="font-size:1.8rem;">✅</div>
+        <div style="font-weight:800;color:#052228;">Tarefa</div>
+        <div style="font-size:.72rem;color:#6b7280;margin-top:4px;">Algo que precisa ser feito — com prazo, responsável e status.</div>
+      </div>
+    </div>
+    <div style="margin-top:.8rem;padding:.6rem .8rem;background:#f9fafb;border-radius:6px;font-size:.75rem;color:#4b5563;text-align:center;font-style:italic;">"João" tem 2 processos (Alimentos + Divórcio). Cada processo tem várias tarefas. Um processo NÃO é a mesma coisa que um cliente.</div>
+  </div>
+  <p class="tm-screen-caption">Guardar essa hierarquia na cabeça facilita entender o resto do sistema. Se está perdido, volte aqui.</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta — Menu lateral organizado por área</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-sidebar">
+      <div class="sec">🌅 Principal</div>
+      <div class="item"><span class="icon">🌅</span>Painel do Dia</div>
+      <div class="item"><span class="icon">📊</span>Dashboard <span style="font-size:.6rem;opacity:.55;">(gestão)</span></div>
+      <div class="sec">💬 WhatsApp</div>
+      <div class="item"><span class="icon">💬</span>Comercial (21)</div>
+      <div class="item"><span class="icon">💬</span>CX / Operac. (24)</div>
+      <div class="sec">💼 Comercial</div>
+      <div class="item"><span class="icon">📈</span>Kanban Comercial</div>
+      <div class="item"><span class="icon">🎯</span>CRM Comercial</div>
+      <div class="sec">⚙️ Operacional</div>
+      <div class="item"><span class="icon">📋</span>Kanban Operacional</div>
+      <div class="item"><span class="icon">🛠️</span>CRM Operacional</div>
+      <div class="item"><span class="icon">⚖️</span>Processos</div>
+      <div class="item"><span class="icon">📅</span>Agenda</div>
+      <div class="item"><span class="icon">📤</span>Renúncia/Desistência</div>
+      <div class="sec">👥 Clientes</div>
+      <div class="item"><span class="icon">🎂</span>Aniversários</div>
+      <div class="item"><span class="icon">⭐</span>Central VIP</div>
+      <div class="sec">💰 Financeiro <span style="font-size:.6rem;opacity:.55;">(admin/gestão)</span></div>
+      <div class="item"><span class="icon">💰</span>Cobrança de Honorários</div>
+      <div class="sec">🛠️ Ferramentas</div>
+      <div class="item"><span class="icon">🎫</span>Helpdesk</div>
+      <div class="item"><span class="icon">📚</span>Wiki</div>
+      <div class="item"><span class="icon">🏆</span>Ranking</div>
+      <div class="item"><span class="icon">🔗</span>Portal de Links</div>
+      <div class="item"><span class="icon">📖</span>Treinamento (você está aqui!)</div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">O menu lateral agrupa por assunto. Use <strong>Ctrl+F</strong> pra filtrar em tempo real: digite "prazo" e só o que envolve prazo aparece. Se um item não aparece pra você, é porque seu perfil não tem acesso — é normal.</p>
+</figure>
+HTML,
+    'passos' => array(
+        '**1. Primeiro login e senha.** Você recebeu um e-mail com senha temporária. Acesse `ferreiraesa.com.br/conecta`, entre com seu e-mail + senha temp, e IMEDIATAMENTE vá em **Meu Perfil** e troque pra uma senha só sua. Essa senha é individual — nunca compartilhe, mesmo com quem senta ao seu lado.',
+        '**2. Painel do Dia** (`🌅 Painel do Dia`). É sua tela inicial. Mostra audiências, prazos e tarefas de HOJE — tudo puxado automaticamente. Se algo está aqui, é porque precisa da sua atenção agora. Se não está, pode ir dormir tranquilo. Treinamento próprio: **Painel do Dia**.',
+        '**3. Ficha do cliente (drawer).** Cada cliente é um só registro. Achou pela busca (Ctrl+K) ou pelo Kanban? Clica no cartão → abre o **drawer** com 7 abas: Geral, Comercial, Operacional, Docs, Financeiro, Agenda e Histórico. Isso é o **coração do sistema** — todo caminho passa por aqui. Treinamento próprio: **O Card do Cliente**.',
+        '**4. Pasta do processo.** Um cliente pode ter várias ações (Alimentos + Divórcio + Guarda…). Cada ação tem sua **pasta própria** (case), com abas específicas: Visão geral, Compromissos/Tarefas, Prazos, Andamentos, Documentos, Partes, GERID, Helpdesk, Treinamentos, IA. Sempre trabalhe DENTRO da pasta do processo certo, nunca "no cliente" genérico.',
+        '**5. WhatsApp CRM** (`💬 WhatsApp`). Dois números físicos separados: **DDD 21** (Comercial — leads que entram) e **DDD 24** (CX/Operacional — clientes já contratados). **NUNCA mesclar conversa entre os dois** — cada número é uma pessoa física do escritório atendendo. Bot de IA responde no 21 até transferir pra humano. Treinamento próprio: **WhatsApp CRM**.',
+        '**6. Kanbans** (Comercial e Operacional). É o quadro que você arrasta cartões de uma coluna pra outra e cada movimento tem um gatilho automático (cria pasta no Drive, notifica cliente, abre tarefa, etc). Não é decorativo — quando você move, ACONTECEM COISAS. Antes de mover, tenha certeza. Treinamentos: **Kanban Comercial** e **Kanban Operacional**.',
+        '**7. Agenda** (`📅 Agenda`). Audiências, reuniões, prazos, Balcão Virtual TJRJ. Sempre que possível vincule o evento ao processo — o sistema cria andamento automático na pasta. Regra crítica: **nunca alterar horário de evento automaticamente**. Se der conflito, o Hub te avisa e VOCÊ decide. Treinamento: **Agenda e Compromissos**.',
+        '**8. Helpdesk** (`🎫 Helpdesk`). Este é o canal interno da equipe. Precisa de ajuda de outra área? Abre um chamado, marca os responsáveis (eles recebem notificação + e-mail agora!). Não usa WhatsApp pessoal pra tarefa interna — abre chamado no Helpdesk. Treinamento: **Helpdesk Interno**.',
+        '**9. Wiki** (`📚 Wiki`). Base de conhecimento do escritório. Antes de perguntar pra alguém, CONSULTA A WIKI. Grande chance da resposta já estar lá. Se responderem "tá na Wiki", não é bronca — é economia do tempo de todo mundo.',
+        '**10. Sua área específica.** Comercial vai fundo no Pipeline + CRM Comercial; Operacional no Kanban Operacional + Prazos + DataJud + Fábrica de Petições; CX na Central VIP + aniversários; Gestão no Financeiro + Cobrança + Ranking. Cada área tem 3-5 módulos de treinamento — faça na ordem sugerida.',
+        '**11. Regras não-negociáveis** (leia com atenção — próximo bloco). São padrões que atravessam TODOS os módulos e violá-los causa retrabalho grande ou problema com cliente.',
+    ),
+    'atencao' => '**⚠️ REGRAS NÃO-NEGOCIÁVEIS DA CASA**
+
+**Comunicação com cliente:**
+• Toda mensagem automática/agendada ao cliente assina **"Equipe Ferreira & Sá Advocacia"** — NUNCA "Dra. Amanda" (ela não autoriza personificação em mensagens automáticas) e NUNCA seu nome pessoal.
+• **NUNCA mesclar conversas WhatsApp entre canais 21 e 24** — cada número é uma pessoa física atendendo. Mesclar quebra o fluxo de resposta.
+
+**Dados sensíveis (LGPD):**
+• CPF completo só aparece em telas de detalhe individual. Em listagens do dia a dia, ele vem mascarado (`070.***.**6-78`). Não faça workaround pra ver todos.
+• Nunca coloque CPF, número de processo com dado sensível, senha ou código de acesso em mensagem agendada (a lista é visível pra equipe).
+
+**Nomenclatura:**
+• Nome de pasta/arquivo NÃO PODE ter travessão (`—` ou `–`) — PJe recusa. Use hífen (`-`) ou nada. O sistema bloqueia automaticamente, mas sabe do porquê.
+
+**Processos:**
+• Processos de família e medida protetiva vão como **segredo de justiça POR PADRÃO** — o checkbox já vem marcado. Nunca desmarque sem verificar.
+• **NUNCA arquivar cards do Kanban automaticamente.** Não existe cron que apaga cards. Só saem da tela via coluna "Para Arquivar" + botão "Arquivar TODOS" com 2 confirmações.
+• **NUNCA alterar horário de evento de agenda automaticamente.** Se der conflito, o sistema NOTIFICA e você decide.
+
+**Ferramentas de IA:**
+• As features de IA (tradução jurídica, revisão de petição, análise de sentimento WhatsApp) vêm **desligadas por padrão**. Amanda liga em `/admin/ia_custo.php` quando quer testar. Não ative sem alinhamento.
+
+**Segurança de conta:**
+• Sua senha é SUA. Se precisar entrar no sistema em computador de terceiro (ex: cliente), faça logout ao sair. O sistema tem heartbeat que expira sessão sozinho.
+• Códigos 2FA de sistemas externos (LegalOne, tribunais, etc) estão em `/codigos_2fa/` — favoritados por você. NUNCA compartilhe por WhatsApp/e-mail.',
+    'dica' => 'Três atalhos que economizam MUITO tempo: **Ctrl+K** abre a busca universal (cliente, processo, tarefa); **Ctrl+F na sidebar** filtra o menu (digite "prazo" e só o que envolve prazo aparece); **Ctrl+Shift+H** volta pro Painel do Dia de qualquer lugar. Instale o Conecta como **PWA** no celular (Chrome → Adicionar à tela inicial) — vira app, funciona offline pras últimas telas visitadas, e recebe notificação push. Não deixe pra semana 2 — instale HOJE. E o mais importante: se você não entendeu algo ou algo deu errado, **NÃO ADIVINHE**. Abre chamado no Helpdesk, pergunta na Wiki, ou volta pro treinamento específico. O sistema é grande, ninguém sabe tudo — e ninguém espera que você saiba na primeira semana.',
+    'missao' => 'Faça o **Tour Completo**: (1) Entre no seu Painel do Dia e localize pelo menos 1 item real; (2) Abra a **ficha de qualquer cliente** e navegue pelas 7 abas do drawer (não precisa entender tudo — só ver o que existe); (3) Abra a **pasta de qualquer processo** e navegue pelas abas Compromissos, Andamentos, Documentos e Tarefas; (4) Vá em **WhatsApp CRM** e abra uma conversa qualquer só pra ver o layout; (5) Abra o **Portal de Links** (canto direito superior, ícone de balança) e veja quantos tribunais e ferramentas estão cadastrados; (6) Volte pra `/treinamento` e comece o próximo módulo da sua área. Marque essa missão como cumprida só depois de fazer os 6 passos.',
+),
+
 );
