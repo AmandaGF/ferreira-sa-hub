@@ -4615,8 +4615,9 @@ if (ia_user_autorizado(current_user_id()) && ia_feature_ativa('chat_caso')):
                 <?php else: ?>
                 <input type="<?= $cp['type'] ?>" value="<?= e($cp['value']) ?>"
                        data-id="<?= $caseId ?>" data-field="<?= $cp['field'] ?>"
-                       <?= $cp['field'] === 'regional' ? 'list="listRegionaisCv" autocomplete="off"' : '' ?>
-                       onchange="salvarCampoProcesso(this);"
+                       <?php if ($cp['field'] === 'regional'): ?>list="listRegionaisCv" autocomplete="off"<?php endif; ?>
+                       <?php if ($cp['field'] === 'case_number'): ?>id="cvCampoCaseNumber"<?php endif; ?>
+                       onchange="salvarCampoProcesso(this);<?php if ($cp['field'] === 'case_number'): ?> cvAutoPreencherCnj(this.value);<?php endif; ?>"
                        placeholder="<?= e($cp['placeholder']) ?>"
                        title="<?= e($cp['value']) ?>"
                        style="flex:1;border:none;background:transparent;font-size:.82rem;color:var(--text);padding:.2rem .4rem;font-family:inherit;outline:none;min-width:0;"
@@ -6650,6 +6651,53 @@ document.addEventListener('DOMContentLoaded', function() {
     var sel = document.querySelector('select[data-field="category"]');
     if (sel) _atualizarVisCNJ(sel.value);
 });
+
+// Amanda 10/07: auto-preenche UF/comarca/regional na edicao inline quando
+// admin cola/edita o CNJ. So preenche campos VAZIOS — nunca sobrescreve
+// (importante pra casos com declinio de competencia, ex: distribuido em
+// Volta Redonda e declinado pra Resende — o valor manual persiste).
+function cvAutoPreencherCnj(valor) {
+    var digits = (valor || '').replace(/\D/g, '');
+    if (digits.length !== 20) return;
+    fetch('<?= url("api/parse_cnj.php") ?>?cnj=' + encodeURIComponent(valor), {
+        credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+        if (!j || !j.ok) return;
+        // UF (select) — so preenche se vazio
+        var selUf = document.getElementById('cvCampoUf') || document.querySelector('select[data-field="comarca_uf"]');
+        if (selUf && !selUf.value && j.uf) {
+            selUf.value = j.uf;
+            selUf.style.background = '#dcfce7';
+            if (typeof salvarCampoProcesso === 'function') salvarCampoProcesso(selUf);
+            if (typeof _atualizarRegionaisCv === 'function') _atualizarRegionaisCv();
+            if (typeof _cvCarregarCidadesIBGE === 'function') _cvCarregarCidadesIBGE(j.uf);
+        }
+        // Comarca (input datalist) — so preenche se vazio
+        var inpCom = document.getElementById('cvCampoComarca') || document.querySelector('input[data-field="comarca"]');
+        if (inpCom && !inpCom.value && j.comarca) {
+            var nomeCidade = j.comarca.replace(/\s*\(.*?\)\s*/g, '').trim();
+            if (nomeCidade) {
+                inpCom.value = nomeCidade;
+                inpCom.style.background = '#dcfce7';
+                if (typeof salvarCampoProcesso === 'function') salvarCampoProcesso(inpCom);
+                if (typeof _atualizarRegionaisCv === 'function') _atualizarRegionaisCv();
+            }
+        }
+        // Regional — so preenche se e uma das regionais/bairros oficiais do TJRJ
+        var inpReg = document.querySelector('input[data-field="regional"]');
+        if (inpReg && !inpReg.value && j.comarca) {
+            var mReg = j.comarca.match(/\((?:Regional (?:de |da |do ))?(Copacabana|Lagoa|Tijuca|Vila Isabel|Madureira|Jacarepaguá|Bangu|Campo Grande|Santa Cruz|Ilha do Governador|Méier|Barra da Tijuca|Leopoldina|Pavuna|Região Oceânica|Inhomirim|Itaipava|Alcântara)\)/);
+            if (mReg) {
+                inpReg.value = mReg[1];
+                inpReg.style.background = '#dcfce7';
+                if (typeof salvarCampoProcesso === 'function') salvarCampoProcesso(inpReg);
+            }
+        }
+    })
+    .catch(function() {});
+}
 
 function _atualizarRegionaisCv() {
     var ufEl  = document.querySelector('input[data-field="comarca_uf"]');
