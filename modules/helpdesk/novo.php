@@ -112,6 +112,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
+        // Amanda 10/07/2026: e-mail Brevo pros responsaveis do chamado.
+        // Complementa o push in-app — chega mesmo se a pessoa nao estiver
+        // logada/instalada. Um unico request pro Brevo com varios destinatarios.
+        if (!empty($assignees)) {
+            try {
+                require_once APP_ROOT . '/core/functions_helpdesk_email.php';
+                $stReq = $pdo->prepare("SELECT name FROM users WHERE id = ?");
+                $stReq->execute(array(current_user_id()));
+                enviar_email_novo_chamado($pdo, $ticketId, array(
+                    'title'          => $title,
+                    'description'    => $description,
+                    'category'       => $category,
+                    'department'     => $department,
+                    'priority'       => $priority,
+                    'client_name'    => $clientName ?: ($preCase ? $preCase['client_name'] : ''),
+                    'case_number'    => $caseNumber,
+                    'due_date'       => $dueDate,
+                    'requester_name' => $stReq->fetchColumn() ?: '',
+                ), $assignees);
+            } catch (Exception $e) { /* silencioso — o chamado ja esta salvo */ }
+        }
+
         audit_log('ticket_created', 'ticket', $ticketId);
 
         // Se o chamado foi aberto de dentro de uma pasta de processo,
