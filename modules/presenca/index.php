@@ -39,6 +39,16 @@ try {
 $pctTeto = $tetoMensal > 0 ? min(100, round(($realizado / $tetoMensal) * 100)) : 0;
 $estourouTeto = $realizado > $tetoMensal;
 
+// Amanda 11/07 review: card "Verba" mostrava R$0 mesmo com matriz preenchida.
+// Adicionamos "ticket medio" pra sinalizar que a matriz esta configurada.
+$verbaMatrizMedia = 0.0; $verbaMatrizSoma = 0.0; $verbaMatrizRegras = 0;
+try {
+    $r = $pdo->query("SELECT COALESCE(SUM(verba_prevista),0) s, COUNT(*) n FROM presenca_regra WHERE ativo=1 AND verba_prevista > 0")->fetch();
+    $verbaMatrizSoma = (float)$r['s'];
+    $verbaMatrizRegras = (int)$r['n'];
+    $verbaMatrizMedia = $verbaMatrizRegras > 0 ? $verbaMatrizSoma / $verbaMatrizRegras : 0;
+} catch (Exception $e) {}
+
 // Envios por status
 $porStatus = array('sugerido'=>0,'aprovado'=>0,'em_producao'=>0,'enviado'=>0,'entregue'=>0,'cancelado'=>0);
 try {
@@ -196,8 +206,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
         <div class="pr-verba-labels">
             <span><?= $pctTeto ?>% usado</span>
-            <span>Previsto: R$ <?= number_format($previsto, 0, ',', '.') ?></span>
+            <span title="Envios em pipeline (sugerido/aprovado/em producao)">Comprometido: R$ <?= number_format($previsto, 0, ',', '.') ?></span>
         </div>
+        <?php if ($verbaMatrizRegras > 0): ?>
+        <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e5e7eb;font-size:.72rem;color:#6b7280;display:flex;justify-content:space-between;">
+            <span title="Ticket medio configurado na Matriz de Regras">🗂️ Matriz: R$ <?= number_format($verbaMatrizMedia, 0, ',', '.') ?> médio × <?= $verbaMatrizRegras ?> regras</span>
+            <span style="font-weight:700;color:#0E2E36;" title="Soma das verbas configuradas se todas as regras dispararem 1x">Potencial: R$ <?= number_format($verbaMatrizSoma, 0, ',', '.') ?></span>
+        </div>
+        <?php endif; ?>
     </div>
 
     <!-- Envios por status -->

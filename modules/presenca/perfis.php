@@ -179,7 +179,7 @@ if (isset($_GET['editar'])) {
 
 <div class="pp-form">
     <h3><?= $editar ? '✏️ Editando: ' . e($editar['nome']) : '➕ Novo perfil' ?></h3>
-    <form method="POST">
+    <form method="POST" onsubmit="return ppConfirmarPerfil(this)">
         <?= csrf_input() ?>
         <input type="hidden" name="acao" value="salvar">
         <?php if ($editar): ?><input type="hidden" name="id" value="<?= (int)$editar['id'] ?>"><?php endif; ?>
@@ -262,5 +262,31 @@ if (isset($_GET['editar'])) {
     </div>
     <?php endforeach; ?>
 </div>
+
+<script>
+// Amanda 11/07 review: pedido de confirmacao antes de gravar (bug antigo:
+// perfil salvo com valores diferentes dos digitados). Confirm mostra o
+// que VAI ser salvo — se ela ver algo estranho, cancela.
+function ppConfirmarPerfil(f) {
+    if (f.dataset.enviando === '1') return false;
+    var nome  = (f.querySelector('[name=nome]') || {}).value || '';
+    var tMin  = (f.querySelector('[name=ticket_min]') || {}).value || '';
+    var tMax  = (f.querySelector('[name=ticket_max]') || {}).value || '';
+    var vMin  = (f.querySelector('[name=verba_min]') || {}).value || '';
+    var vMax  = (f.querySelector('[name=verba_max]') || {}).value || '';
+    var ativo = (f.querySelector('[name=ativo]') || {}).checked;
+    var msg = 'Revise antes de salvar:\n\n' +
+        '  Nome: ' + (nome || '(vazio)') + '\n' +
+        '  Ticket: ' + (tMin ? 'R$ ' + tMin : 'sem minimo') + ' - ' + (tMax ? 'R$ ' + tMax : 'sem teto') + '\n' +
+        '  Verba: R$ ' + (vMin || '0') + ' - R$ ' + (vMax || '0') + '\n' +
+        '  Ativo: ' + (ativo ? 'Sim' : 'Nao') + '\n\n' +
+        'Confirmar?';
+    if (!confirm(msg)) return false;
+    f.dataset.enviando = '1';
+    var b = f.querySelector('button[type=submit]');
+    if (b) { b.disabled = true; b.innerHTML = '⏳ Salvando...'; }
+    return true;
+}
+</script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
