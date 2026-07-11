@@ -302,6 +302,20 @@ $traducoes = array(
     'ANDAMENTO_EXCLUIDO' => 'excluiu andamento',
 );
 
+// Amanda 10/07/2026: alcance geografico — clientes por UF pro mapa do Brasil.
+// Normaliza UPPER+TRIM porque tem valor com case misto ("Mi" p.ex.).
+$clientesPorUf = array();
+try {
+    $stMapa = $pdo->query("
+        SELECT UPPER(TRIM(address_state)) AS uf, COUNT(*) AS q
+        FROM clients
+        WHERE address_state IS NOT NULL AND address_state <> ''
+          AND CHAR_LENGTH(TRIM(address_state)) = 2
+        GROUP BY uf
+    ");
+    foreach ($stMapa as $r) { $clientesPorUf[$r['uf']] = (int)$r['q']; }
+} catch (Exception $e) {}
+
 // Aniversariantes
 $aniversariantes = qrows($pdo, "SELECT id, name, phone, birth_date, TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) as idade FROM clients WHERE birth_date IS NOT NULL AND DATE_FORMAT(birth_date,'%m-%d') = DATE_FORMAT(CURDATE(),'%m-%d') ORDER BY name");
 $proxAniversarios = qrows($pdo, "SELECT name, DATE_FORMAT(birth_date,'%d/%m') as data_fmt, DATEDIFF(DATE_ADD(birth_date, INTERVAL TIMESTAMPDIFF(YEAR, birth_date, CURDATE()) + IF(DATE_FORMAT(birth_date,'%m%d') <= DATE_FORMAT(CURDATE(),'%m%d'),1,0) YEAR), CURDATE()) as dias_faltam FROM clients WHERE birth_date IS NOT NULL AND DATE_FORMAT(birth_date,'%m-%d') != DATE_FORMAT(CURDATE(),'%m-%d') HAVING dias_faltam BETWEEN 1 AND 7 ORDER BY dias_faltam LIMIT 5");
@@ -678,6 +692,101 @@ $fLabels = array('cadastro_preenchido'=>'Cadastro','elaboracao_docs'=>'Elaboraç
 <div class="dash-grid2">
     <div class="dash-card"><h4>📉 Taxa de Conversão (6 meses)</h4><canvas id="chartConv"></canvas></div>
     <div class="dash-card"><h4>📊 Entradas vs Contratos</h4><canvas id="chartEC"></canvas></div>
+</div>
+
+<?php
+// ═══════ ALCANCE GEOGRAFICO — Mapa do Brasil (Amanda 10/07/2026) ═══════
+// Cartogram estilo grid: cada UF e uma celula posicionada geograficamente.
+// Cor mais escura = mais clientes. Cinza claro = sem cliente cadastrado.
+$mapaTotalUfs   = count($clientesPorUf);
+$mapaTotalCli   = array_sum($clientesPorUf);
+$mapaMaxUf      = $clientesPorUf ? max($clientesPorUf) : 0;
+$mapaTopUf      = $clientesPorUf ? array_search($mapaMaxUf, $clientesPorUf) : '';
+// Faixas de intensidade (heatmap). Cor 0 = sem cliente. Cor 4 = mais clientes.
+$mapaCorPorQtd = function ($q) {
+    if ($q <= 0)   return array('bg' => '#e5e7eb', 'fg' => '#9ca3af', 'nivel' => 0);
+    if ($q < 5)    return array('bg' => '#fef3c7', 'fg' => '#78350f', 'nivel' => 1);
+    if ($q < 20)   return array('bg' => '#fed7aa', 'fg' => '#7c2d12', 'nivel' => 2);
+    if ($q < 100)  return array('bg' => '#B87333', 'fg' => '#fff',    'nivel' => 3);
+    return array('bg' => '#052228', 'fg' => '#fff', 'nivel' => 4);
+};
+// Posicao (linha, col) de cada UF em uma grade 9 linhas x 11 colunas —
+// aproximacao geografica. Ajustada pra ficar reconhecivel como Brasil.
+$mapaPos = array(
+    'RR' => array(1, 4), 'AP' => array(1, 6),
+    'AM' => array(2, 3), 'PA' => array(2, 5), 'MA' => array(2, 7), 'CE' => array(2, 8), 'RN' => array(2, 9),
+    'AC' => array(3, 2), 'RO' => array(3, 3), 'TO' => array(3, 5), 'PI' => array(3, 7), 'PB' => array(3, 9),
+    'MT' => array(4, 4), 'PE' => array(4, 9), 'AL' => array(5, 9), 'SE' => array(5, 8),
+    'GO' => array(5, 5), 'DF' => array(5, 6), 'BA' => array(4, 7),
+    'MG' => array(6, 6), 'ES' => array(6, 7),
+    'MS' => array(6, 4), 'SP' => array(7, 5), 'RJ' => array(7, 6),
+    'PR' => array(8, 4), 'SC' => array(8, 5), 'RS' => array(9, 4),
+);
+$mapaNomes = array(
+    'RR'=>'Roraima','AP'=>'Amapá','AM'=>'Amazonas','PA'=>'Pará','MA'=>'Maranhão','CE'=>'Ceará','RN'=>'Rio Grande do Norte',
+    'AC'=>'Acre','RO'=>'Rondônia','TO'=>'Tocantins','PI'=>'Piauí','PB'=>'Paraíba','PE'=>'Pernambuco','AL'=>'Alagoas',
+    'SE'=>'Sergipe','MT'=>'Mato Grosso','GO'=>'Goiás','DF'=>'Distrito Federal','BA'=>'Bahia','MG'=>'Minas Gerais',
+    'ES'=>'Espírito Santo','MS'=>'Mato Grosso do Sul','SP'=>'São Paulo','RJ'=>'Rio de Janeiro',
+    'PR'=>'Paraná','SC'=>'Santa Catarina','RS'=>'Rio Grande do Sul',
+);
+?>
+<style>
+.br-mapa-wrap { display:grid; grid-template-columns: minmax(340px, 1fr) auto; gap:1.2rem; align-items:start; }
+@media (max-width:780px) { .br-mapa-wrap { grid-template-columns: 1fr; } }
+.br-mapa { display:grid; grid-template-columns: repeat(11, minmax(32px, 44px)); grid-auto-rows: minmax(32px, 44px); gap:4px; padding:8px; background:#f9fafb; border-radius:10px; }
+.br-uf { display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:6px; font-family:'Outfit',sans-serif; font-size:.62rem; font-weight:800; letter-spacing:.02em; line-height:1; cursor:default; transition:transform .12s, box-shadow .12s; user-select:none; }
+.br-uf:hover { transform:scale(1.15); box-shadow:0 4px 12px rgba(0,0,0,.15); z-index:5; position:relative; }
+.br-uf .qtd { font-size:.58rem; font-weight:700; opacity:.85; margin-top:1px; letter-spacing:0; }
+.br-uf.n0 { opacity:.55; }
+.br-mapa-legenda { display:flex; flex-direction:column; gap:.5rem; font-size:.72rem; }
+.br-mapa-legenda h5 { font-family:'Cormorant Garamond',serif; margin:0 0 .3rem; font-size:.9rem; color:#052228; font-weight:700; }
+.br-legend-row { display:flex; align-items:center; gap:.5rem; color:#4b5563; }
+.br-legend-sw { width:16px; height:16px; border-radius:4px; flex-shrink:0; }
+.br-mapa-stats { background:#f5ede3; border-radius:8px; padding:.6rem .8rem; margin-top:.6rem; }
+.br-mapa-stats b { color:#052228; font-size:.95rem; font-weight:800; }
+.br-mapa-stats span { color:#6b7280; font-size:.68rem; text-transform:uppercase; letter-spacing:.05em; display:block; }
+</style>
+<div class="dash-card" style="margin-bottom:1.25rem;">
+    <h4>🗺️ Alcance Geográfico <span style="font-weight:400;color:var(--text-muted);font-size:.72rem;">— clientes por estado</span></h4>
+    <div class="br-mapa-wrap">
+        <div class="br-mapa" role="img" aria-label="Mapa do Brasil com clientes por estado">
+            <?php foreach ($mapaPos as $uf => $rc):
+                $q = $clientesPorUf[$uf] ?? 0;
+                $cor = $mapaCorPorQtd($q);
+                $nome = $mapaNomes[$uf] ?? $uf;
+                $titulo = $q > 0 ? "$nome — $q cliente" . ($q > 1 ? 's' : '') : "$nome — nenhum cliente cadastrado";
+            ?>
+            <div class="br-uf n<?= $cor['nivel'] ?>" title="<?= e($titulo) ?>"
+                 style="grid-row:<?= $rc[0] ?>;grid-column:<?= $rc[1] ?>;background:<?= $cor['bg'] ?>;color:<?= $cor['fg'] ?>;">
+                <?= $uf ?>
+                <?php if ($q > 0): ?><span class="qtd"><?= $q ?></span><?php endif; ?>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <div class="br-mapa-legenda">
+            <h5>Legenda</h5>
+            <div class="br-legend-row"><span class="br-legend-sw" style="background:#e5e7eb;"></span> Sem cliente</div>
+            <div class="br-legend-row"><span class="br-legend-sw" style="background:#fef3c7;"></span> 1 a 4</div>
+            <div class="br-legend-row"><span class="br-legend-sw" style="background:#fed7aa;"></span> 5 a 19</div>
+            <div class="br-legend-row"><span class="br-legend-sw" style="background:#B87333;"></span> 20 a 99</div>
+            <div class="br-legend-row"><span class="br-legend-sw" style="background:#052228;"></span> 100 ou mais</div>
+            <div class="br-mapa-stats">
+                <span>Estados com cliente</span>
+                <b><?= $mapaTotalUfs ?> / 27</b>
+            </div>
+            <div class="br-mapa-stats" style="background:#eef6f4;">
+                <span>Total com UF cadastrada</span>
+                <b><?= number_format($mapaTotalCli, 0, ',', '.') ?></b>
+            </div>
+            <?php if ($mapaTopUf): ?>
+            <div class="br-mapa-stats" style="background:#052228;color:#fff;">
+                <span style="color:#d7ab90;">Onde temos mais</span>
+                <b style="color:#fff;"><?= $mapaTopUf ?> — <?= $mapaMaxUf ?></b>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+    <p style="font-size:.68rem;color:var(--text-muted);margin:.7rem 0 0;font-style:italic;">Passe o mouse sobre um estado para ver o total exato. Clientes sem UF cadastrada não entram na conta.</p>
 </div>
 
 <?php if (!empty($rankingAcoes)): ?>
