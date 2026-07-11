@@ -241,7 +241,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <div class="pf-form">
     <h3><?= $editar ? '✏️ Editando: ' . e($editar['nome']) : '➕ Novo fornecedor' ?></h3>
-    <form method="POST">
+    <form method="POST" onsubmit="return pfEnviarOrc(this)">
         <?= csrf_input() ?>
         <input type="hidden" name="acao" value="salvar_fornecedor">
         <?php if ($editar): ?><input type="hidden" name="id" value="<?= (int)$editar['id'] ?>"><?php endif; ?>
@@ -284,7 +284,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <div class="pf-form">
     <h3>➕ Novo orçamento</h3>
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data" onsubmit="return pfEnviarOrc(this)">
         <?= csrf_input() ?>
         <input type="hidden" name="acao" value="salvar_orcamento">
         <div class="pf-grid">
@@ -387,5 +387,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <?php endif; ?>
 
 <?php endif; ?>
+
+<script>
+// Amanda 11/07: primeira submissao do orcamento "sumia" as vezes (bug intermitente).
+// Watchdog: se em 12s a pagina nao navegou/recarregou, alerta o usuario que provavelmente
+// o submit se perdeu (rede/extensao/etc) em vez de fingir que salvou.
+function pfEnviarOrc(f) {
+    if (f.dataset.enviando === '1') return false;
+    f.dataset.enviando = '1';
+    var b = f.querySelector('button[type=submit]');
+    var textoOriginal = b ? b.innerHTML : '';
+    if (b) { b.disabled = true; b.innerHTML = '⏳ Enviando...'; }
+    setTimeout(function() {
+        if (f.dataset.enviando === '1') {
+            f.dataset.enviando = '';
+            if (b) { b.disabled = false; b.innerHTML = textoOriginal; }
+            alert('O envio parece ter travado. Isso as vezes acontece na primeira tentativa — clique em Registrar orcamento novamente.');
+        }
+    }, 12000);
+    return true;
+}
+</script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
