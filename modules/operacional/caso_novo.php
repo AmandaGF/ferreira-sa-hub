@@ -930,8 +930,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <!-- Numero do Processo + Vara (somente Judicial) -->
                 <div class="form-row" id="rowCnjVara">
                     <div class="form-col">
-                        <label>N. do Processo</label>
-                        <input type="text" name="case_number" class="form-input" placeholder="0000000-00.0000.0.00.0000" value="<?= e($preCaseNumber) ?>">
+                        <label>N. do Processo <span id="cnjParseHint" style="font-size:.7rem;color:#059669;font-weight:600;display:none;margin-left:6px;"></span></label>
+                        <input type="text" name="case_number" id="caseNumberCnjInput" class="form-input" placeholder="0000000-00.0000.0.00.0000" value="<?= e($preCaseNumber) ?>" onblur="cnjAutoPreencher(this.value)" onpaste="var v=this.value; setTimeout(function(){cnjAutoPreencher(document.getElementById('caseNumberCnjInput').value)},50);">
                     </div>
                     <div class="form-col">
                         <label>Vara</label>
@@ -1789,6 +1789,44 @@ function preencherCidades(nomes) {
     }
 })();
 <?php endif; ?>
+</script>
+
+<script>
+// Amanda 10/07/2026: auto-preenche UF/comarca/regional a partir do CNJ
+// (segmento estadual mapeia TR->UF; comarca so cobre TJRJ por ora).
+// So preenche campos VAZIOS — nunca sobrescreve o que o usuario ja digitou.
+function cnjAutoPreencher(valor) {
+    var hint = document.getElementById('cnjParseHint');
+    var digits = (valor || '').replace(/\D/g, '');
+    if (digits.length !== 20) { if (hint) { hint.style.display = 'none'; } return; }
+    fetch('<?= url("api/parse_cnj.php") ?>?cnj=' + encodeURIComponent(valor), {
+        credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(j) {
+        if (!j || !j.ok) { if (hint) { hint.style.display = 'none'; } return; }
+        var msg = j.tribunal_nome || j.segmento_nome || '';
+        if (j.uf) msg += ' · ' + j.uf;
+        if (hint) { hint.textContent = '✓ ' + msg; hint.style.display = 'inline'; }
+        // UF (select comarca_uf) — so preenche se estiver vazio
+        var selUf = document.getElementById('comarcaUf');
+        if (selUf && !selUf.value && j.uf) {
+            selUf.value = j.uf;
+            selUf.style.background = '#dcfce7';
+            if (typeof filtrarCidades === 'function') filtrarCidades();
+        }
+        // Comarca (cidade) — so preenche se conhecida (por ora so TJRJ) e vazio
+        var inpCom = document.getElementById('comarcaCidade');
+        if (inpCom && !inpCom.value && j.comarca) {
+            // Extrai so o nome antes de parenteses (ex: "Regional da Barra da Tijuca (Capital)")
+            var nomeCidade = j.comarca.replace(/\s*\(.*?\)\s*/g, '').trim();
+            if (nomeCidade.indexOf('Capital') !== -1) nomeCidade = 'Rio de Janeiro';
+            inpCom.value = nomeCidade;
+            inpCom.style.background = '#dcfce7';
+        }
+    })
+    .catch(function() { if (hint) { hint.style.display = 'none'; } });
+}
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
