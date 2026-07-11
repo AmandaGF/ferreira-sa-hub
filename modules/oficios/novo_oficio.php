@@ -188,6 +188,39 @@ function _of($campo, $oficio, $caso = null, $cliente = null, $default = '') {
     return $default;
 }
 
+// Amanda 11/07/2026: pega dados da empresa vindos da tarefa do GERID
+// (contatos ou oficio) associada ao case. Usado pra pre-preencher os
+// campos Empresa/CNPJ/E-mail RH/Telefone RH quando o form abre.
+// Preferencia: task de 'oficio_desconto_folha' > 'gerid_contatos_empresa'.
+function _dados_gerid_do_case($pdo, $caseId) {
+    if (!$caseId) return array();
+    try {
+        $stG = $pdo->prepare("
+            SELECT descricao FROM case_tasks
+            WHERE case_id = ? AND tipo IN ('oficio_desconto_folha','gerid_contatos_empresa')
+            ORDER BY FIELD(tipo,'oficio_desconto_folha','gerid_contatos_empresa'), id DESC
+            LIMIT 1
+        ");
+        $stG->execute(array((int)$caseId));
+        $desc = $stG->fetchColumn();
+    } catch (Throwable $e) { return array(); }
+    if (!$desc) return array();
+    $out = array();
+    // Linha "🎯 EMPRESA IDENTIFICADA: Nome (CNPJ ...)"
+    if (preg_match('/EMPRESA IDENTIFICADA:\s*(.+?)(?:\s*\(CNPJ\s+([\d.\/-]+)\))?\s*$/m', $desc, $m)) {
+        $out['empregador'] = trim($m[1]);
+        if (!empty($m[2])) $out['empresa_cnpj'] = trim($m[2]);
+    }
+    // Linha de endereco (opcional — usado no futuro se precisar)
+    if (preg_match('/Endereco:\s*(.+)/', $desc, $m)) $out['endereco'] = trim($m[1]);
+    // Contatos — captura primeiro email_rh (fallback email_juridico) e telefone
+    if (preg_match('/email_rh:\s*(\S+)/', $desc, $m)) $out['rh_email'] = trim($m[1]);
+    if (empty($out['rh_email']) && preg_match('/email_juridico:\s*(\S+)/', $desc, $m)) $out['rh_email'] = trim($m[1]);
+    if (preg_match('/telefone:\s*([^\(]+?)(?:\s*\(fonte|$)/m', $desc, $m)) $out['rh_contato'] = trim($m[1]);
+    return $out;
+}
+$_prefillGerid = (!$oficioExistente && $caseId > 0) ? _dados_gerid_do_case($pdo, $caseId) : array();
+
 // Carrega histórico do ofício (se for edição)
 $historicoOficio = array();
 if ($oficioExistente) {
@@ -422,17 +455,26 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
     <div class="of-sec">
         <h4>🏢 Empresa (empregadora)</h4>
+        <?php if (!empty($_prefillGerid) && !$oficioExistente): ?>
+        <div style="background:linear-gradient(135deg,#f5ede3,#fff7ed);border:1.5px solid #d7ab90;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+            <div style="font-size:1.4rem;">🤖</div>
+            <div style="flex:1;font-size:.8rem;color:#78350f;">
+                <strong>Dados vindos da pesquisa GERID</strong> — a IA identificou a empresa e buscou os contatos. Os campos abaixo já estão pré-preenchidos.
+                Confira e ajuste o que precisar.
+            </div>
+        </div>
+        <?php endif; ?>
         <div class="of-grid">
-            <div><span class="of-lab">Razão social / nome fantasia *</span><input type="text" name="empregador" id="empregador" class="of-inp" required placeholder="Ex: Empresa X Ltda" value="<?= e($oficioExistente['empregador'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">Razão social / nome fantasia *</span><input type="text" name="empregador" id="empregador" class="of-inp" required placeholder="Ex: Empresa X Ltda" value="<?= e($oficioExistente['empregador'] ?? ($_prefillGerid['empregador'] ?? '')) ?>" oninput="atualizarPreviews()" <?= !empty($_prefillGerid['empregador']) && !$oficioExistente ? 'style="background:#f5ede3;"' : '' ?>></div>
             <div>
                 <span class="of-lab">CNPJ <span id="cnpj_status" style="font-size:.7rem;margin-left:8px;"></span></span>
                 <div style="display:flex;gap:6px;">
-                    <input type="text" name="empresa_cnpj" id="empresa_cnpj" class="of-inp" placeholder="00.000.000/0000-00" value="<?= e($oficioExistente['empresa_cnpj'] ?? '') ?>" oninput="atualizarPreviews()" onblur="buscarCnpjOficio()" style="flex:1;">
+                    <input type="text" name="empresa_cnpj" id="empresa_cnpj" class="of-inp" placeholder="00.000.000/0000-00" value="<?= e($oficioExistente['empresa_cnpj'] ?? ($_prefillGerid['empresa_cnpj'] ?? '')) ?>" oninput="atualizarPreviews()" onblur="buscarCnpjOficio()" style="flex:1;<?= !empty($_prefillGerid['empresa_cnpj']) && !$oficioExistente ? 'background:#f5ede3;' : '' ?>">
                     <button type="button" onclick="buscarCnpjOficio()" style="background:#052228;color:#fff;border:none;border-radius:6px;padding:0 12px;cursor:pointer;font-size:.8rem;font-weight:600;" title="Buscar dados da empresa na Receita Federal">🔍 Buscar</button>
                 </div>
             </div>
-            <div><span class="of-lab">E-mail do RH</span><input type="email" name="rh_email" id="rh_email" class="of-inp" placeholder="rh@empresa.com.br" value="<?= e($oficioExistente['rh_email'] ?? '') ?>" oninput="atualizarPreviews()"></div>
-            <div><span class="of-lab">WhatsApp/telefone do RH</span><input type="text" name="rh_contato" id="rh_contato" class="of-inp" placeholder="(24) 99999-0000" value="<?= e($oficioExistente['rh_contato'] ?? '') ?>" oninput="atualizarPreviews()"></div>
+            <div><span class="of-lab">E-mail do RH</span><input type="email" name="rh_email" id="rh_email" class="of-inp" placeholder="rh@empresa.com.br" value="<?= e($oficioExistente['rh_email'] ?? ($_prefillGerid['rh_email'] ?? '')) ?>" oninput="atualizarPreviews()" <?= !empty($_prefillGerid['rh_email']) && !$oficioExistente ? 'style="background:#f5ede3;"' : '' ?>></div>
+            <div><span class="of-lab">WhatsApp/telefone do RH</span><input type="text" name="rh_contato" id="rh_contato" class="of-inp" placeholder="(24) 99999-0000" value="<?= e($oficioExistente['rh_contato'] ?? ($_prefillGerid['rh_contato'] ?? '')) ?>" oninput="atualizarPreviews()" <?= !empty($_prefillGerid['rh_contato']) && !$oficioExistente ? 'style="background:#f5ede3;"' : '' ?>></div>
         </div>
     </div>
 
