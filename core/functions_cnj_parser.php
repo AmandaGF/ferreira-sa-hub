@@ -125,10 +125,12 @@ function parse_cnj($cnj) {
             if (isset($trUfEstadual[$tr])) {
                 $out['uf'] = $trUfEstadual[$tr];
                 $out['tribunal_nome'] = 'TJ-' . $trUfEstadual[$tr];
-                // Comarca — tabela oficial do TJRJ (fonte:
-                // tjrj.jus.br/consultas/cod_serventias/cons_cod_serventias)
+                // Comarca — TJRJ tem tabela propria com acentos + regionais.
+                // As demais UFs vem do dataset forosCNJ (ABJ), sem acentos.
                 if ($out['uf'] === 'RJ') {
                     $out['comarca'] = _cnj_comarca_tjrj($out['origem_codigo']);
+                } else {
+                    $out['comarca'] = _cnj_comarca_outros_tjs($out['uf'], $out['origem_codigo']);
                 }
             }
             break;
@@ -163,6 +165,20 @@ function parse_cnj($cnj) {
  *
  * Codigos 0000 (2a instancia) e 9000 (Turmas Recursais) NAO tem comarca fisica.
  */
+/**
+ * Comarcas dos outros 25 TJs estaduais (nao RJ). Fonte: dataset forosCNJ da ABJ
+ * (ver core/data/comarcas_tj.php). Nomes vem sem acento — usuario edita
+ * manualmente se quiser.
+ */
+function _cnj_comarca_outros_tjs($uf, $codigo) {
+    static $mapa = null;
+    if ($mapa === null) {
+        $mapa = @include __DIR__ . '/data/comarcas_tj.php';
+        if (!is_array($mapa)) $mapa = array();
+    }
+    return isset($mapa[$uf][$codigo]) ? $mapa[$uf][$codigo] : '';
+}
+
 function _cnj_comarca_tjrj($codigo) {
     static $map = array(
         // Comarcas (0001 a 0087) — municipios do RJ
