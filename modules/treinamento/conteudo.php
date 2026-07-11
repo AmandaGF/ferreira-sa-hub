@@ -1531,10 +1531,12 @@ HTML,
     'missao' => 'Agende uma mensagem de teste pra você mesma (seu próprio WhatsApp), pra daqui a 3 minutos, usando pelo menos uma variável tipo `{{primeiro_nome}}`. Confira: (1) chegou no horário, (2) a variável foi substituída pelo seu nome, (3) sumiu de Pendentes e apareceu em Histórico como ✓ Enviado.',
 ),
 
-// Bloco removido em 10/07/2026 — o pedido era outro (treinamento pro
-// Luiz cadastrar colaboradores no modulo /admin/onboarding), nao um
-// tour do sistema pro colaborador novo.
-'_removido_onboarding_colaborador' => array(
+// ═══════════════════════════════════════════════════════════════════
+// ONBOARDING DO COLABORADOR — Tour do Hub para colaborador novo
+// (Amanda 10/07/2026 — mantido: Amanda gostou. O treinamento pro Luiz
+//  cadastrar colaboradores fica em outro slug separado).
+// ═══════════════════════════════════════════════════════════════════
+'onboarding-colaborador' => array(
     'por_que' => 'Bem-vindo(a) à **Ferreira & Sá Advocacia**! 👋 Este é seu ponto de partida no **Conecta**, o sistema interno do escritório. Aqui você vai aprender: como o sistema pensa (por cliente → por processo → por tarefa), quais ferramentas do dia a dia existem, quais são as **regras não-negociáveis da casa**, e por onde continuar seu treinamento. Ao terminar este módulo, você tem o mapa. Depois, cada treinamento específico entra em profundidade na sua área.',
     'telas_html' => <<<'HTML'
 <figure class="tm-screen">
