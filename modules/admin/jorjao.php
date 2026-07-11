@@ -435,7 +435,7 @@ $metaPeriodo = _cfg_get($pdo, 'meta_dopamina_periodo', 'mensal');
 <div class="jz-card" style="margin-top:1rem;background:linear-gradient(135deg,#fef3c7,#f5ede3);border:1.5px solid #B87333;">
   <h3 style="margin:0 0 .6rem;color:#78350f;">🍾 Meta coletiva de dopamina</h3>
   <p style="margin:0 0 1rem;font-size:.85rem;color:#78350f;line-height:1.5;">
-    Aparece no painel de dopamina de <strong>todos os funcionários</strong> — uma garrafa que enche conforme
+    Aparece no painel de dopamina de <strong>todos os funcionários</strong> — uma balança da Justiça que se equilibra conforme
     a soma dos pontos do time cresce. Ao bater a meta, todo mundo ganha o prêmio configurado.
     <br><small style="opacity:.85;">💡 Distribuições valem 2 pontos cada (mais trabalhosas). As outras categorias valem 1.</small>
   </p>
@@ -445,7 +445,7 @@ $metaPeriodo = _cfg_get($pdo, 'meta_dopamina_periodo', 'mensal');
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.8rem;">
       <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;font-weight:700;color:#78350f;cursor:pointer;">
         <input type="checkbox" name="meta_ativa" value="1" <?= $metaAtiva ? 'checked' : '' ?>>
-        Mostrar garrafa no painel de todo mundo
+        Mostrar balança no painel de todo mundo
       </label>
       <div>
         <label style="display:block;font-size:.72rem;font-weight:700;color:#78350f;text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px;">Período</label>

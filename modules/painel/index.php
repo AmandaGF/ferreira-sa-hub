@@ -708,6 +708,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-meta-premio strong{color:#fbbf24;}
 .pd-meta-faltam{font-size:.7rem;opacity:.78;font-style:italic;}
 .pd-meta-garrafa{position:relative;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.pd-brilhos text{animation:pdBrilhaPulse 1.4s ease-in-out infinite;transform-origin:center;}
+.pd-brilhos text:nth-child(2){animation-delay:.35s;}
+.pd-brilhos text:nth-child(3){animation-delay:.7s;}
+@keyframes pdBrilhaPulse{0%,100%{opacity:.5;transform:scale(1);}50%{opacity:1;transform:scale(1.25);}}
 .pd-meta-garrafa svg{filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));}
 .pd-meta-confete{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:1.3rem;animation:pdMetaSpark 1.5s ease-in-out infinite;pointer-events:none;}
 @keyframes pdMetaSpark{0%,100%{opacity:.7;transform:translateX(-50%) scale(1);}50%{opacity:1;transform:translateX(-50%) scale(1.15) rotate(-5deg);}}
@@ -1089,34 +1093,81 @@ function confirmarCancelamento(caseId, btn) {
                     <div class="pd-meta-faltam">Faltam <strong><?= max(0, $metaAlvo - $metaPontosTime) ?></strong> pontos — todo mundo somando junto!</div>
                 <?php endif; ?>
             </div>
-            <div class="pd-meta-garrafa" title="Meta coletiva do time — cada baixa de qualquer pessoa enche a garrafa">
-                <svg viewBox="0 0 80 130" xmlns="http://www.w3.org/2000/svg" style="width:80px;height:130px;">
-                    <!-- Rolha -->
-                    <rect x="30" y="4" width="20" height="14" rx="2" fill="#8b5a2b" class="pd-rolha"/>
-                    <rect x="28" y="16" width="24" height="4" fill="#654321"/>
-                    <!-- Gargalo -->
-                    <rect x="32" y="20" width="16" height="20" fill="#0E2E36"/>
-                    <!-- Corpo da garrafa (contorno) -->
-                    <path d="M 22 40 Q 22 42 24 44 L 24 118 Q 24 126 32 126 L 48 126 Q 56 126 56 118 L 56 44 Q 58 42 58 40 Z" fill="#0E2E36" stroke="#0a1f24" stroke-width="1.5"/>
-                    <!-- Recorte interno pro liquido -->
-                    <clipPath id="pdGarrafaClip">
-                        <path d="M 27 45 L 27 116 Q 27 122 33 122 L 47 122 Q 53 122 53 116 L 53 45 Z"/>
-                    </clipPath>
-                    <!-- Liquido enchendo (bronze do escritorio) -->
-                    <g clip-path="url(#pdGarrafaClip)">
-                        <rect x="27" y="122" width="26" height="0" fill="#B87333" class="pd-liquido"
-                              data-h="<?= max(2, (int)round(77 * $metaPct / 100)) ?>"
-                              style="transform: translateY(<?= -max(2, (int)round(77 * $metaPct / 100)) ?>px);">
-                            <animate attributeName="height" from="0" to="<?= max(2, (int)round(77 * $metaPct / 100)) ?>" dur="1.2s" fill="freeze" begin="0.3s"/>
-                        </rect>
-                        <!-- Onda no topo -->
-                        <path d="M 27 <?= 122 - max(2, (int)round(77 * $metaPct / 100)) ?> Q 34 <?= 118 - max(2, (int)round(77 * $metaPct / 100)) ?> 40 <?= 122 - max(2, (int)round(77 * $metaPct / 100)) ?> T 53 <?= 122 - max(2, (int)round(77 * $metaPct / 100)) ?> L 53 122 L 27 122 Z"
-                              fill="#d18948" opacity=".7"/>
+            <div class="pd-meta-garrafa" title="Meta coletiva do time — balança da Justiça equilibra ao bater a meta">
+                <?php
+                // Amanda 11/07: metafora da balanca da Justica.
+                // Prato ESQUERDO tem a META fixa (peso oficial).
+                // Prato DIREITO enche de "pastas" conforme o time pontua.
+                // Angulo do travessao: -14deg em 0% -> 0deg em 100% (perfeitamente equilibrada).
+                $__ang    = -14 + 14 * min(1, $metaPct / 100);
+                $__pastas = min(8, max(0, (int)round(8 * $metaPct / 100))); // 8 pastas empilhadas ao bater
+                ?>
+                <svg viewBox="0 0 160 170" xmlns="http://www.w3.org/2000/svg" style="width:120px;height:130px;">
+                    <!-- Base (chao) -->
+                    <ellipse cx="80" cy="162" rx="42" ry="4" fill="#0a1f24" opacity=".6"/>
+                    <!-- Pe -->
+                    <path d="M 60 158 L 100 158 L 92 148 L 68 148 Z" fill="#0E2E36"/>
+                    <!-- Poste vertical -->
+                    <rect x="77" y="45" width="6" height="105" fill="#0E2E36"/>
+                    <rect x="76" y="45" width="8" height="4" fill="#B87333"/>
+                    <!-- Fulcro (bola bronze no topo do poste) -->
+                    <circle cx="80" cy="42" r="5" fill="#B87333" stroke="#0E2E36" stroke-width="1"/>
+
+                    <!-- ═══ TRAVESSAO + CORRENTES + PRATOS (rotacionam juntos) ═══ -->
+                    <g style="transform: rotate(<?= $__ang ?>deg); transform-origin: 80px 42px; transition: transform 1.2s cubic-bezier(.4,.2,.3,1);">
+                        <!-- Travessao horizontal -->
+                        <rect x="18" y="39" width="124" height="5" rx="1.5" fill="#B87333" stroke="#8a5722" stroke-width=".5"/>
+                        <!-- Detalhes decorativos nas pontas -->
+                        <circle cx="22" cy="41.5" r="3" fill="#B87333" stroke="#8a5722" stroke-width=".5"/>
+                        <circle cx="138" cy="41.5" r="3" fill="#B87333" stroke="#8a5722" stroke-width=".5"/>
+
+                        <!-- Correntes -->
+                        <line x1="24" y1="45" x2="24" y2="72" stroke="#0E2E36" stroke-width="1.2"/>
+                        <line x1="136" y1="45" x2="136" y2="72" stroke="#0E2E36" stroke-width="1.2"/>
+
+                        <!-- PRATO ESQUERDO (META fixa) -->
+                        <g>
+                            <path d="M 8 72 Q 24 88 40 72 L 36 76 L 12 76 Z" fill="#0E2E36" stroke="#0a1f24" stroke-width="1"/>
+                            <ellipse cx="24" cy="72" rx="16" ry="3" fill="#173d46"/>
+                            <!-- Peso oficial da META -->
+                            <rect x="16" y="58" width="16" height="14" rx="2" fill="#4b5563" stroke="#1f2937" stroke-width=".5"/>
+                            <rect x="19" y="55" width="10" height="4" rx="1" fill="#4b5563"/>
+                            <text x="24" y="66" text-anchor="middle" font-family="Arial" font-size="4.5" font-weight="700" fill="#fff">META</text>
+                            <text x="24" y="71" text-anchor="middle" font-family="Arial" font-size="4.5" font-weight="700" fill="#B87333"><?= $metaAlvo ?></text>
+                        </g>
+
+                        <!-- PRATO DIREITO (progresso: pastas empilhando) -->
+                        <g>
+                            <path d="M 120 72 Q 136 88 152 72 L 148 76 L 124 76 Z" fill="#0E2E36" stroke="#0a1f24" stroke-width="1"/>
+                            <ellipse cx="136" cy="72" rx="16" ry="3" fill="#173d46"/>
+                            <!-- Pastas empilhadas (uma por unidade de progresso) -->
+                            <?php for ($i = 0; $i < $__pastas; $i++):
+                                $y = 68 - ($i * 3); // empilha de baixo pra cima, 3px por pasta
+                                $offset = ($i % 2 === 0) ? 0 : 1; // leve ziguezague
+                            ?>
+                                <rect x="<?= 125 + $offset ?>" y="<?= $y ?>" width="22" height="3" rx=".5" fill="#B87333" stroke="#8a5722" stroke-width=".3">
+                                    <animate attributeName="opacity" from="0" to="1" dur=".3s" begin="<?= 0.3 + $i * 0.1 ?>s" fill="freeze"/>
+                                </rect>
+                                <line x1="<?= 129 + $offset ?>" y1="<?= $y + 1.5 ?>" x2="<?= 143 + $offset ?>" y2="<?= $y + 1.5 ?>" stroke="#8a5722" stroke-width=".3" opacity=".5"/>
+                            <?php endfor; ?>
+                        </g>
                     </g>
-                    <!-- Rotulo -->
-                    <rect x="26" y="70" width="28" height="24" fill="#f5ede3" stroke="#B87333" stroke-width="1"/>
-                    <text x="40" y="82" text-anchor="middle" font-family="'Cormorant Garamond',serif" font-size="9" font-weight="700" fill="#0E2E36">FS</text>
-                    <text x="40" y="91" text-anchor="middle" font-family="Arial" font-size="6" fill="#78350f"><?= $metaPct ?>%</text>
+
+                    <!-- Selo % no topo -->
+                    <g>
+                        <circle cx="80" cy="20" r="14" fill="#f5ede3" stroke="#B87333" stroke-width="1.5"/>
+                        <text x="80" y="19" text-anchor="middle" font-family="'Cormorant Garamond',serif" font-size="6" font-weight="700" fill="#78350f">TIME</text>
+                        <text x="80" y="27" text-anchor="middle" font-family="Arial" font-size="8" font-weight="800" fill="#0E2E36"><?= $metaPct ?>%</text>
+                    </g>
+
+                    <?php if ($metaBatida): ?>
+                    <!-- Brilhos ao redor quando bate -->
+                    <g class="pd-brilhos">
+                        <text x="20" y="30" font-size="10" fill="#facc15">✨</text>
+                        <text x="140" y="30" font-size="10" fill="#facc15">✨</text>
+                        <text x="80" y="8" font-size="8" fill="#facc15">⭐</text>
+                    </g>
+                    <?php endif; ?>
                 </svg>
                 <?php if ($metaBatida): ?>
                     <div class="pd-meta-confete">✨🎉✨</div>
@@ -1128,11 +1179,11 @@ function confirmarCancelamento(caseId, btn) {
         <div id="pdModalMeta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99998;align-items:center;justify-content:center;padding:1rem;">
             <div style="background:#fff;border-radius:14px;padding:1.6rem 1.8rem;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35);color:#0E2E36;font-family:inherit;">
                 <h3 style="margin:0 0 .3rem;font-family:'Cormorant Garamond',serif;font-size:1.4rem;color:#0E2E36;">🍾 Ajustar meta do time</h3>
-                <p style="margin:0 0 1rem;font-size:.8rem;color:#6b7280;">Todo mundo vê a garrafa enchendo. Ao atingir a meta, o prêmio aparece pra equipe.</p>
+                <p style="margin:0 0 1rem;font-size:.8rem;color:#6b7280;">Todo mundo vê a balança da Justiça enchendo o prato conforme o time pontua. Ao equilibrar (100%), o prêmio aparece pra equipe.</p>
                 <form id="pdFormMeta" onsubmit="return pdSalvarMeta(event)" data-fsa-skip="1">
                     <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.9rem;font-size:.88rem;font-weight:700;cursor:pointer;">
                         <input type="checkbox" name="ativa" value="1" <?= $metaAtiva ? 'checked' : '' ?>>
-                        Mostrar a garrafa no painel de todos
+                        Mostrar a balança no painel de todos
                     </label>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.9rem;">
                         <div>
