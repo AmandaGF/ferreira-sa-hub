@@ -166,21 +166,28 @@ function parse_cnj($cnj) {
  * Codigos 0000 (2a instancia) e 9000 (Turmas Recursais) NAO tem comarca fisica.
  */
 /**
- * Comarcas dos outros TJs estaduais (nao RJ). Fonte: dataset forosCNJ da ABJ
- * (ver core/data/comarcas_tj.php).
+ * Comarcas dos outros TJs estaduais (nao RJ).
  *
- * BLACKLIST de UFs cuja tabela ABJ esta comprovadamente desatualizada/errada.
- * TJSC: Amanda 10/07 testou codigo 0040 e retornou "Balneario Camboriu",
- *   mas processos oficiais recentes mostram 0040 = Laguna (edital TJSC
- *   5001914-74.2025.8.24.0040) e Balneario Camboriu aparece em 0023 ou 0005.
- *   A ABJ deve ter capturado uma versao pre-remapeamento do TJSC.
- * Enquanto nao encontrar tabela oficial atualizada, retorna vazio pra UFs da
- * blacklist — usuario preenche manualmente (UF continua sendo detectada
- * automaticamente porque vem direto do numero, nao depende de tabela).
+ * DESATIVADO em 10/07/2026 apos Amanda testar TJSC (codigo 0040 retornou
+ * "Balneario Camboriu" mas o real era Laguna, confirmado via edital oficial
+ * do TJSC 5001914-74.2025.8.24.0040). A tabela ABJ (forosCNJ) capturou uma
+ * versao antiga antes de remapeamentos do TJSC — provavelmente vale pra
+ * outros TJs tambem, mas nao da pra confiar sem verificar tribunal por
+ * tribunal.
+ *
+ * Decisao Amanda: melhor NAO preencher do que preencher errado. So RJ
+ * (que tem tabela oficial vinda do site do TJRJ direto) mantem comarca
+ * automatica. Outros TJs: UF preenche (100% confiavel — vem do proprio
+ * numero), comarca fica em branco pro usuario preencher manual.
+ *
+ * Pra reativar: buscar tabela OFICIAL do TJ desejado, adicionar em
+ * core/data/comarcas_tj.php e remover ele da whitelist abaixo.
  */
 function _cnj_comarca_outros_tjs($uf, $codigo) {
-    static $blacklist = array('SC'); // ver comentario acima
-    if (in_array($uf, $blacklist, true)) return '';
+    // Whitelist vazia: nenhuma UF nao-RJ tem comarca automatica ativa.
+    // Adicionar UFs aqui APENAS quando tabela for verificada contra fonte oficial.
+    static $whitelist_verificada = array();
+    if (!in_array($uf, $whitelist_verificada, true)) return '';
     static $mapa = null;
     if ($mapa === null) {
         $mapa = @include __DIR__ . '/data/comarcas_tj.php';
