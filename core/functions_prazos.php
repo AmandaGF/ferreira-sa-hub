@@ -372,6 +372,30 @@ function tipos_prazo()
         'Embargos à Execução', 'Manifestação', 'Juntada de Documentos',
         'Juntada de Mandado de Citação',
         'Recurso Inominado', 'Cumprimento de Sentença',
-        'Tutela de Urgência', 'Outro',
+        'Tutela de Urgência',
+        'Agendamento Mediação Pré-Processual', // Amanda 11/07: 5 dias úteis a contar do protocolo do pedido (CEJUSC)
+        'Outro',
     );
+}
+
+/**
+ * Preenchimento automatico de prazo por tipo. Se o tipo tem valor default
+ * (quantidade + unidade + marco_juntada), preenche pra economizar cliques.
+ * Retorna array vazio se o tipo nao tem default.
+ *
+ * marco_juntada: 0 = Disponibilização DJe (D+1 pub, D+2 contagem)
+ *                1 = Juntada aos Autos / Protocolo (D+1 contagem, Art. 231 CPC)
+ */
+function tipo_prazo_defaults($tipo)
+{
+    $defaults = array(
+        'Agendamento Mediação Pré-Processual' => array(
+            'quantidade' => 5,
+            'unidade' => 'dias',
+            'marco_juntada' => 1,
+            'label_data' => 'Data do protocolo do pedido',
+            'nota' => 'Prazo de 5 dias úteis a contar do protocolo (CEJUSC — mediação pré-processual).',
+        ),
+    );
+    return $defaults[$tipo] ?? array();
 }

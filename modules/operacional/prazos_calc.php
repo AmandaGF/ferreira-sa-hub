@@ -199,6 +199,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && validate_csrf()) {
 $comarcas   = comarcas_rj();
 $tiposPrazo = tipos_prazo();
 
+// Mapa de defaults por tipo (Amanda 11/07: mediação pré-processual = 5d úteis do protocolo)
+$tipoPrazoDefaults = array();
+foreach ($tiposPrazo as $tp) {
+    $d = tipo_prazo_defaults($tp);
+    if (!empty($d)) $tipoPrazoDefaults[$tp] = $d;
+}
+
 $casesForSelect = array();
 try {
     $casesForSelect = $pdo->query(
@@ -1000,7 +1007,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <!-- Tipo de prazo -->
                     <div class="field-group">
                         <label class="field-label" for="tipoPrazo">Tipo de Prazo</label>
-                        <select name="tipo_prazo" id="tipoPrazo" class="field-select">
+                        <select name="tipo_prazo" id="tipoPrazo" class="field-select" onchange="prazoTipoChanged()">
                             <option value="">-- Selecione o tipo --</option>
                             <?php foreach ($tiposPrazo as $tp): ?>
                                 <option value="<?= e($tp) ?>"
@@ -1011,6 +1018,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                                 ><?= e($tp) ?></option>
                             <?php endforeach; ?>
                         </select>
+                        <div id="tipoPrazoNota" style="display:none;margin-top:6px;padding:6px 10px;background:#ecfdf5;border-left:3px solid #059669;border-radius:6px;font-size:.75rem;color:#065f46;line-height:1.4;"></div>
                     </div>
 
                     <!-- Estado (UF) + Comarca -->
@@ -1554,6 +1562,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Inicializar estado visual
     window.toggleModoJuntada(<?= !empty($_POST['modo_juntada']) ? 'true' : 'false' ?>);
+
+    // Amanda 11/07: preenchimento automatico de prazo por tipo (ex: Mediação Pré-Processual = 5d úteis do protocolo)
+    var _tipoPrazoDefaults = <?= json_encode($tipoPrazoDefaults) ?>;
+    window.prazoTipoChanged = function() {
+        var tipoSel = document.getElementById('tipoPrazo');
+        var nota = document.getElementById('tipoPrazoNota');
+        var def = _tipoPrazoDefaults[tipoSel.value];
+        if (!def) { nota.style.display = 'none'; return; }
+        // Preenche quantidade
+        var qtd = document.getElementById('quantidade');
+        if (qtd && def.quantidade) qtd.value = def.quantidade;
+        // Preenche unidade
+        var uni = document.getElementById('unidade');
+        if (uni && def.unidade) uni.value = def.unidade;
+        // Seleciona marco (juntada ou DJe)
+        var radioJunt = document.querySelector('input[name="modo_juntada"][value="' + (def.marco_juntada ? '1' : '0') + '"]');
+        if (radioJunt) { radioJunt.checked = true; window.toggleModoJuntada(!!def.marco_juntada); }
+        // Ajusta o label do campo data (ex: "Data do protocolo do pedido")
+        if (def.label_data) {
+            var labelData = document.getElementById('labelDataDisp');
+            if (labelData) labelData.textContent = def.label_data;
+        }
+        // Mostra nota explicativa
+        nota.textContent = '💡 ' + (def.nota || 'Prazo padrão preenchido automaticamente.');
+        nota.style.display = 'block';
+    };
+    // Rodar no load (se ja veio com tipo pre-selecionado)
+    if (document.getElementById('tipoPrazo').value) window.prazoTipoChanged();
 
     // Feriados nacionais fixos (mes-dia → nome). O calculo final no servidor ja
     // considera feriados moveis (Carnaval, Sexta Santa, Corpus Christi) + suspensoes
