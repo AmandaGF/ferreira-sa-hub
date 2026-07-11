@@ -62,6 +62,28 @@ $fases  = $pdo->query("SELECT * FROM presenca_fase WHERE ativo=1 ORDER BY ordem,
 $brindes = $pdo->query("SELECT id, nome, categoria FROM presenca_brinde WHERE ativo=1 ORDER BY nome")->fetchAll(PDO::FETCH_ASSOC);
 $frases = $pdo->query("SELECT id, texto, fase_id FROM presenca_frase WHERE ativo=1 ORDER BY fase_id IS NULL, fase_id, id")->fetchAll(PDO::FETCH_ASSOC);
 
+// Amanda 11/07 review: "ao escolher brinde, sugerir fornecedor com melhor score de
+// custo-beneficio". Buscamos por brinde o TOP orcamento por score.
+$melhorForn = array(); // [brinde_id] = ['forn'=>nome, 'unit'=>float, 'total'=>float, 'prazo'=>int, 'score'=>float]
+try {
+    $rows = $pdo->query("SELECT o.brinde_id, f.nome AS forn_nome, o.valor_unitario, o.frete, o.prazo_producao_dias, o.prazo_entrega_dias, o.score, b.qtd_compra_referencia
+                         FROM presenca_orcamento o
+                         JOIN presenca_fornecedor f ON f.id = o.fornecedor_id
+                         JOIN presenca_brinde b ON b.id = o.brinde_id
+                         WHERE f.ativo = 1 AND b.ativo = 1 AND o.escolhido = 1")->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($rows as $o) {
+        $qtdRef = max(1, (int)$o['qtd_compra_referencia']);
+        $melhorForn[(int)$o['brinde_id']] = array(
+            'forn'  => $o['forn_nome'],
+            'unit'  => (float)$o['valor_unitario'],
+            'total' => ((float)$o['valor_unitario']) * $qtdRef + (float)$o['frete'],
+            'prazo' => (int)$o['prazo_producao_dias'] + (int)$o['prazo_entrega_dias'],
+            'score' => (float)$o['score'],
+            'qtdRef'=> $qtdRef,
+        );
+    }
+} catch (Exception $e) {}
+
 $regras = array();
 foreach ($pdo->query("SELECT r.*, b.nome AS brinde_nome, f.texto AS frase_texto FROM presenca_regra r LEFT JOIN presenca_brinde b ON b.id=r.brinde_id LEFT JOIN presenca_frase f ON f.id=r.frase_id WHERE r.ativo=1") as $r) {
     $regras[$r['perfil_id'] . '_' . $r['fase_id']] = $r;
@@ -112,6 +134,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pm-celula .actions button.warn { background:#fff; color:#dc2626; border:1px solid #fecaca; }
 .pm-celula .saved-flag { position:absolute; top:6px; right:6px; font-size:.7rem; color:#059669; opacity:0; transition:opacity .3s; }
 .pm-celula.acabou-de-salvar .saved-flag { opacity:1; }
+.pm-forn-sug { display:none; margin-top:4px; padding:5px 7px; background:#ecfdf5; border-left:3px solid #16a34a; border-radius:4px; font-size:.68rem; color:#065f46; line-height:1.35; }
+.pm-forn-sug.aparece { display:block; animation:fsaFadeIn .2s; }
+.pm-forn-sug.sem { background:#fef3c7; border-left-color:#d97706; color:#78350f; }
+.pm-forn-sug strong { color:#0E2E36; }
+.pm-forn-sug a { color:#B87333; text-decoration:none; font-weight:700; }
 </style>
 
 <div class="pm-hero">
@@ -173,12 +200,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <td id="c_<?= (int)$p['id'] ?>_<?= (int)$f['id'] ?>" class="pm-celula <?= $preenchida?'preenchida':'vazia' ?>" data-perfil="<?= (int)$p['id'] ?>" data-fase="<?= (int)$f['id'] ?>">
                     <div class="saved-flag">✓</div>
                     <div class="lbl">Brinde</div>
-                    <select data-campo="brinde_id" onchange="pmSalvar(this)">
+                    <select data-campo="brinde_id" onchange="pmSalvar(this); pmAtualizarFornSug(this);">
                         <option value="0">— nenhum —</option>
                         <?php foreach ($brindes as $b): ?>
                             <option value="<?= (int)$b['id'] ?>" <?= $r && (int)$r['brinde_id']===(int)$b['id']?'selected':'' ?>><?= e($b['nome']) ?></option>
                         <?php endforeach; ?>
                     </select>
+                    <div class="pm-forn-sug" data-forn-sug></div>
                     <div class="lbl">Frase</div>
                     <select data-campo="frase_id" onchange="pmSalvar(this)">
                         <option value="0">— nenhuma —</option>
@@ -210,11 +238,44 @@ require_once APP_ROOT . '/templates/layout_start.php';
 
 <script>
 var pmCsrf = '<?= $csrf ?>';
+// Mapa brinde_id -> melhor fornecedor (score) pra sugestao inline na celula.
+var pmMelhorForn = <?= json_encode($melhorForn) ?>;
+var pmFornecedoresUrl = '<?= module_url('presenca','fornecedores.php') ?>';
 
 function pmCelulaDe(el) {
     var td = el.closest('td.pm-celula');
     return { td: td, perfilId: td.dataset.perfil, faseId: td.dataset.fase };
 }
+
+// Atualiza a tag de sugestao de fornecedor ao mudar o brinde da celula.
+// Chama tambem no load pra celulas ja preenchidas.
+function pmAtualizarFornSug(el) {
+    var td  = el.closest ? el.closest('td.pm-celula') : el.parentNode;
+    var tip = td.querySelector('[data-forn-sug]');
+    if (!tip) return;
+    var brSel = td.querySelector('select[data-campo="brinde_id"]');
+    var brId  = brSel ? parseInt(brSel.value, 10) : 0;
+    if (!brId) { tip.classList.remove('aparece'); tip.innerHTML = ''; return; }
+    var m = pmMelhorForn[brId];
+    if (!m) {
+        tip.classList.add('aparece','sem');
+        tip.innerHTML = '⚠ Sem orçamento cadastrado — <a href="' + pmFornecedoresUrl + '?orc=1&brinde=' + brId + '">registrar</a>';
+        return;
+    }
+    tip.classList.add('aparece');
+    tip.classList.remove('sem');
+    var brindeTxt = brSel.options[brSel.selectedIndex].textContent;
+    var totalFmt = 'R$ ' + Math.round(m.total).toLocaleString('pt-BR');
+    var unitFmt  = 'R$ ' + m.unit.toFixed(2).replace('.', ',');
+    tip.innerHTML = '🏭 <strong>' + m.forn + '</strong> · ' + unitFmt + '/un (lote ' + m.qtdRef + ' = ' + totalFmt + ') · ' +
+                    m.prazo + 'd · score ' + Math.round(m.score) +
+                    ' · <a href="' + pmFornecedoresUrl + '?orc=1&brinde=' + brId + '">comparar</a>';
+}
+// Popula sugestoes ao carregar
+document.addEventListener('DOMContentLoaded', function() {
+    var selects = document.querySelectorAll('select[data-campo="brinde_id"]');
+    for (var i = 0; i < selects.length; i++) pmAtualizarFornSug(selects[i]);
+});
 
 function pmSalvar(el) {
     var info = pmCelulaDe(el);

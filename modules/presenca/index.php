@@ -254,6 +254,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </div>
                 <?php endif; ?>
             </div>
+            <a href="<?= module_url('presenca','reposicao.php') ?>" style="display:block;margin-top:10px;padding:8px 12px;background:#0E2E36;color:#fff;text-align:center;text-decoration:none;border-radius:8px;font-size:.78rem;font-weight:700;">🛒 Gerar pedido de reposição</a>
         <?php endif; ?>
     </div>
 

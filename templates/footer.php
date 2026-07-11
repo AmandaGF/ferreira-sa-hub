@@ -82,6 +82,24 @@ document.addEventListener('click', function(ev) {
 </script>
 <script src="<?= url('assets/js/fix-webm-duration.js') ?>?v=<?= date('YmdHi') ?>"></script>
 <script src="<?= url('assets/js/fsa_feedback.js') ?>?v=<?= date('YmdHi') ?>"></script>
+<script>
+// Auto-wrap conservador de forms POST em TODA tela do sistema:
+// - Pula forms que ja tem onsubmit inline (nao pisa em cima de logica propria)
+// - Pula forms marcados com data-fsa-skip="1" (opt-out explicito)
+// - Pula forms com method != POST
+// Isso garante feedback visual (watchdog + botao desabilitado + toast se travar)
+// em CENTENAS de forms sem precisar refatorar tela por tela.
+document.addEventListener('DOMContentLoaded', function() {
+    if (!window.FsaFeedback) return;
+    var forms = document.querySelectorAll('form[method=POST], form[method=post]');
+    for (var i = 0; i < forms.length; i++) {
+        var f = forms[i];
+        if (f.hasAttribute('onsubmit')) continue;
+        if (f.dataset.fsaSkip === '1') continue;
+        FsaFeedback.wrapForm(f);
+    }
+});
+</script>
 <!-- PWA: service worker + install prompt + update banner -->
 <script>
 (function() {
