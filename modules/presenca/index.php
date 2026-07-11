@@ -47,9 +47,16 @@ try {
     }
 } catch (Exception $e) {}
 
-// Estoque em risco (abaixo do mínimo)
+// Estoque em risco (abaixo do mínimo).
+// Amanda 11/07 (review 2): card contava "count(rows) com LIMIT 6" — capava em 6
+// quando o total real era maior (checklist mostrava 8, card mostrava 6). Fix:
+// query 1 pega o TOTAL real (sem LIMIT), query 2 pega amostra pra listar.
+$estoqueRiscoTotal = 0;
 $estoqueRisco = array();
 try {
+    $estoqueRiscoTotal = (int)$pdo->query("SELECT COUNT(*)
+        FROM presenca_estoque e JOIN presenca_brinde b ON b.id = e.brinde_id
+        WHERE b.ativo = 1 AND e.estoque_atual < e.estoque_minimo")->fetchColumn();
     $st = $pdo->query("SELECT b.id, b.nome, e.estoque_atual, e.estoque_minimo
         FROM presenca_estoque e
         JOIN presenca_brinde b ON b.id = e.brinde_id
@@ -86,9 +93,8 @@ try {
     }
 } catch (Exception $e) {}
 
-// Alertas de estoque baixo (contagem pro checklist)
-$estoqueRiscoQtd = 0;
-try { $estoqueRiscoQtd = (int)$pdo->query("SELECT COUNT(*) FROM presenca_estoque e JOIN presenca_brinde b ON b.id = e.brinde_id WHERE b.ativo = 1 AND e.estoque_atual < e.estoque_minimo")->fetchColumn(); } catch (Exception $e) {}
+// Alertas de estoque baixo — reusa contagem ja feita acima (mesma fonte que o card)
+$estoqueRiscoQtd = $estoqueRiscoTotal;
 
 // Passos do checklist — ordem lógica de configuração
 $passos = array(
@@ -212,19 +218,25 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <!-- Estoque em risco -->
     <div class="pr-card">
         <h4>📉 Estoque em risco</h4>
-        <?php if (empty($estoqueRisco)): ?>
+        <?php if ($estoqueRiscoTotal === 0): ?>
             <div class="num" style="color:#15803d;">✓</div>
             <div class="sub">Todos os brindes acima do mínimo</div>
         <?php else: ?>
-            <div class="num" style="color:#dc2626;"><?= count($estoqueRisco) ?></div>
+            <div class="num" style="color:#dc2626;"><?= $estoqueRiscoTotal ?></div>
             <div class="sub">brinde(s) abaixo do mínimo</div>
             <div class="pr-estoque-list">
-                <?php foreach (array_slice($estoqueRisco, 0, 4) as $r): ?>
+                <?php $mostrados = array_slice($estoqueRisco, 0, 4); foreach ($mostrados as $r): ?>
                 <div class="pr-estoque-row">
                     <span class="nome"><?= e($r['nome']) ?></span>
                     <span class="qty"><?= (int)$r['estoque_atual'] ?> / <?= (int)$r['estoque_minimo'] ?></span>
                 </div>
                 <?php endforeach; ?>
+                <?php if ($estoqueRiscoTotal > count($mostrados)): ?>
+                    <div style="font-size:.7rem;color:#6b7280;text-align:center;padding:2px;font-style:italic;">
+                        + <?= $estoqueRiscoTotal - count($mostrados) ?> outro(s) —
+                        <a href="<?= module_url('presenca','brindes.php') ?>" style="color:#B87333;font-weight:700;text-decoration:none;">ver todos →</a>
+                    </div>
+                <?php endif; ?>
             </div>
         <?php endif; ?>
     </div>
