@@ -317,7 +317,7 @@ if ($isGestao) {
 // Conta por $viewUserId no dia de hoje: tarefas concluídas, prazos cumpridos,
 // compromissos da agenda dados baixa (realizado) e chamados resolvidos.
 // ══════════════════════════════════════════════════════════════════════
-$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0);
+$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0);
 try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE status='concluido' AND assigned_to=? AND DATE(completed_at)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['tarefas'] = (int)$q->fetchColumn();
@@ -327,9 +327,50 @@ try {
     $q->execute(array($viewUserId, $hoje)); $dopa['prazos'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
 try {
-    // Baixa na agenda (cumprido + balcão virtual realizado) — atribuída a QUEM deu baixa, via audit_log
-    $q = $pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE entity_type='agenda' AND user_id=? AND DATE(created_at)=? AND (action='AGENDA_BALCAO_REALIZADO' OR (action='AGENDA_STATUS' AND details LIKE 'Status: realizado%'))");
+    // Baixa na agenda (cumprido) — atribuída a QUEM deu baixa, via audit_log.
+    // Amanda 10/07/2026: split — onboarding, balcao_virtual e AGENDA_BALCAO_REALIZADO
+    // saem daqui pra categorias proprias (evita duplicidade).
+    $q = $pdo->prepare("
+        SELECT COUNT(*) FROM audit_log al
+        LEFT JOIN agenda_eventos ae ON ae.id = al.entity_id
+        WHERE al.entity_type='agenda' AND al.user_id=? AND DATE(al.created_at)=?
+          AND al.action='AGENDA_STATUS' AND al.details LIKE 'Status: realizado%'
+          AND COALESCE(ae.tipo,'') NOT IN ('onboarding','balcao_virtual')
+    ");
     $q->execute(array($viewUserId, $hoje)); $dopa['agenda'] = (int)$q->fetchColumn();
+} catch (Exception $e) {}
+// Amanda 10/07/2026: 3 novas categorias — pasta_apta, onboarding, balcao.
+try {
+    // 📂 Pasta apta = lead movido pra stage='pasta_apta' (audit_log details "... -> pasta_apta")
+    $q = $pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND DATE(created_at)=? AND details LIKE '% -> pasta_apta'");
+    $q->execute(array($viewUserId, $hoje)); $dopa['pasta_apta'] = (int)$q->fetchColumn();
+} catch (Exception $e) {}
+try {
+    // 🎯 Onboard realizado = evento tipo='onboarding' marcado como realizado
+    $q = $pdo->prepare("
+        SELECT COUNT(*) FROM audit_log al
+        INNER JOIN agenda_eventos ae ON ae.id = al.entity_id
+        WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda'
+          AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding'
+          AND al.user_id=? AND DATE(al.created_at)=?
+    ");
+    $q->execute(array($viewUserId, $hoje)); $dopa['onboarding'] = (int)$q->fetchColumn();
+} catch (Exception $e) {}
+try {
+    // 🏛️ Balcao realizado = AGENDA_BALCAO_REALIZADO + AGENDA_STATUS tipo=balcao_virtual
+    $q = $pdo->prepare("
+        SELECT COUNT(*) FROM (
+            SELECT id FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO'
+              AND entity_type='agenda' AND user_id=? AND DATE(created_at)=?
+            UNION
+            SELECT al.id FROM audit_log al
+              INNER JOIN agenda_eventos ae ON ae.id = al.entity_id
+              WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda'
+                AND al.details LIKE 'Status: realizado%' AND ae.tipo='balcao_virtual'
+                AND al.user_id=? AND DATE(al.created_at)=?
+        ) u
+    ");
+    $q->execute(array($viewUserId, $hoje, $viewUserId, $hoje)); $dopa['balcao'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
 try {
     // Helpdesk não tem campo "quem resolveu" — atribui via audit_log (quem deu o update no dia)
@@ -390,13 +431,13 @@ $dias7 = array(); $dias7det = array();
 for ($i = 6; $i >= 0; $i--) {
     $d = date('Y-m-d', strtotime("-$i day"));
     $dias7[$d] = 0;
-    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0);
+    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0);
 }
 $desde7 = date('Y-m-d', strtotime('-6 day')) . ' 00:00:00';
 $histQ = array(
     'tarefas'       => array("SELECT DATE(completed_at) d, COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? AND completed_at>=? GROUP BY DATE(completed_at)", array($viewUserId, $desde7)),
     'prazos'        => array("SELECT DATE(concluido_em) d, COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND concluido_em>=? GROUP BY DATE(concluido_em)", array($viewUserId, $desde7)),
-    'agenda'        => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE entity_type='agenda' AND user_id=? AND created_at>=? AND (action='AGENDA_BALCAO_REALIZADO' OR (action='AGENDA_STATUS' AND details LIKE 'Status: realizado%')) GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
+    'agenda'        => array("SELECT DATE(al.created_at) d, COUNT(*) c FROM audit_log al LEFT JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.entity_type='agenda' AND al.user_id=? AND al.created_at>=? AND al.action='AGENDA_STATUS' AND al.details LIKE 'Status: realizado%' AND COALESCE(ae.tipo,'') NOT IN ('onboarding','balcao_virtual') GROUP BY DATE(al.created_at)", array($viewUserId, $desde7)),
     'helpdesk'      => array("SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido' GROUP BY DATE(a.created_at)", array($viewUserId, $desde7)),
     'distribuicoes' => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
     'movimentacoes' => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
@@ -404,6 +445,9 @@ $histQ = array(
     'clientes24'    => array("SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='24' GROUP BY DATE(m.created_at)", array($viewUserId, $desde7)),
     'gerid'         => array("SELECT DATE(pesquisado_em) d, COUNT(*) c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND pesquisado_em>=? GROUP BY DATE(pesquisado_em)", array($viewUserId, $desde7)),
     'renuncias'     => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
+    'pasta_apta'    => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND created_at>=? AND details LIKE '% -> pasta_apta' GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
+    'onboarding'    => array("SELECT DATE(al.created_at) d, COUNT(*) c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? AND al.created_at>=? GROUP BY DATE(al.created_at)", array($viewUserId, $desde7)),
+    'balcao'        => array("SELECT DATE(d) d, COUNT(*) c FROM (SELECT DATE(created_at) d, id FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? AND created_at>=? UNION SELECT DATE(al.created_at) d, al.id FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='balcao_virtual' AND al.user_id=? AND al.created_at>=?) u GROUP BY DATE(d)", array($viewUserId, $desde7, $viewUserId, $desde7)),
 );
 foreach ($histQ as $cat => $h) {
     try { $q = $pdo->prepare($h[0]); $q->execute($h[1]); foreach ($q->fetchAll() as $row) {
@@ -418,7 +462,7 @@ try {
     $q = $pdo->prepare("SELECT SUM(c) tot FROM (
         SELECT DATE(completed_at) d, COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? GROUP BY DATE(completed_at)
         UNION ALL SELECT DATE(concluido_em) d, COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? GROUP BY DATE(concluido_em)
-        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE entity_type='agenda' AND user_id=? AND (action='AGENDA_BALCAO_REALIZADO' OR (action='AGENDA_STATUS' AND details LIKE 'Status: realizado%')) GROUP BY DATE(created_at)
+        UNION ALL SELECT DATE(al.created_at) d, COUNT(*) c FROM audit_log al LEFT JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.entity_type='agenda' AND al.user_id=? AND al.action='AGENDA_STATUS' AND al.details LIKE 'Status: realizado%' AND COALESCE(ae.tipo,'') NOT IN ('onboarding','balcao_virtual') GROUP BY DATE(al.created_at)
         UNION ALL SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND t.status='resolvido' GROUP BY DATE(a.created_at)
         UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
         UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
@@ -426,8 +470,11 @@ try {
         UNION ALL SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND co.canal='24' GROUP BY DATE(m.created_at)
         UNION ALL SELECT DATE(pesquisado_em) d, COUNT(*) c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? GROUP BY DATE(pesquisado_em)
         UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? GROUP BY DATE(created_at)
+        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND details LIKE '% -> pasta_apta' GROUP BY DATE(created_at)
+        UNION ALL SELECT DATE(al.created_at) d, COUNT(*) c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? GROUP BY DATE(al.created_at)
+        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? GROUP BY DATE(created_at)
     ) u GROUP BY d ORDER BY tot DESC LIMIT 1");
-    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
+    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
     $rt = (int)$q->fetchColumn();
     if ($rt > $dopaRecorde) $dopaRecorde = $rt;
 } catch (Exception $e) {}
@@ -444,7 +491,7 @@ $dopaSomaDesde = function($pdo, $uid, $desde) {
     $sql = "SELECT COALESCE(SUM(c),0) FROM (
         SELECT COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? AND completed_at>=?
         UNION ALL SELECT COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND concluido_em>=?
-        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE entity_type='agenda' AND user_id=? AND created_at>=? AND (action='AGENDA_BALCAO_REALIZADO' OR (action='AGENDA_STATUS' AND details LIKE 'Status: realizado%'))
+        UNION ALL SELECT COUNT(*) c FROM audit_log al LEFT JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.entity_type='agenda' AND al.user_id=? AND al.created_at>=? AND al.action='AGENDA_STATUS' AND al.details LIKE 'Status: realizado%' AND COALESCE(ae.tipo,'') NOT IN ('onboarding','balcao_virtual')
         UNION ALL SELECT COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido'
         UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=?
         UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? AND created_at>=?
@@ -452,10 +499,13 @@ $dopaSomaDesde = function($pdo, $uid, $desde) {
         UNION ALL SELECT COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='24'
         UNION ALL SELECT COUNT(*) c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND pesquisado_em>=?
         UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND created_at>=?
+        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND created_at>=? AND details LIKE '% -> pasta_apta'
+        UNION ALL SELECT COUNT(*) c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? AND al.created_at>=?
+        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? AND created_at>=?
     ) u";
     try {
         $q = $pdo->prepare($sql);
-        $q->execute(array($uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde));
+        $q->execute(array($uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde));
         return (int)$q->fetchColumn();
     } catch (Exception $e) { return 0; }
 };
@@ -932,6 +982,9 @@ function confirmarCancelamento(caseId, btn) {
             <div class="pd-dopa-stat <?= $dopa['helpdesk'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['helpdesk'] ?></span><span class="l">🎫 Chamados</span></div>
             <div class="pd-dopa-stat <?= $dopa['gerid'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['gerid'] ?></span><span class="l">🔎 GERID</span></div>
             <div class="pd-dopa-stat <?= $dopa['renuncias'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['renuncias'] ?></span><span class="l">📤 Renúncias</span></div>
+            <div class="pd-dopa-stat <?= $dopa['pasta_apta'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['pasta_apta'] ?></span><span class="l">📂 Pasta Apta</span></div>
+            <div class="pd-dopa-stat <?= $dopa['onboarding'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['onboarding'] ?></span><span class="l">🎯 Onboard</span></div>
+            <div class="pd-dopa-stat <?= $dopa['balcao'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['balcao'] ?></span><span class="l">🏛️ Balcão</span></div>
         </div>
 
         <div class="pd-dopa-totais">
@@ -1038,7 +1091,7 @@ function pdConfete(){
 
 // Detalhe do dia ao clicar numa barra
 var PD_DIAS = <?= json_encode($dias7det, JSON_UNESCAPED_UNICODE) ?>;
-var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', movimentacoes:'🔄 Movimentações', leads21:'👋 Leads (21)', clientes24:'💬 Clientes (24)', helpdesk:'🎫 Chamados', gerid:'🔎 GERID', renuncias:'📤 Renúncias' };
+var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', movimentacoes:'🔄 Movimentações', leads21:'👋 Leads (21)', clientes24:'💬 Clientes (24)', helpdesk:'🎫 Chamados', gerid:'🔎 GERID', renuncias:'📤 Renúncias', pasta_apta:'📂 Pasta Apta', onboarding:'🎯 Onboard', balcao:'🏛️ Balcão' };
 function pdDopaDia(date, el){
     var ex = document.getElementById('pdDopaPop');
     if (ex){ var was = ex.dataset.date; ex.remove(); document.removeEventListener('click', pdPopClose); if (was === date) return; }
