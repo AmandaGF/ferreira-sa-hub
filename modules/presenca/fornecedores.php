@@ -96,6 +96,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(module_url('presenca','fornecedores.php'));
     }
 
+    if ($acao === 'excluir_fornecedor') {
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) { redirect(module_url('presenca','fornecedores.php')); }
+
+        // Apaga orcamentos vinculados (com arquivos fisicos) — senao FK trava
+        $st = $pdo->prepare("SELECT id, brinde_id, arquivo_proposta FROM presenca_orcamento WHERE fornecedor_id = ?");
+        $st->execute(array($id));
+        $orcs = $st->fetchAll(PDO::FETCH_ASSOC);
+        $brindesAfetados = array();
+        foreach ($orcs as $o) {
+            if (!empty($o['arquivo_proposta'])) {
+                $abs = $UPLOAD_DIR . '/' . basename($o['arquivo_proposta']);
+                if (is_file($abs)) @unlink($abs);
+            }
+            $brindesAfetados[(int)$o['brinde_id']] = true;
+        }
+        if (count($orcs) > 0) {
+            $pdo->prepare("DELETE FROM presenca_orcamento WHERE fornecedor_id = ?")->execute(array($id));
+        }
+
+        $st = $pdo->prepare("SELECT nome FROM presenca_fornecedor WHERE id = ?");
+        $st->execute(array($id));
+        $nome = (string)$st->fetchColumn();
+
+        $pdo->prepare("DELETE FROM presenca_fornecedor WHERE id = ?")->execute(array($id));
+
+        foreach (array_keys($brindesAfetados) as $bid) _pr_recalcular_scores($pdo, $bid);
+
+        audit_log('presenca_fornecedor_del','presenca_fornecedor',$id,$nome.' (+'.count($orcs).' orc)');
+        flash_set('success','Fornecedor "'.$nome.'" excluído'.(count($orcs) > 0 ? ' junto com '.count($orcs).' orçamento(s)' : '').'.');
+        redirect(module_url('presenca','fornecedores.php'));
+    }
+
     if ($acao === 'salvar_orcamento') {
         $brId  = (int)($_POST['brinde_id'] ?? 0);
         $fId   = (int)($_POST['fornecedor_id'] ?? 0);
@@ -272,8 +305,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="footer">
             <span class="pf-orcs-badge">📄 <?= (int)$f['orcs'] ?> orçamento(s)</span>
             <div style="display:flex;gap:4px;">
-                <a href="?editar_f=<?= (int)$f['id'] ?>" class="pf-btn">✏️</a>
-                <form method="POST" style="display:inline;"><?= csrf_input() ?><input type="hidden" name="acao" value="toggle_ativo"><input type="hidden" name="id" value="<?= (int)$f['id'] ?>"><button type="submit" class="pf-btn <?= $f['ativo']?'warn':'' ?>"><?= $f['ativo']?'⏸':'▶' ?></button></form>
+                <a href="?editar_f=<?= (int)$f['id'] ?>" class="pf-btn" title="Editar">✏️</a>
+                <form method="POST" style="display:inline;"><?= csrf_input() ?><input type="hidden" name="acao" value="toggle_ativo"><input type="hidden" name="id" value="<?= (int)$f['id'] ?>"><button type="submit" class="pf-btn <?= $f['ativo']?'warn':'' ?>" title="<?= $f['ativo']?'Desativar':'Reativar' ?>"><?= $f['ativo']?'⏸':'▶' ?></button></form>
+                <form method="POST" style="display:inline;" onsubmit="return pfExcluirFornecedor(this, <?= (int)$f['orcs'] ?>, <?= json_encode($f['nome']) ?>)"><?= csrf_input() ?><input type="hidden" name="acao" value="excluir_fornecedor"><input type="hidden" name="id" value="<?= (int)$f['id'] ?>"><button type="submit" class="pf-btn warn" title="Excluir de vez">🗑</button></form>
             </div>
         </div>
     </div>
@@ -406,6 +440,17 @@ function pfEnviarOrc(f) {
         }
     }, 12000);
     return true;
+}
+function pfExcluirFornecedor(f, qtdOrcs, nome) {
+    var msg = 'Excluir "' + nome + '" DE VEZ?\n\n';
+    if (qtdOrcs > 0) {
+        msg += 'ATENCAO: Isso vai apagar tambem os ' + qtdOrcs + ' orcamento(s) vinculados a este fornecedor.\n\n';
+    }
+    msg += 'Nao tem como desfazer. Continuar?';
+    if (!confirm(msg)) return false;
+    // Segunda confirmacao so pra quem tem orcamentos vinculados (rede maior)
+    if (qtdOrcs > 0 && !confirm('Ultima chance: apagar "' + nome + '" + ' + qtdOrcs + ' orcamento(s)?')) return false;
+    return pfEnviarOrc(f);
 }
 </script>
 
