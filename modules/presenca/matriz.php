@@ -67,6 +67,18 @@ foreach ($pdo->query("SELECT r.*, b.nome AS brinde_nome, f.texto AS frase_texto 
     $regras[$r['perfil_id'] . '_' . $r['fase_id']] = $r;
 }
 
+// Amanda 11/07 (review): "matriz mostra 10/15 mas nao lista quais faltam".
+// Lista das combinacoes vazias pra chip destacado no topo.
+$vaziasList = array();
+foreach ($perfis as $p) foreach ($fases as $f) {
+    $chave = $p['id'] . '_' . $f['id'];
+    $r = $regras[$chave] ?? null;
+    $preenchida = $r && (!empty($r['brinde_id']) || !empty($r['frase_id']) || (float)$r['verba_prevista'] > 0);
+    if (!$preenchida) $vaziasList[] = array('perfil'=>$p['nome'], 'fase'=>$f['nome'], 'anchor'=>'c_'.$p['id'].'_'.$f['id']);
+}
+$totalCelulas = count($perfis) * count($fases);
+$preenchidas = $totalCelulas - count($vaziasList);
+
 $csrf = generate_csrf_token();
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -114,6 +126,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
     💡 <strong>Disciplina do vazio.</strong> Célula vazia é proposital — sem regra ativa, nenhuma sugestão nasce daquela combinação. Preencha só onde faz sentido enviar. Salvar acontece automático ao mudar cada campo.
 </div>
 
+<?php if (!empty($vaziasList)): ?>
+<div style="background:#fff;border:1.5px solid #fef3c7;border-radius:10px;padding:14px 18px;margin-bottom:16px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
+        <div style="font-weight:800;color:#0E2E36;font-size:.95rem;">📊 Cobertura da matriz: <?= $preenchidas ?>/<?= $totalCelulas ?></div>
+        <div style="font-size:.75rem;color:#78350f;font-weight:700;background:#fef3c7;padding:3px 10px;border-radius:999px;">⚠ <?= count($vaziasList) ?> célula(s) vazia(s)</div>
+    </div>
+    <div style="font-size:.75rem;color:#6b7280;margin-bottom:8px;">Clique numa combinação pra ir direto pra célula:</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <?php foreach ($vaziasList as $v): ?>
+        <a href="#<?= e($v['anchor']) ?>" style="background:#fef3c7;color:#78350f;padding:4px 12px;border-radius:999px;font-size:.75rem;font-weight:600;text-decoration:none;border:1px solid #fde68a;">
+            <?= e($v['perfil']) ?> × <?= e($v['fase']) ?>
+        </a>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php else: ?>
+<div style="background:linear-gradient(90deg,#dcfce7,#fff);border-left:4px solid #15803d;padding:12px 18px;border-radius:8px;margin-bottom:16px;font-size:.9rem;color:#065f46;font-weight:700;">
+    ✓ Matriz completa: todas as <?= $totalCelulas ?> combinações preenchidas.
+</div>
+<?php endif; ?>
+
 <div class="pm-tabela-wrap">
     <table class="pm-tabela">
         <thead>
@@ -137,7 +170,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $r = $regras[$chave] ?? null;
                     $preenchida = $r && (!empty($r['brinde_id']) || !empty($r['frase_id']) || (float)$r['verba_prevista'] > 0);
                 ?>
-                <td class="pm-celula <?= $preenchida?'preenchida':'vazia' ?>" data-perfil="<?= (int)$p['id'] ?>" data-fase="<?= (int)$f['id'] ?>">
+                <td id="c_<?= (int)$p['id'] ?>_<?= (int)$f['id'] ?>" class="pm-celula <?= $preenchida?'preenchida':'vazia' ?>" data-perfil="<?= (int)$p['id'] ?>" data-fase="<?= (int)$f['id'] ?>">
                     <div class="saved-flag">✓</div>
                     <div class="lbl">Brinde</div>
                     <select data-campo="brinde_id" onchange="pmSalvar(this)">

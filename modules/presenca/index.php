@@ -69,6 +69,38 @@ $totRegras    = (int)$pdo->query("SELECT COUNT(*) FROM presenca_regra WHERE ativ
 $regrasMax    = $totPerfis * $totFases; // matriz completa
 $pctMatriz    = $regrasMax > 0 ? round(($totRegras / $regrasMax) * 100) : 0;
 
+// Amanda 11/07 (review): "matriz mostra 10/15 mas nao lista quais faltam".
+// Aqui achamos as combinacoes SEM regra pra listar no checklist.
+$celulasVazias = array();
+try {
+    $perfis = $pdo->query("SELECT id, nome FROM presenca_perfil WHERE ativo = 1 ORDER BY ordem, id")->fetchAll(PDO::FETCH_ASSOC);
+    $fases  = $pdo->query("SELECT id, nome FROM presenca_fase WHERE ativo = 1 ORDER BY ordem, id")->fetchAll(PDO::FETCH_ASSOC);
+    $preenchidas = array();
+    foreach ($pdo->query("SELECT perfil_id, fase_id FROM presenca_regra WHERE ativo = 1 AND (brinde_id IS NOT NULL OR frase_id IS NOT NULL OR verba_prevista > 0)") as $r) {
+        $preenchidas[$r['perfil_id'] . '_' . $r['fase_id']] = true;
+    }
+    foreach ($perfis as $p) foreach ($fases as $f) {
+        if (empty($preenchidas[$p['id'] . '_' . $f['id']])) {
+            $celulasVazias[] = $p['nome'] . ' × ' . $f['nome'];
+        }
+    }
+} catch (Exception $e) {}
+
+// Alertas de estoque baixo (contagem pro checklist)
+$estoqueRiscoQtd = 0;
+try { $estoqueRiscoQtd = (int)$pdo->query("SELECT COUNT(*) FROM presenca_estoque e JOIN presenca_brinde b ON b.id = e.brinde_id WHERE b.ativo = 1 AND e.estoque_atual < e.estoque_minimo")->fetchColumn(); } catch (Exception $e) {}
+
+// Passos do checklist — ordem lógica de configuração
+$passos = array(
+    array('id'=>'perfis',      'titulo'=>'Perfis & Verbas',                'meta'=>3,  'atual'=>$totPerfis,  'ok_msg'=>'perfis cadastrados',        'todo_msg'=>'perfil pra cadastrar',       'url'=>module_url('presenca','perfis.php'),        'action'=>'Ajustar faixas','icon'=>'👤'),
+    array('id'=>'fases',       'titulo'=>'Fases da Jornada',               'meta'=>5,  'atual'=>$totFases,   'ok_msg'=>'fases ativas',              'todo_msg'=>'fase pra cadastrar',         'url'=>module_url('presenca','fases.php'),         'action'=>'Revisar fases','icon'=>'🛤️'),
+    array('id'=>'brindes',     'titulo'=>'Catálogo de Brindes + Estoque',  'meta'=>5,  'atual'=>$totBrindes, 'ok_msg'=>'brindes cadastrados',       'todo_msg'=>'brinde pra cadastrar',       'url'=>module_url('presenca','brindes.php'),       'action'=>'Ajustar estoque','icon'=>'🎁',    'warn_extra'=>$estoqueRiscoQtd > 0 ? $estoqueRiscoQtd . ' abaixo do mínimo' : null),
+    array('id'=>'frases',      'titulo'=>'Banco de Frases',                'meta'=>10, 'atual'=>$totFrases,  'ok_msg'=>'frases',                    'todo_msg'=>'frase pra cadastrar',        'url'=>module_url('presenca','frases.php'),        'action'=>'Ver frases','icon'=>'📚'),
+    array('id'=>'matriz',      'titulo'=>'Matriz de Regras',               'meta'=>$regrasMax, 'atual'=>$totRegras, 'ok_msg'=>'combinações preenchidas', 'todo_msg'=>'combinação vazia',       'url'=>module_url('presenca','matriz.php'),        'action'=>'Preencher matriz','icon'=>'🗂️', 'vazias'=>$celulasVazias),
+    array('id'=>'fornecedores','titulo'=>'Fornecedores',                   'meta'=>2,  'atual'=>$totFornec,  'ok_msg'=>'fornecedores ativos',       'todo_msg'=>'fornecedor pra cadastrar',   'url'=>module_url('presenca','fornecedores.php'),  'action'=>'Cadastrar fornecedor','icon'=>'🏭'),
+    array('id'=>'orcamentos',  'titulo'=>'Orçamentos comparados',          'meta'=>1,  'atual'=>$totOrcam,   'ok_msg'=>'orçamento(s) registrado(s)','todo_msg'=>'orçamento pra registrar',    'url'=>module_url('presenca','fornecedores.php').'?orc=1', 'action'=>'Registrar orçamento','icon'=>'💰'),
+);
+
 // Retenção — ROI
 $retTotHonor = 0.0; $retTotCusto = 0.0; $retIndicacoes = 0;
 try {
@@ -210,42 +242,65 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
-<!-- Progresso da configuração (Fase 1) -->
-<div class="pr-card" style="margin-bottom:18px;">
-    <h4>🧭 Progresso da configuração</h4>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-top:6px;">
-        <div>
-            <div style="font-size:.75rem;color:#6b7280;">Perfis cadastrados</div>
-            <div style="font-weight:800;color:#0E2E36;font-size:1.1rem;"><?= $totPerfis ?></div>
-        </div>
-        <div>
-            <div style="font-size:.75rem;color:#6b7280;">Fases da jornada</div>
-            <div style="font-weight:800;color:#0E2E36;font-size:1.1rem;"><?= $totFases ?></div>
-        </div>
-        <div>
-            <div style="font-size:.75rem;color:#6b7280;">Brindes no catálogo</div>
-            <div style="font-weight:800;color:#0E2E36;font-size:1.1rem;"><?= $totBrindes ?></div>
-        </div>
-        <div>
-            <div style="font-size:.75rem;color:#6b7280;">Frases</div>
-            <div style="font-weight:800;color:#0E2E36;font-size:1.1rem;"><?= $totFrases ?></div>
-        </div>
-        <div>
-            <div style="font-size:.75rem;color:#6b7280;">Fornecedores</div>
-            <div style="font-weight:800;color:#0E2E36;font-size:1.1rem;"><?= $totFornec ?></div>
-        </div>
-        <div>
-            <div style="font-size:.75rem;color:#6b7280;">Orçamentos</div>
-            <div style="font-weight:800;color:#0E2E36;font-size:1.1rem;"><?= $totOrcam ?></div>
+<!-- Checklist de primeiros passos (Fase 1) — Amanda 11/07 review -->
+<?php
+$passosFeitos = 0; $passosTotal = count($passos);
+foreach ($passos as $ps) if ($ps['atual'] >= $ps['meta']) $passosFeitos++;
+$prontidao = round(($passosFeitos / $passosTotal) * 100);
+?>
+<div class="pr-card" style="margin-bottom:18px;padding:0;overflow:hidden;">
+    <div style="padding:16px 20px;background:linear-gradient(135deg,#f5ede3,#fff);border-bottom:1px solid #f3f4f6;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <div>
+                <h4 style="margin:0;font-size:.9rem;color:#0E2E36;text-transform:none;letter-spacing:0;">🧭 Checklist de configuração</h4>
+                <div style="font-size:.75rem;color:#6b7280;margin-top:4px;">Configure na ordem — o sistema opera quando isto estiver pronto.</div>
+            </div>
+            <div style="font-family:'Cormorant Garamond',Georgia,serif;font-size:1.4rem;font-weight:700;color:<?= $prontidao >= 100 ? '#15803d' : '#B87333' ?>;">
+                <?= $passosFeitos ?>/<?= $passosTotal ?> passos
+            </div>
         </div>
     </div>
-    <div style="margin-top:14px;">
-        <div style="font-size:.75rem;color:#6b7280;">Matriz de regras (perfil × fase)</div>
-        <div class="pr-progresso-config">
-            <div class="bar"><div class="fill" style="width:<?= $pctMatriz ?>%;"></div></div>
-            <div class="pct"><?= $totRegras ?>/<?= $regrasMax ?></div>
-        </div>
-        <div style="font-size:.7rem;color:#6b7280;margin-top:2px;font-style:italic;">Célula vazia = nenhuma sugestão nasce daquela combinação (disciplina do vazio).</div>
+    <div>
+        <?php foreach ($passos as $i => $ps):
+            $done = $ps['atual'] >= $ps['meta'];
+            $pct = $ps['meta'] > 0 ? min(100, round(($ps['atual'] / $ps['meta']) * 100)) : 0;
+        ?>
+        <a href="<?= e($ps['url']) ?>" class="pr-passo <?= $done?'done':'todo' ?>" style="
+            display:flex;align-items:center;gap:14px;padding:14px 20px;text-decoration:none;color:inherit;
+            border-bottom:1px solid #f3f4f6;transition:background .12s;
+            <?= $done ? 'background:#fff;' : 'background:#fafafa;' ?>
+        " onmouseover="this.style.background='#f5ede3'" onmouseout="this.style.background='<?= $done?'#fff':'#fafafa' ?>'">
+            <div style="width:28px;height:28px;border-radius:50%;background:<?= $done ? '#15803d' : '#e5e7eb' ?>;color:<?= $done?'#fff':'#6b7280' ?>;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:.9rem;flex-shrink:0;">
+                <?= $done ? '✓' : ($i + 1) ?>
+            </div>
+            <div style="font-size:1.5rem;line-height:1;"><?= $ps['icon'] ?></div>
+            <div style="flex:1;min-width:0;">
+                <div style="font-weight:700;color:#0E2E36;font-size:.9rem;"><?= e($ps['titulo']) ?></div>
+                <div style="font-size:.75rem;color:#6b7280;margin-top:2px;">
+                    <?php if ($done): ?>
+                        ✓ <?= $ps['atual'] ?> <?= e($ps['ok_msg']) ?>
+                    <?php else: ?>
+                        <?= $ps['atual'] ?>/<?= $ps['meta'] ?> — falta <?= max(0, $ps['meta'] - $ps['atual']) ?> <?= e($ps['todo_msg']) ?>
+                    <?php endif; ?>
+                    <?php if (!empty($ps['warn_extra'])): ?>
+                        · <span style="color:#dc2626;font-weight:700;">⚠ <?= e($ps['warn_extra']) ?></span>
+                    <?php endif; ?>
+                </div>
+                <?php if (!empty($ps['vazias']) && !$done): ?>
+                <div style="font-size:.7rem;color:#78350f;margin-top:6px;line-height:1.6;">
+                    <strong>Combinações vazias:</strong>
+                    <?php foreach (array_slice($ps['vazias'], 0, 6) as $v): ?>
+                        <span style="display:inline-block;background:#fef3c7;color:#78350f;padding:2px 8px;border-radius:999px;font-weight:600;margin:1px 2px;"><?= e($v) ?></span>
+                    <?php endforeach; ?>
+                    <?php if (count($ps['vazias']) > 6): ?><span style="color:#a0846b;">+ <?= count($ps['vazias']) - 6 ?> outras</span><?php endif; ?>
+                </div>
+                <?php endif; ?>
+            </div>
+            <div style="background:<?= $done?'#dcfce7':'#0E2E36' ?>;color:<?= $done?'#15803d':'#fff' ?>;padding:6px 14px;border-radius:8px;font-size:.75rem;font-weight:700;flex-shrink:0;">
+                <?= $done ? '✓ Ajustar' : $ps['action'] ?> →
+            </div>
+        </a>
+        <?php endforeach; ?>
     </div>
 </div>
 
