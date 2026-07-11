@@ -317,7 +317,7 @@ if ($isGestao) {
 // Conta por $viewUserId no dia de hoje: tarefas concluídas, prazos cumpridos,
 // compromissos da agenda dados baixa (realizado) e chamados resolvidos.
 // ══════════════════════════════════════════════════════════════════════
-$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0);
+$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0);
 try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE status='concluido' AND assigned_to=? AND DATE(completed_at)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['tarefas'] = (int)$q->fetchColumn();
@@ -365,6 +365,14 @@ try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND DATE(pesquisado_em)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['gerid'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
+// Amanda 10/07/2026: renuncias/desistencias marcadas como CUMPRIDAS pelo usuario.
+// Ao clicar "V Cumprida" no banner roxo da ficha OU no botao verde da tabela
+// de historico em /processos/renuncias, o handler grava audit_log
+// action='renuncia_tarefa_baixa'.
+try {
+    $q = $pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND DATE(created_at)=?");
+    $q->execute(array($viewUserId, $hoje)); $dopa['renuncias'] = (int)$q->fetchColumn();
+} catch (Exception $e) {}
 $dopaTotal = array_sum($dopa);
 
 // ── Progresso do dia: itens DATADOS para hoje (tarefas due hoje + prazos hoje + compromissos hoje) ──
@@ -382,7 +390,7 @@ $dias7 = array(); $dias7det = array();
 for ($i = 6; $i >= 0; $i--) {
     $d = date('Y-m-d', strtotime("-$i day"));
     $dias7[$d] = 0;
-    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0);
+    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0);
 }
 $desde7 = date('Y-m-d', strtotime('-6 day')) . ' 00:00:00';
 $histQ = array(
@@ -395,6 +403,7 @@ $histQ = array(
     'leads21'       => array("SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='21' GROUP BY DATE(m.created_at)", array($viewUserId, $desde7)),
     'clientes24'    => array("SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='24' GROUP BY DATE(m.created_at)", array($viewUserId, $desde7)),
     'gerid'         => array("SELECT DATE(pesquisado_em) d, COUNT(*) c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND pesquisado_em>=? GROUP BY DATE(pesquisado_em)", array($viewUserId, $desde7)),
+    'renuncias'     => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
 );
 foreach ($histQ as $cat => $h) {
     try { $q = $pdo->prepare($h[0]); $q->execute($h[1]); foreach ($q->fetchAll() as $row) {
@@ -416,8 +425,9 @@ try {
         UNION ALL SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND co.canal='21' GROUP BY DATE(m.created_at)
         UNION ALL SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND co.canal='24' GROUP BY DATE(m.created_at)
         UNION ALL SELECT DATE(pesquisado_em) d, COUNT(*) c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? GROUP BY DATE(pesquisado_em)
+        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? GROUP BY DATE(created_at)
     ) u GROUP BY d ORDER BY tot DESC LIMIT 1");
-    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
+    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
     $rt = (int)$q->fetchColumn();
     if ($rt > $dopaRecorde) $dopaRecorde = $rt;
 } catch (Exception $e) {}
@@ -441,10 +451,11 @@ $dopaSomaDesde = function($pdo, $uid, $desde) {
         UNION ALL SELECT COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='21'
         UNION ALL SELECT COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='24'
         UNION ALL SELECT COUNT(*) c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND pesquisado_em>=?
+        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND created_at>=?
     ) u";
     try {
         $q = $pdo->prepare($sql);
-        $q->execute(array($uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde));
+        $q->execute(array($uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde));
         return (int)$q->fetchColumn();
     } catch (Exception $e) { return 0; }
 };
@@ -920,6 +931,7 @@ function confirmarCancelamento(caseId, btn) {
             <div class="pd-dopa-stat <?= $dopa['clientes24'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['clientes24'] ?></span><span class="l">💬 Clientes (24)</span></div>
             <div class="pd-dopa-stat <?= $dopa['helpdesk'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['helpdesk'] ?></span><span class="l">🎫 Chamados</span></div>
             <div class="pd-dopa-stat <?= $dopa['gerid'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['gerid'] ?></span><span class="l">🔎 GERID</span></div>
+            <div class="pd-dopa-stat <?= $dopa['renuncias'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['renuncias'] ?></span><span class="l">📤 Renúncias</span></div>
         </div>
 
         <div class="pd-dopa-totais">
@@ -1026,7 +1038,7 @@ function pdConfete(){
 
 // Detalhe do dia ao clicar numa barra
 var PD_DIAS = <?= json_encode($dias7det, JSON_UNESCAPED_UNICODE) ?>;
-var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', movimentacoes:'🔄 Movimentações', leads21:'👋 Leads (21)', clientes24:'💬 Clientes (24)', helpdesk:'🎫 Chamados', gerid:'🔎 GERID' };
+var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', movimentacoes:'🔄 Movimentações', leads21:'👋 Leads (21)', clientes24:'💬 Clientes (24)', helpdesk:'🎫 Chamados', gerid:'🔎 GERID', renuncias:'📤 Renúncias' };
 function pdDopaDia(date, el){
     var ex = document.getElementById('pdDopaPop');
     if (ex){ var was = ex.dataset.date; ex.remove(); document.removeEventListener('click', pdPopClose); if (was === date) return; }
