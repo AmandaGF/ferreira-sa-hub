@@ -280,28 +280,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <div class="s">Boas-vindas · Fôlego · Marco · Nova fase · Efeméride</div>
         </div>
     </a>
-    <a class="pr-nav-card soon">
+    <a class="pr-nav-card" href="<?= module_url('presenca', 'matriz.php') ?>">
         <div class="ico">🗂️</div>
         <div class="txt">
             <div class="t">Matriz de Regras</div>
             <div class="s">Perfil × Fase → brinde + frase + verba</div>
         </div>
     </a>
-    <a class="pr-nav-card soon">
+    <a class="pr-nav-card" href="<?= module_url('presenca', 'fornecedores.php') ?>">
         <div class="ico">🏭</div>
         <div class="txt">
             <div class="t">Fornecedores &amp; Orçamentos</div>
             <div class="s">CRUD + comparativo com score de custo-benefício</div>
         </div>
     </a>
-    <a class="pr-nav-card soon">
+    <a class="pr-nav-card" href="<?= module_url('presenca', 'brindes.php') ?>">
         <div class="ico">📦</div>
         <div class="txt">
             <div class="t">Estoque</div>
-            <div class="s">Saldo por brinde + alerta de reposição</div>
+            <div class="s">Editável na tela de Brindes (saldo atual + mínimo)</div>
         </div>
     </a>
-    <a class="pr-nav-card soon">
+    <a class="pr-nav-card" href="<?= module_url('presenca', 'restricoes.php') ?>">
         <div class="ico">🛡️</div>
         <div class="txt">
             <div class="t">Restrições de Sensibilidade</div>
