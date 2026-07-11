@@ -302,18 +302,40 @@ $traducoes = array(
     'ANDAMENTO_EXCLUIDO' => 'excluiu andamento',
 );
 
-// Amanda 10/07/2026: alcance geografico — clientes por UF pro mapa do Brasil.
-// Normaliza UPPER+TRIM porque tem valor com case misto ("Mi" p.ex.).
-$clientesPorUf = array();
+// Amanda 10/07/2026: alcance geografico — PROCESSOS por UF pro mapa do Brasil.
+// Corrigido em 10/07 (segunda passada): antes puxava de clients.address_state,
+// mas Amanda apontou que o correto e onde o processo tramita (cases) — cliente
+// pode estar em outro estado do processo, ou nem ter endereco cadastrado.
+// Considera apenas cases em_andamento/ativo/arquivado (exclui cancelado).
+// Fonte principal: cases.comarca_uf. Fallback: extrair TR do CNJ (segmento 8=estadual).
+$clientesPorUf = array(); // mantem nome antigo pra nao precisar renomear no HTML
 try {
+    // TR (posicoes 14-15 do CNJ so-digitos) mapeia pra UF no segmento estadual (8).
+    $trUfEst = array(
+        '01'=>'AC','02'=>'AL','03'=>'AP','04'=>'AM','05'=>'BA','06'=>'CE','07'=>'DF','08'=>'ES',
+        '09'=>'GO','10'=>'MA','11'=>'MT','12'=>'MS','13'=>'MG','14'=>'PA','15'=>'PB','16'=>'PR',
+        '17'=>'PE','18'=>'PI','19'=>'RJ','20'=>'RN','21'=>'RS','22'=>'RO','23'=>'RR','24'=>'SC',
+        '25'=>'SP','26'=>'SE','27'=>'TO',
+    );
     $stMapa = $pdo->query("
-        SELECT UPPER(TRIM(address_state)) AS uf, COUNT(*) AS q
-        FROM clients
-        WHERE address_state IS NOT NULL AND address_state <> ''
-          AND CHAR_LENGTH(TRIM(address_state)) = 2
-        GROUP BY uf
+        SELECT comarca_uf, case_number
+        FROM cases
+        WHERE status IN ('em_andamento','ativo','arquivado')
     ");
-    foreach ($stMapa as $r) { $clientesPorUf[$r['uf']] = (int)$r['q']; }
+    foreach ($stMapa as $r) {
+        $uf = strtoupper(trim((string)$r['comarca_uf']));
+        if (strlen($uf) !== 2) {
+            // fallback: extrai UF do CNJ (segmento estadual)
+            $digits = preg_replace('/\D/', '', (string)$r['case_number']);
+            if (strlen($digits) >= 20 && substr($digits, 13, 1) === '8') {
+                $tr = substr($digits, 14, 2);
+                $uf = isset($trUfEst[$tr]) ? $trUfEst[$tr] : '';
+            } else {
+                $uf = '';
+            }
+        }
+        if ($uf !== '') { $clientesPorUf[$uf] = ($clientesPorUf[$uf] ?? 0) + 1; }
+    }
 } catch (Exception $e) {}
 
 // Aniversariantes
