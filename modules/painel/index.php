@@ -14,6 +14,25 @@ $userName = explode(' ', current_user()['name'] ?? '')[0];
 // Ver agenda de outro usuário (Admin/Gestão)
 $viewUserId = ($isGestao && isset($_GET['user'])) ? (int)$_GET['user'] : $userId;
 
+// Amanda 11/07: salvar meta coletiva direto do painel (admin/gestao)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'salvar_meta_dopamina') {
+    header('Content-Type: application/json');
+    if (!$isGestao) { echo json_encode(array('ok'=>false, 'erro'=>'Sem permissão')); exit; }
+    if (!validate_csrf()) { echo json_encode(array('ok'=>false, 'erro'=>'CSRF inválido')); exit; }
+    $alvo    = max(1, (int)($_POST['alvo'] ?? 300));
+    $premio  = clean_str($_POST['premio'] ?? '', 200);
+    $periodo = in_array($_POST['periodo'] ?? '', array('mensal','semanal'), true) ? $_POST['periodo'] : 'mensal';
+    $ativa   = !empty($_POST['ativa']) ? '1' : '0';
+    $stmt = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
+    $stmt->execute(array('meta_dopamina_alvo',    (string)$alvo));
+    $stmt->execute(array('meta_dopamina_premio',  $premio));
+    $stmt->execute(array('meta_dopamina_periodo', $periodo));
+    $stmt->execute(array('meta_dopamina_ativa',   $ativa));
+    audit_log('meta_dopamina_editada', 'configuracoes', 0, "alvo=$alvo periodo=$periodo ativa=$ativa");
+    echo json_encode(array('ok'=>true));
+    exit;
+}
+
 $hora = (int)date('G');
 
 $diasSemana = array('Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado');
@@ -1050,6 +1069,9 @@ function confirmarCancelamento(caseId, btn) {
                 <div class="pd-meta-titulo">
                     🍾 Meta do time <?= $metaLabelPeriodo ?>
                     <?php if ($metaBatida): ?><span class="pd-meta-batida-tag">🎉 BATEMOS!</span><?php endif; ?>
+                    <?php if ($isGestao): ?>
+                        <button type="button" onclick="pdAbrirEditarMeta()" title="Editar meta e prêmio" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;border-radius:6px;padding:2px 10px;font-size:.7rem;font-weight:700;cursor:pointer;margin-left:auto;font-family:inherit;">⚙️ Ajustar</button>
+                    <?php endif; ?>
                 </div>
                 <div class="pd-meta-numeros">
                     <span class="pd-meta-atual"><?= $metaPontosTime ?></span>
@@ -1101,6 +1123,82 @@ function confirmarCancelamento(caseId, btn) {
                 <?php endif; ?>
             </div>
         </div>
+        <?php if ($isGestao): ?>
+        <!-- Modal de ajuste da meta (só admin/gestão) -->
+        <div id="pdModalMeta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:99998;align-items:center;justify-content:center;padding:1rem;">
+            <div style="background:#fff;border-radius:14px;padding:1.6rem 1.8rem;max-width:460px;width:100%;box-shadow:0 20px 60px rgba(0,0,0,.35);color:#0E2E36;font-family:inherit;">
+                <h3 style="margin:0 0 .3rem;font-family:'Cormorant Garamond',serif;font-size:1.4rem;color:#0E2E36;">🍾 Ajustar meta do time</h3>
+                <p style="margin:0 0 1rem;font-size:.8rem;color:#6b7280;">Todo mundo vê a garrafa enchendo. Ao atingir a meta, o prêmio aparece pra equipe.</p>
+                <form id="pdFormMeta" onsubmit="return pdSalvarMeta(event)" data-fsa-skip="1">
+                    <label style="display:flex;align-items:center;gap:.5rem;margin-bottom:.9rem;font-size:.88rem;font-weight:700;cursor:pointer;">
+                        <input type="checkbox" name="ativa" value="1" <?= $metaAtiva ? 'checked' : '' ?>>
+                        Mostrar a garrafa no painel de todos
+                    </label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.9rem;">
+                        <div>
+                            <label style="display:block;font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px;">Período</label>
+                            <select name="periodo" style="width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:6px;font-size:.9rem;font-family:inherit;">
+                                <option value="mensal"  <?= $metaPeriodo==='mensal'?'selected':'' ?>>Mensal (reinicia dia 1)</option>
+                                <option value="semanal" <?= $metaPeriodo==='semanal'?'selected':'' ?>>Semanal (reinicia segunda)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px;">Meta (pontos)</label>
+                            <input type="number" name="alvo" value="<?= $metaAlvo ?>" min="1" required style="width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:6px;font-size:.9rem;font-weight:700;font-family:inherit;">
+                        </div>
+                    </div>
+                    <div style="margin-bottom:1.1rem;">
+                        <label style="display:block;font-size:.7rem;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;margin-bottom:4px;">🎁 Prêmio ao atingir</label>
+                        <input type="text" name="premio" value="<?= e($metaPremio) ?>" maxlength="200" placeholder="Ex: Almoço em restaurante japonês por conta da casa" style="width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:6px;font-size:.9rem;font-family:inherit;">
+                    </div>
+                    <div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:6px;padding:8px 12px;font-size:.72rem;color:#065f46;margin-bottom:1rem;line-height:1.4;">
+                        📊 <strong>Time hoje:</strong> <?= $metaPontosTime ?> pontos <?= $metaLabelPeriodo ?>. Meta atual <?= $metaAlvo ?> — <?= $metaBatida ? 'JÁ bateu!' : ('faltam ' . max(0, $metaAlvo - $metaPontosTime)) ?>.
+                    </div>
+                    <div style="display:flex;gap:.5rem;justify-content:flex-end;">
+                        <button type="button" onclick="pdFecharModalMeta()" style="background:#fff;border:1.5px solid #d1d5db;color:#374151;border-radius:8px;padding:8px 18px;font-weight:700;cursor:pointer;font-size:.85rem;font-family:inherit;">Cancelar</button>
+                        <button type="submit" style="background:#B87333;color:#fff;border:none;border-radius:8px;padding:8px 22px;font-weight:800;cursor:pointer;font-size:.85rem;font-family:inherit;">💾 Salvar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        <script>
+        function pdAbrirEditarMeta() { document.getElementById('pdModalMeta').style.display = 'flex'; }
+        function pdFecharModalMeta() { document.getElementById('pdModalMeta').style.display = 'none'; }
+        function pdSalvarMeta(ev) {
+            ev.preventDefault();
+            var f = document.getElementById('pdFormMeta');
+            var fd = new FormData(f);
+            fd.append('acao', 'salvar_meta_dopamina');
+            fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+            var btn = f.querySelector('button[type=submit]');
+            btn.disabled = true; btn.textContent = '⏳ Salvando...';
+            fetch(window.location.pathname, { method:'POST', body: fd, credentials:'same-origin' })
+                .then(function(r) { return r.json(); })
+                .then(function(j) {
+                    if (j.ok) {
+                        if (window.FsaFeedback) FsaFeedback.ok('Meta salva — recarregando…');
+                        setTimeout(function() { location.reload(); }, 500);
+                    } else {
+                        if (window.FsaFeedback) FsaFeedback.erro(j.erro || 'Falhou salvar');
+                        btn.disabled = false; btn.textContent = '💾 Salvar';
+                    }
+                })
+                .catch(function() {
+                    if (window.FsaFeedback) FsaFeedback.erro('Erro de rede');
+                    btn.disabled = false; btn.textContent = '💾 Salvar';
+                });
+            return false;
+        }
+        // ESC fecha
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') pdFecharModalMeta();
+        });
+        // Clique fora fecha
+        document.getElementById('pdModalMeta').addEventListener('click', function(e) {
+            if (e.target === this) pdFecharModalMeta();
+        });
+        </script>
+        <?php endif; ?>
         <?php endif; ?>
 
         <div class="pd-dopa-stats">
