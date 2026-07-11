@@ -19,10 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $faseId   = (int)($_POST['fase_id'] ?? 0);
         $brindeId = (int)($_POST['brinde_id'] ?? 0) ?: null;
         $fraseId  = (int)($_POST['frase_id'] ?? 0) ?: null;
-        $verbaRaw = $_POST['verba_prevista'] ?? '';
-        $verba    = (float)str_replace(',', '.', str_replace('.', '', $verbaRaw));
-        // Amanda 11/07: logging temporario pra investigar bug de verba nao persistir
-        try { audit_log('presenca_matriz_debug', 'presenca_regra', 0, "p=$perfilId f=$faseId | verba_raw='$verbaRaw' -> $verba"); } catch (Exception $e) {}
+        $verba    = (float)str_replace(',', '.', str_replace('.', '', $_POST['verba_prevista'] ?? '0'));
 
         if (!$perfilId || !$faseId) {
             header('Content-Type: application/json');
@@ -194,7 +191,10 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <?php endforeach; ?>
                     </select>
                     <div class="lbl">Verba prevista (R$)</div>
-                    <input type="text" data-campo="verba_prevista" value="<?= $r ? number_format((float)$r['verba_prevista'],2,',','.') : '' ?>" placeholder="0,00" onblur="pmSalvar(this)">
+                    <input type="text" data-campo="verba_prevista" value="<?= $r ? number_format((float)$r['verba_prevista'],2,',','.') : '' ?>" placeholder="0,00"
+                           onchange="pmSalvar(this)"
+                           onblur="pmSalvar(this)"
+                           onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
                     <div class="actions">
                         <?php if ($preenchida): ?>
                             <button type="button" class="warn" onclick="pmLimpar(this)">🗑 Limpar</button>
@@ -241,7 +241,17 @@ function pmSalvar(el) {
             info.td.classList.add('acabou-de-salvar','preenchida');
             info.td.classList.remove('vazia');
             setTimeout(function(){ info.td.classList.remove('acabou-de-salvar'); }, 1200);
+        } else {
+            // Amanda 11/07: aviso visivel quando save falha (antes ficava silencioso)
+            info.td.style.outline = '2px solid #dc2626';
+            info.td.title = 'Erro ao salvar: ' + (j.erro || 'sem detalhes');
+            setTimeout(function(){ info.td.style.outline = ''; }, 3000);
         }
+    })
+    .catch(function(e) {
+        info.td.style.outline = '2px solid #dc2626';
+        info.td.title = 'Falha de rede ao salvar';
+        setTimeout(function(){ info.td.style.outline = ''; }, 3000);
     });
 }
 
