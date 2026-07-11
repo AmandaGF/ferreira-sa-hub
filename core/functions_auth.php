@@ -66,6 +66,7 @@ function _permission_defaults()
         'relatorios'          => $todos,
         'executivo'           => array('admin','gestao'),
         'ranking_clientes'    => array('admin','gestao'),
+        'presenca'            => array('admin','gestao','comercial','cx'), // Amanda 11/07: modulo Relacionamento & Retencao
         'usuarios'            => array('admin'), // manter só admin
         'financeiro'          => $todos,
         'faturamento'         => $todos,

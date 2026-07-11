@@ -163,6 +163,9 @@ $menuItems = array(
     array('label' => 'Cobrança Clientes', 'icon' => '💰', 'href' => url('modules/financeiro/'),      'id' => 'financeiro',      'roles' => array('admin','gestao','comercial')),
     array('label' => 'Cobrança Honor.', 'icon' => '⚠️', 'href' => url('modules/cobranca_honorarios/'), 'id' => 'cobranca_honorarios', 'roles' => array('admin','gestao')),
 
+    array('section' => 'Relacionamento'),
+    array('label' => 'Presença',        'icon' => '🎁', 'href' => url('modules/presenca/'),         'id' => 'presenca',        'roles' => array('admin','gestao','comercial','cx')),
+
     array('section' => 'Controle'),
     array('label' => 'Prazos',          'icon' => '⏰', 'href' => url('modules/prazos/'),           'id' => 'prazos',          'roles' => $_rolesEquipe, 'badge' => $_prazosUrgentes, 'badgeCor' => '#dc2626'),
     array('label' => 'Ofícios',         'icon' => '📬', 'href' => url('modules/oficios/'),          'id' => 'oficios',         'roles' => $_rolesEquipe),
