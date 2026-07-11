@@ -1798,7 +1798,8 @@ function preencherCidades(nomes) {
 function cnjAutoPreencher(valor) {
     var hint = document.getElementById('cnjParseHint');
     var digits = (valor || '').replace(/\D/g, '');
-    if (digits.length !== 20) { if (hint) { hint.style.display = 'none'; } return; }
+    // Aceita 17-20 digitos — CNJs com zero perdido em algum campo sao completados pelo backend
+    if (digits.length < 17 || digits.length > 20) { if (hint) { hint.style.display = 'none'; } return; }
     fetch('<?= url("api/parse_cnj.php") ?>?cnj=' + encodeURIComponent(valor), {
         credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })

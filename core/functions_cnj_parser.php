@@ -30,7 +30,27 @@ function parse_cnj($cnj) {
         'tribunal_codigo' => '', 'tribunal_nome' => '',
         'origem_codigo' => '', 'comarca' => '', 'erro' => '',
     );
-    $digits = preg_replace('/\D/', '', (string)$cnj);
+    // Amanda 10/07/2026: aceita CNJ com pontuacao que perdeu zero(s) a esquerda
+    // em algum campo (comum em sistemas antigos, ex: "5003033-70.2025.8.24.004"
+    // deveria ser ".0004"). Se o input tem os 5 separadores CNJ, usa a estrutura
+    // pra reconstruir com pad-zero em cada campo.
+    $tentativa = trim((string)$cnj);
+    if (preg_match('/^(\d+)[-.\s](\d+)\.(\d+)\.(\d+)\.(\d+)\.(\d+)$/', $tentativa, $m)) {
+        $seq = str_pad($m[1], 7, '0', STR_PAD_LEFT);
+        $dv  = str_pad($m[2], 2, '0', STR_PAD_LEFT);
+        $ano = str_pad($m[3], 4, '0', STR_PAD_LEFT);
+        $seg = str_pad($m[4], 1, '0', STR_PAD_LEFT);
+        $tr  = str_pad($m[5], 2, '0', STR_PAD_LEFT);
+        $ooo = str_pad($m[6], 4, '0', STR_PAD_LEFT);
+        // Aceita so se cada campo caber no tamanho esperado
+        if (strlen($seq)===7 && strlen($dv)===2 && strlen($ano)===4
+            && strlen($seg)===1 && strlen($tr)===2 && strlen($ooo)===4) {
+            $digits = $seq . $dv . $ano . $seg . $tr . $ooo;
+        }
+    }
+    if (empty($digits)) {
+        $digits = preg_replace('/\D/', '', (string)$cnj);
+    }
     if (strlen($digits) !== 20) {
         $out['erro'] = 'CNJ precisa ter 20 digitos (recebido: ' . strlen($digits) . ')';
         return $out;

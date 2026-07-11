@@ -6658,7 +6658,8 @@ document.addEventListener('DOMContentLoaded', function() {
 // Volta Redonda e declinado pra Resende — o valor manual persiste).
 function cvAutoPreencherCnj(valor) {
     var digits = (valor || '').replace(/\D/g, '');
-    if (digits.length !== 20) return;
+    // Aceita 17-20 digitos — CNJs com zero perdido em algum campo (ex: ".004" -> ".0004") sao completados pelo backend
+    if (digits.length < 17 || digits.length > 20) return;
     fetch('<?= url("api/parse_cnj.php") ?>?cnj=' + encodeURIComponent(valor), {
         credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
