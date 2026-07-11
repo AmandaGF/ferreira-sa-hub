@@ -64,8 +64,10 @@ $frases = $pdo->query("SELECT id, texto, fase_id FROM presenca_frase WHERE ativo
 
 // Amanda 11/07 review: "ao escolher brinde, sugerir fornecedor com melhor score de
 // custo-beneficio". Buscamos por brinde o TOP orcamento por score.
-$melhorForn = array(); // [brinde_id] = ['forn'=>nome, 'unit'=>float, 'total'=>float, 'prazo'=>int, 'score'=>float]
+$melhorForn = array(); // [brinde_id] = ['forn'=>nome, 'unit'=>float, ...]
+$fornPausados = array(); // [brinde_id] = true — brinde TEM orcamento, mas fornecedor(es) pausado(s)
 try {
+    // Passo 1: brindes com orcamento de fornecedor ATIVO (candidato ao "melhor")
     $rows = $pdo->query("SELECT o.brinde_id, f.nome AS forn_nome, o.valor_unitario, o.frete, o.prazo_producao_dias, o.prazo_entrega_dias, o.score, b.qtd_compra_referencia
                          FROM presenca_orcamento o
                          JOIN presenca_fornecedor f ON f.id = o.fornecedor_id
@@ -81,6 +83,14 @@ try {
             'score' => (float)$o['score'],
             'qtdRef'=> $qtdRef,
         );
+    }
+    // Passo 2: brindes SEM orcamento ativo mas COM orcamento de fornecedor pausado
+    $pausRows = $pdo->query("SELECT DISTINCT o.brinde_id
+                             FROM presenca_orcamento o
+                             JOIN presenca_fornecedor f ON f.id = o.fornecedor_id
+                             WHERE f.ativo = 0")->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($pausRows as $bid) {
+        if (!isset($melhorForn[(int)$bid])) $fornPausados[(int)$bid] = true;
     }
 } catch (Exception $e) {}
 
@@ -220,6 +230,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     </select>
                     <div class="lbl">Verba prevista (R$)</div>
                     <input type="text" data-campo="verba_prevista" value="<?= $r ? number_format((float)$r['verba_prevista'],2,',','.') : '' ?>" placeholder="0,00"
+                           autocomplete="off" inputmode="decimal" data-lpignore="true" data-1p-ignore="true" data-form-type="other"
                            onchange="pmSalvar(this)"
                            onblur="pmSalvar(this)"
                            onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">
@@ -239,7 +250,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <script>
 var pmCsrf = '<?= $csrf ?>';
 // Mapa brinde_id -> melhor fornecedor (score) pra sugestao inline na celula.
-var pmMelhorForn = <?= json_encode($melhorForn) ?>;
+var pmMelhorForn   = <?= json_encode($melhorForn) ?>;
+var pmFornPausados = <?= json_encode($fornPausados) ?>;
 var pmFornecedoresUrl = '<?= module_url('presenca','fornecedores.php') ?>';
 
 function pmCelulaDe(el) {
@@ -259,7 +271,11 @@ function pmAtualizarFornSug(el) {
     var m = pmMelhorForn[brId];
     if (!m) {
         tip.classList.add('aparece','sem');
-        tip.innerHTML = '⚠ Sem orçamento cadastrado — <a href="' + pmFornecedoresUrl + '?orc=1&brinde=' + brId + '">registrar</a>';
+        if (pmFornPausados[brId]) {
+            tip.innerHTML = '⏸ Fornecedor(es) do orçamento estão pausados — <a href="' + pmFornecedoresUrl + '">reativar</a> ou <a href="' + pmFornecedoresUrl + '?orc=1&brinde=' + brId + '">novo orçamento</a>';
+        } else {
+            tip.innerHTML = '⚠ Sem orçamento cadastrado — <a href="' + pmFornecedoresUrl + '?orc=1&brinde=' + brId + '">registrar</a>';
+        }
         return;
     }
     tip.classList.add('aparece');

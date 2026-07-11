@@ -80,8 +80,9 @@ $totPerfis    = (int)$pdo->query("SELECT COUNT(*) FROM presenca_perfil WHERE ati
 $totFases     = (int)$pdo->query("SELECT COUNT(*) FROM presenca_fase WHERE ativo = 1")->fetchColumn();
 $totFrases    = (int)$pdo->query("SELECT COUNT(*) FROM presenca_frase WHERE ativo = 1")->fetchColumn();
 $totBrindes   = (int)$pdo->query("SELECT COUNT(*) FROM presenca_brinde WHERE ativo = 1")->fetchColumn();
-$totFornec    = (int)$pdo->query("SELECT COUNT(*) FROM presenca_fornecedor WHERE ativo = 1")->fetchColumn();
-$totOrcam     = (int)$pdo->query("SELECT COUNT(*) FROM presenca_orcamento")->fetchColumn();
+$totFornec        = (int)$pdo->query("SELECT COUNT(*) FROM presenca_fornecedor WHERE ativo = 1")->fetchColumn();
+$totFornecPausado = (int)$pdo->query("SELECT COUNT(*) FROM presenca_fornecedor WHERE ativo = 0")->fetchColumn();
+$totOrcam         = (int)$pdo->query("SELECT COUNT(*) FROM presenca_orcamento")->fetchColumn();
 $totRegras    = (int)$pdo->query("SELECT COUNT(*) FROM presenca_regra WHERE ativo = 1")->fetchColumn();
 $regrasMax    = $totPerfis * $totFases; // matriz completa
 $pctMatriz    = $regrasMax > 0 ? round(($totRegras / $regrasMax) * 100) : 0;
@@ -113,7 +114,7 @@ $passos = array(
     array('id'=>'brindes',     'titulo'=>'Catálogo de Brindes + Estoque',  'meta'=>5,  'atual'=>$totBrindes, 'ok_msg'=>'brindes cadastrados',       'todo_msg'=>'brinde pra cadastrar',       'url'=>module_url('presenca','brindes.php'),       'action'=>'Ajustar estoque','icon'=>'🎁',    'warn_extra'=>$estoqueRiscoQtd > 0 ? $estoqueRiscoQtd . ' abaixo do mínimo' : null),
     array('id'=>'frases',      'titulo'=>'Banco de Frases',                'meta'=>10, 'atual'=>$totFrases,  'ok_msg'=>'frases',                    'todo_msg'=>'frase pra cadastrar',        'url'=>module_url('presenca','frases.php'),        'action'=>'Ver frases','icon'=>'📚'),
     array('id'=>'matriz',      'titulo'=>'Matriz de Regras',               'meta'=>$regrasMax, 'atual'=>$totRegras, 'ok_msg'=>'combinações preenchidas', 'todo_msg'=>'combinação vazia',       'url'=>module_url('presenca','matriz.php'),        'action'=>'Preencher matriz','icon'=>'🗂️', 'vazias'=>$celulasVazias),
-    array('id'=>'fornecedores','titulo'=>'Fornecedores',                   'meta'=>2,  'atual'=>$totFornec,  'ok_msg'=>'fornecedores ativos',       'todo_msg'=>'fornecedor pra cadastrar',   'url'=>module_url('presenca','fornecedores.php'),  'action'=>'Cadastrar fornecedor','icon'=>'🏭'),
+    array('id'=>'fornecedores','titulo'=>'Fornecedores',                   'meta'=>2,  'atual'=>$totFornec,  'ok_msg'=>'fornecedores ativos',       'todo_msg'=>'fornecedor pra cadastrar',   'url'=>module_url('presenca','fornecedores.php'),  'action'=>'Cadastrar fornecedor','icon'=>'🏭', 'warn_extra'=>$totFornecPausado > 0 ? $totFornecPausado . ' pausado(s) — reative se ainda usa' : null),
     array('id'=>'orcamentos',  'titulo'=>'Orçamentos comparados',          'meta'=>1,  'atual'=>$totOrcam,   'ok_msg'=>'orçamento(s) registrado(s)','todo_msg'=>'orçamento pra registrar',    'url'=>module_url('presenca','fornecedores.php').'?orc=1', 'action'=>'Registrar orçamento','icon'=>'💰'),
 );
 
