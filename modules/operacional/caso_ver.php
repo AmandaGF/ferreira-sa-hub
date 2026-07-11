@@ -2772,7 +2772,7 @@ try {
               } catch (Throwable $e) {}
           ?>
               <?php if ($_jaTemCt): ?>
-                  <span style="color:#0369a1;font-weight:600;font-size:.7rem;" title="Contatos ja buscados — ver tarefa na aba Compromissos/Tarefas">✓ contatos buscados</span>
+                  <a href="<?= module_url('gerid') ?>#pesquisa-<?= (int)$_gr['id'] ?>" style="background:#e0f2fe;color:#0369a1;border:1.5px solid #0369a1;border-radius:5px;padding:3px 8px;font-size:.7rem;font-weight:700;text-decoration:none;" title="Abrir no módulo GERID pra ver os dados da empresa">👁️ Ver dados da empresa</a>
               <?php else: ?>
                   <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;margin:0;" onsubmit="return cvConfirmarContatosGerid(this);">
                       <?= csrf_input() ?>
@@ -2783,7 +2783,7 @@ try {
                   </form>
               <?php endif; ?>
               <?php if ($_jaTemOf): ?>
-                  <span style="color:#059669;font-weight:600;font-size:.7rem;" title="Ofício já foi gerado — ver tarefa na aba Compromissos/Tarefas">✓ ofício gerado</span>
+                  <a href="<?= module_url('gerid') ?>#pesquisa-<?= (int)$_gr['id'] ?>" style="background:#f3e8ff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:5px;padding:3px 8px;font-size:.7rem;font-weight:700;text-decoration:none;" title="Abrir no módulo GERID pra ver o ofício">👁️ Ver ofício gerado</a>
               <?php else: ?>
                   <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;margin:0;" onsubmit="return cvConfirmarOficioGerid(this);">
                       <?= csrf_input() ?>

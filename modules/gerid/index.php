@@ -93,6 +93,38 @@ if (($_GET['ajax'] ?? '') === 'historico_cpf') {
     exit;
 }
 
+// Amanda 11/07/2026: endpoint AJAX pra puxar o conteudo da task gerada
+// (contatos ou oficio) — a UI abre modal com o texto direto, sem forcar
+// Amanda a navegar ate a aba Tarefas da pasta do processo.
+if (($_GET['ajax'] ?? '') === 'ver_task_gerid') {
+    header('Content-Type: application/json; charset=utf-8');
+    $geridId = (int)($_GET['gerid_id'] ?? 0);
+    $modo    = ($_GET['modo'] ?? '') === 'contatos' ? 'contatos' : 'oficio';
+    if (!$geridId) { echo json_encode(array('ok'=>false,'erro'=>'gerid_id ausente')); exit; }
+    $tipoTk = ($modo === 'contatos') ? 'gerid_contatos_empresa' : 'oficio_desconto_folha';
+    $tag    = ($modo === 'contatos') ? '[gerid-contatos#' : '[gerid#';
+    $st = $pdo->prepare("
+        SELECT t.id, t.title, t.descricao, t.status, t.case_id, cs.title AS case_title
+        FROM case_tasks t LEFT JOIN cases cs ON cs.id = t.case_id
+        WHERE t.tipo = ? AND t.title LIKE ?
+        ORDER BY t.id DESC LIMIT 1
+    ");
+    $st->execute(array($tipoTk, '%' . $tag . $geridId . ']%'));
+    $tk = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$tk) { echo json_encode(array('ok'=>false,'erro'=>'Tarefa nao encontrada')); exit; }
+    echo json_encode(array(
+        'ok'          => true,
+        'task_id'     => (int)$tk['id'],
+        'case_id'     => (int)$tk['case_id'],
+        'titulo'      => $tk['title'],
+        'descricao'   => $tk['descricao'],
+        'status'      => $tk['status'],
+        'case_title'  => $tk['case_title'],
+        'url_pasta'   => module_url('operacional', 'caso_ver.php?id=' . (int)$tk['case_id']) . '#compromissos',
+    ));
+    exit;
+}
+
 // POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Endpoint AJAX leve: marcar/desmarcar tratado (resposta JSON, sem redirect)
@@ -144,13 +176,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $r = gerid_gerar_oficio_desconto($pdo, $id, $modo);
         if (!empty($r['ok'])) {
-            $lbl = ($modo === 'contatos') ? 'Contatos da empresa' : 'Ofício';
-            // Amanda 10/07: redir DIRETO pra ficha do caso na aba tarefas — mais rapido
-            // do que voltar pro gerid e ter que caçar a tarefa depois.
-            $urlDestino = module_url('operacional', 'caso_ver.php?id=' . (int)$r['case_id']) . '#compromissos';
-            flash_set('success', '✓ ' . $lbl . ' pronto na aba Tarefas dessa pasta (task #' . (int)$r['task_id'] . '). Revise antes de enviar.');
+            $lbl = ($modo === 'contatos') ? 'Contatos da empresa' : 'Ofício desconto folha';
+            $btn = ($modo === 'contatos') ? '👁️ Ver dados da empresa' : '👁️ Ver ofício gerado';
+            // Amanda 11/07: volta pro GERID e abre modal automatico com o
+            // conteudo — antes redirecionava pra ficha do caso mas Amanda
+            // tinha que cacar na aba Tarefas. Agora clique unico ve tudo.
+            flash_set('success', '✓ ' . $lbl . ' pronto! Clique em "' . $btn . '" na linha da pesquisa pra ver o conteúdo.');
             audit_log('gerid_gerar_oficio', 'gerid', $id, 'ok modo=' . $modo . ' task#' . (int)$r['task_id']);
-            redirect($urlDestino);
+            redirect(module_url('gerid') . '?abrir_task=' . (int)$id . '&modo=' . $modo . '#pesquisa-' . (int)$id);
         } else {
             flash_set('error', 'Falha: ' . ($r['erro'] ?? 'erro desconhecido'));
             audit_log('gerid_gerar_oficio', 'gerid', $id, 'falha modo=' . $modo . ': ' . ($r['erro'] ?? '?'));
@@ -697,7 +730,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
         ?>
           <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px;">
             <?php if ($_jaTemContatos): ?>
-              <span style="font-size:.7rem;color:#0369a1;font-weight:600;" title="Contatos ja pesquisados — abra a tarefa na pasta do processo">✓ Contatos ja buscados</span>
+              <button type="button" onclick="gdVerTaskGerid(<?= (int)$g['id'] ?>, 'contatos')" style="background:#e0f2fe;color:#0369a1;border:1.5px solid #0369a1;border-radius:5px;padding:4px 9px;font-size:.7rem;font-weight:700;cursor:pointer;width:100%;" title="Clique pra ver os dados da empresa direto aqui">👁️ Ver dados da empresa</button>
             <?php else: ?>
               <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;" onsubmit="return gdConfirmarContatos(this);">
                 <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
@@ -708,7 +741,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
               </form>
             <?php endif; ?>
             <?php if ($_jaTemOficio): ?>
-              <span style="font-size:.7rem;color:#059669;font-weight:600;" title="Ofício ja gerado — abra a tarefa na pasta do processo">✓ Ofício ja gerado</span>
+              <button type="button" onclick="gdVerTaskGerid(<?= (int)$g['id'] ?>, 'oficio')" style="background:#f3e8ff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:5px;padding:4px 9px;font-size:.7rem;font-weight:700;cursor:pointer;width:100%;" title="Clique pra ver o ofício direto aqui">👁️ Ver ofício gerado</button>
             <?php else: ?>
               <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;" onsubmit="return gdConfirmarOficio(this);">
                 <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
@@ -888,5 +921,75 @@ function gdToggleTratado(id) {
       btn.disabled = false; btn.textContent = textoAntigo;
     });
 }
+
+// Amanda 11/07/2026: modal com o texto da tarefa (contatos ou oficio)
+// direto na tela do GERID — evita ter que caçar na aba Tarefas da pasta.
+function gdVerTaskGerid(geridId, modo) {
+  var mod = document.getElementById('gdTaskModal');
+  var body = document.getElementById('gdTaskModalBody');
+  var titulo = document.getElementById('gdTaskModalTitulo');
+  var linkPasta = document.getElementById('gdTaskModalLinkPasta');
+  body.textContent = 'Carregando…';
+  titulo.textContent = '';
+  linkPasta.style.display = 'none';
+  mod.style.display = 'flex';
+  fetch('<?= module_url("gerid") ?>?ajax=ver_task_gerid&gerid_id=' + geridId + '&modo=' + modo, {
+    credentials: 'same-origin',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      if (!j.ok) { body.textContent = '⚠ ' + (j.erro || 'Erro'); return; }
+      titulo.textContent = j.titulo;
+      body.textContent = j.descricao || '(sem conteúdo)';
+      linkPasta.href = j.url_pasta;
+      linkPasta.style.display = 'inline-block';
+      // Guarda pra copiar
+      body.dataset.raw = j.descricao || '';
+    })
+    .catch(function(){ body.textContent = '⚠ Falha ao carregar'; });
+}
+function gdTaskModalFechar() { document.getElementById('gdTaskModal').style.display = 'none'; }
+// Se voltou com ?abrir_task=X&modo=... (apos gerar), abre modal automatico
+document.addEventListener('DOMContentLoaded', function() {
+  var p = new URLSearchParams(window.location.search);
+  var aid = p.get('abrir_task');
+  var amod = p.get('modo');
+  if (aid && (amod === 'contatos' || amod === 'oficio')) {
+    setTimeout(function() { gdVerTaskGerid(parseInt(aid, 10), amod); }, 300);
+  }
+});
+function gdTaskModalCopiar() {
+  var body = document.getElementById('gdTaskModalBody');
+  var texto = body.dataset.raw || body.textContent;
+  if (!navigator.clipboard) { alert('Selecione manualmente e copie.'); return; }
+  navigator.clipboard.writeText(texto).then(function(){
+    var btn = document.getElementById('gdTaskModalCopiarBtn');
+    var antigo = btn.textContent;
+    btn.textContent = '✓ Copiado!';
+    setTimeout(function(){ btn.textContent = antigo; }, 1500);
+  });
+}
 </script>
+
+<!-- Modal com o conteúdo da tarefa (contatos ou ofício) -->
+<div id="gdTaskModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:#fff;border-radius:14px;max-width:900px;width:100%;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);">
+    <div style="padding:16px 22px;border-bottom:1.5px solid #eee;display:flex;align-items:center;gap:14px;">
+      <div style="font-size:1.4rem;">🤖</div>
+      <div style="flex:1;">
+        <div style="font-weight:800;color:#052228;font-size:.95rem;" id="gdTaskModalTitulo">Carregando…</div>
+        <div style="font-size:.7rem;color:#6b7280;margin-top:2px;">Rascunho gerado pela IA — revise antes de enviar</div>
+      </div>
+      <button type="button" onclick="gdTaskModalFechar()" style="background:none;border:none;font-size:1.6rem;color:#6b7280;cursor:pointer;line-height:1;padding:0 4px;" title="Fechar">×</button>
+    </div>
+    <pre id="gdTaskModalBody" style="flex:1;overflow-y:auto;padding:18px 22px;margin:0;font-family:'JetBrains Mono',Consolas,monospace;font-size:.82rem;line-height:1.6;color:#1f2937;white-space:pre-wrap;word-wrap:break-word;background:#fafafa;"></pre>
+    <div style="padding:14px 22px;border-top:1.5px solid #eee;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+      <button type="button" id="gdTaskModalCopiarBtn" onclick="gdTaskModalCopiar()" style="background:#052228;color:#fff;border:none;border-radius:7px;padding:8px 14px;font-size:.8rem;font-weight:700;cursor:pointer;">📋 Copiar tudo</button>
+      <a id="gdTaskModalLinkPasta" href="#" target="_blank" rel="noopener" style="display:none;background:#f5ede3;color:#78350f;border:1.5px solid #d7ab90;border-radius:7px;padding:8px 14px;font-size:.8rem;font-weight:700;text-decoration:none;">📂 Abrir na pasta do processo</a>
+      <div style="flex:1;"></div>
+      <button type="button" onclick="gdTaskModalFechar()" style="background:#fff;color:#052228;border:1.5px solid #d1d5db;border-radius:7px;padding:8px 14px;font-size:.8rem;font-weight:700;cursor:pointer;">Fechar</button>
+    </div>
+  </div>
+</div>
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
