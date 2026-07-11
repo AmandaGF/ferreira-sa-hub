@@ -375,18 +375,18 @@ $prontidao = round(($passosFeitos / $passosTotal) * 100);
             <div class="s">Não enviar · Confirmar endereço</div>
         </div>
     </a>
-    <a class="pr-nav-card soon">
+    <a class="pr-nav-card" href="<?= module_url('presenca', 'aprovacao.php') ?>" style="border-color:#B87333;background:#fff7ed;">
         <div class="ico">✅</div>
         <div class="txt">
             <div class="t">Bandeja de Aprovação</div>
-            <div class="s">Aprovar em lote — Fase 2</div>
+            <div class="s">Aprovar em lote — <?= $porStatus['sugerido'] ?? 0 ?> aguardando</div>
         </div>
     </a>
-    <a class="pr-nav-card soon">
+    <a class="pr-nav-card" href="<?= module_url('presenca', 'kanban.php') ?>">
         <div class="ico">📋</div>
         <div class="txt">
             <div class="t">Fila de Envios (Kanban)</div>
-            <div class="s">Sugerido → Aprovado → Produção → Enviado — Fase 2</div>
+            <div class="s">Sugerido → Aprovado → Produção → Enviado → Entregue</div>
         </div>
     </a>
 </div>
