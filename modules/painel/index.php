@@ -1095,77 +1095,203 @@ function confirmarCancelamento(caseId, btn) {
             </div>
             <div class="pd-meta-garrafa" title="Meta coletiva do time — balança da Justiça equilibra ao bater a meta">
                 <?php
-                // Amanda 11/07: metafora da balanca da Justica.
-                // Prato ESQUERDO tem a META fixa (peso oficial).
-                // Prato DIREITO enche de "pastas" conforme o time pontua.
-                // Angulo do travessao: -14deg em 0% -> 0deg em 100% (perfeitamente equilibrada).
+                // Amanda 11/07: metafora da balanca da Justica em latao polido.
                 $__ang    = -14 + 14 * min(1, $metaPct / 100);
-                $__pastas = min(8, max(0, (int)round(8 * $metaPct / 100))); // 8 pastas empilhadas ao bater
+                $__pastas = min(8, max(0, (int)round(8 * $metaPct / 100)));
+                $__uniq   = 'bal' . substr(md5((string)$metaPct), 0, 6); // ids unicos pra defs
                 ?>
-                <svg viewBox="0 0 160 170" xmlns="http://www.w3.org/2000/svg" style="width:120px;height:130px;">
-                    <!-- Base (chao) -->
-                    <ellipse cx="80" cy="162" rx="42" ry="4" fill="#0a1f24" opacity=".6"/>
-                    <!-- Pe -->
-                    <path d="M 60 158 L 100 158 L 92 148 L 68 148 Z" fill="#0E2E36"/>
-                    <!-- Poste vertical -->
-                    <rect x="77" y="45" width="6" height="105" fill="#0E2E36"/>
-                    <rect x="76" y="45" width="8" height="4" fill="#B87333"/>
-                    <!-- Fulcro (bola bronze no topo do poste) -->
-                    <circle cx="80" cy="42" r="5" fill="#B87333" stroke="#0E2E36" stroke-width="1"/>
+                <svg viewBox="0 0 220 230" xmlns="http://www.w3.org/2000/svg" style="width:150px;height:160px;">
+                    <defs>
+                        <!-- Gradiente latão polido (metal quente) -->
+                        <linearGradient id="<?= $__uniq ?>-latao" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#f4c988"/>
+                            <stop offset="30%" stop-color="#d9a15a"/>
+                            <stop offset="55%" stop-color="#b8823f"/>
+                            <stop offset="80%" stop-color="#8c5b28"/>
+                            <stop offset="100%" stop-color="#5a3a18"/>
+                        </linearGradient>
+                        <!-- Gradiente latão horizontal (pra travessão) -->
+                        <linearGradient id="<?= $__uniq ?>-latao-h" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#e6b878"/>
+                            <stop offset="45%" stop-color="#f7d597"/>
+                            <stop offset="60%" stop-color="#c8934c"/>
+                            <stop offset="100%" stop-color="#7a4d1f"/>
+                        </linearGradient>
+                        <!-- Gradiente prato interno (concavo) -->
+                        <radialGradient id="<?= $__uniq ?>-prato" cx=".5" cy=".2" r=".85">
+                            <stop offset="0%" stop-color="#f4c988"/>
+                            <stop offset="40%" stop-color="#c8934c"/>
+                            <stop offset="100%" stop-color="#4a2c10"/>
+                        </radialGradient>
+                        <!-- Gradiente prata (peso da meta) -->
+                        <linearGradient id="<?= $__uniq ?>-prata" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#f3f4f6"/>
+                            <stop offset="35%" stop-color="#cbd5e1"/>
+                            <stop offset="70%" stop-color="#64748b"/>
+                            <stop offset="100%" stop-color="#334155"/>
+                        </linearGradient>
+                        <!-- Gradiente pasta de papel (creme com sombra) -->
+                        <linearGradient id="<?= $__uniq ?>-pasta" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#f5ede3"/>
+                            <stop offset="60%" stop-color="#e8d5b8"/>
+                            <stop offset="100%" stop-color="#a68965"/>
+                        </linearGradient>
+                        <!-- Base mármore petróleo -->
+                        <linearGradient id="<?= $__uniq ?>-marmore" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#173d46"/>
+                            <stop offset="50%" stop-color="#0E2E36"/>
+                            <stop offset="100%" stop-color="#052228"/>
+                        </linearGradient>
+                        <!-- Sombra suave sob a balanca -->
+                        <radialGradient id="<?= $__uniq ?>-sombra" cx=".5" cy=".5" r=".5">
+                            <stop offset="0%" stop-color="#000" stop-opacity=".55"/>
+                            <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+                        </radialGradient>
+                        <!-- Filtro brilho suave nos metais -->
+                        <filter id="<?= $__uniq ?>-glow" x="-20%" y="-20%" width="140%" height="140%">
+                            <feGaussianBlur stdDeviation=".6" result="b"/>
+                            <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
+                    </defs>
+
+                    <!-- Sombra ambiente sob a base -->
+                    <ellipse cx="110" cy="215" rx="70" ry="7" fill="url(#<?= $__uniq ?>-sombra)"/>
+
+                    <!-- ═══ BASE ORNAMENTADA (mármore petróleo) ═══ -->
+                    <!-- Plataforma inferior -->
+                    <rect x="60" y="195" width="100" height="12" rx="2" fill="url(#<?= $__uniq ?>-marmore)" stroke="#000" stroke-opacity=".3" stroke-width=".8"/>
+                    <rect x="60" y="195" width="100" height="3" fill="#2d5158" opacity=".6"/>
+                    <!-- Moldura decorativa da base -->
+                    <rect x="66" y="188" width="88" height="8" rx="1" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
+                    <!-- Plataforma superior estreita -->
+                    <rect x="72" y="180" width="76" height="10" rx="1" fill="url(#<?= $__uniq ?>-marmore)" stroke="#000" stroke-opacity=".3" stroke-width=".5"/>
+                    <!-- Detalhes ornamentais -->
+                    <circle cx="72" cy="185" r="1.5" fill="#f7d597"/>
+                    <circle cx="148" cy="185" r="1.5" fill="#f7d597"/>
+
+                    <!-- ═══ POSTE CENTRAL (com moldura torneada) ═══ -->
+                    <!-- Base alargada do poste -->
+                    <rect x="98" y="170" width="24" height="12" rx="2" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
+                    <rect x="102" y="164" width="16" height="8" rx="1" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
+                    <!-- Corpo do poste -->
+                    <rect x="106" y="60" width="8" height="106" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".4"/>
+                    <!-- Highlight vertical no poste -->
+                    <rect x="107.5" y="62" width="1.5" height="102" fill="#f7d597" opacity=".6"/>
+                    <!-- Anel decorativo no meio do poste -->
+                    <rect x="103" y="115" width="14" height="5" rx="1" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
+                    <rect x="103" y="122" width="14" height="2" fill="url(#<?= $__uniq ?>-latao)"/>
+                    <!-- Capitel superior (moldura no topo do poste) -->
+                    <rect x="101" y="55" width="18" height="6" rx="1" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
+                    <rect x="104" y="49" width="12" height="7" rx="1" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
+
+                    <!-- ═══ FULCRO ORNAMENTADO (bola + gema) ═══ -->
+                    <circle cx="110" cy="46" r="7" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".6"/>
+                    <circle cx="110" cy="46" r="3" fill="#0E2E36" opacity=".7"/>
+                    <circle cx="108.5" cy="44.5" r="1.2" fill="#facc15" opacity=".8"/>
 
                     <!-- ═══ TRAVESSAO + CORRENTES + PRATOS (rotacionam juntos) ═══ -->
-                    <g style="transform: rotate(<?= $__ang ?>deg); transform-origin: 80px 42px; transition: transform 1.2s cubic-bezier(.4,.2,.3,1);">
-                        <!-- Travessao horizontal -->
-                        <rect x="18" y="39" width="124" height="5" rx="1.5" fill="#B87333" stroke="#8a5722" stroke-width=".5"/>
-                        <!-- Detalhes decorativos nas pontas -->
-                        <circle cx="22" cy="41.5" r="3" fill="#B87333" stroke="#8a5722" stroke-width=".5"/>
-                        <circle cx="138" cy="41.5" r="3" fill="#B87333" stroke="#8a5722" stroke-width=".5"/>
+                    <g style="transform: rotate(<?= $__ang ?>deg); transform-origin: 110px 46px; transition: transform 1.4s cubic-bezier(.4,.2,.3,1);">
+                        <!-- Travessão horizontal ornamentado -->
+                        <rect x="24" y="42" width="172" height="8" rx="2.5" fill="url(#<?= $__uniq ?>-latao-h)" stroke="#5a3a18" stroke-width=".5"/>
+                        <!-- Highlight no travessão -->
+                        <rect x="26" y="43" width="168" height="1.5" fill="#f7d597" opacity=".7"/>
+                        <!-- Ponteiras torneadas nas extremidades -->
+                        <ellipse cx="28" cy="46" rx="6" ry="5" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
+                        <ellipse cx="192" cy="46" rx="6" ry="5" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".5"/>
+                        <circle cx="28" cy="46" r="2" fill="#5a3a18"/>
+                        <circle cx="192" cy="46" r="2" fill="#5a3a18"/>
 
-                        <!-- Correntes -->
-                        <line x1="24" y1="45" x2="24" y2="72" stroke="#0E2E36" stroke-width="1.2"/>
-                        <line x1="136" y1="45" x2="136" y2="72" stroke="#0E2E36" stroke-width="1.2"/>
+                        <!-- CORRENTES com elos (mais realistas) — 4 elos por lado -->
+                        <?php foreach (array(30, 190) as $cx): ?>
+                            <?php for ($e = 0; $e < 4; $e++):
+                                $ey = 52 + $e * 8;
+                                $ori = $e % 2 === 0 ? 'v' : 'h';
+                            ?>
+                                <?php if ($ori === 'v'): ?>
+                                    <ellipse cx="<?= $cx ?>" cy="<?= $ey ?>" rx="1.8" ry="4" fill="none" stroke="url(#<?= $__uniq ?>-latao)" stroke-width="1.5"/>
+                                <?php else: ?>
+                                    <ellipse cx="<?= $cx ?>" cy="<?= $ey ?>" rx="4" ry="1.8" fill="none" stroke="url(#<?= $__uniq ?>-latao)" stroke-width="1.5"/>
+                                <?php endif; ?>
+                            <?php endfor; ?>
+                        <?php endforeach; ?>
 
                         <!-- PRATO ESQUERDO (META fixa) -->
                         <g>
-                            <path d="M 8 72 Q 24 88 40 72 L 36 76 L 12 76 Z" fill="#0E2E36" stroke="#0a1f24" stroke-width="1"/>
-                            <ellipse cx="24" cy="72" rx="16" ry="3" fill="#173d46"/>
-                            <!-- Peso oficial da META -->
-                            <rect x="16" y="58" width="16" height="14" rx="2" fill="#4b5563" stroke="#1f2937" stroke-width=".5"/>
-                            <rect x="19" y="55" width="10" height="4" rx="1" fill="#4b5563"/>
-                            <text x="24" y="66" text-anchor="middle" font-family="Arial" font-size="4.5" font-weight="700" fill="#fff">META</text>
-                            <text x="24" y="71" text-anchor="middle" font-family="Arial" font-size="4.5" font-weight="700" fill="#B87333"><?= $metaAlvo ?></text>
+                            <!-- Base do prato (concavidade) -->
+                            <ellipse cx="30" cy="92" rx="26" ry="6" fill="#5a3a18"/>
+                            <path d="M 4 88 Q 30 108 56 88 Q 52 96 47 98 L 13 98 Q 8 96 4 88 Z" fill="url(#<?= $__uniq ?>-prato)" stroke="#5a3a18" stroke-width=".7"/>
+                            <!-- Borda interna do prato -->
+                            <ellipse cx="30" cy="87" rx="24" ry="4.5" fill="#c8934c" opacity=".7"/>
+                            <ellipse cx="30" cy="86" rx="22" ry="3.5" fill="#7a4d1f"/>
+                            <!-- Reflexo elíptico no fundo do prato -->
+                            <ellipse cx="30" cy="87" rx="18" ry="2.5" fill="url(#<?= $__uniq ?>-prato)" opacity=".8"/>
+                            <!-- Ponto de fixação da corrente -->
+                            <circle cx="30" cy="88" r="2" fill="#5a3a18"/>
+
+                            <!-- PESO OFICIAL DA META (bloco cinza com pega) -->
+                            <path d="M 22 74 Q 24 68 30 68 Q 36 68 38 74 L 40 88 L 20 88 Z" fill="url(#<?= $__uniq ?>-prata)" stroke="#1e293b" stroke-width=".6"/>
+                            <!-- Alça do peso -->
+                            <path d="M 27 68 Q 27 64 30 64 Q 33 64 33 68" fill="none" stroke="#64748b" stroke-width="1.5" stroke-linecap="round"/>
+                            <!-- Placa dourada com número da meta -->
+                            <rect x="22" y="76" width="16" height="9" rx="1" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width=".4"/>
+                            <text x="30" y="80.5" text-anchor="middle" font-family="'Cormorant Garamond',serif" font-size="4" font-weight="700" fill="#0E2E36" letter-spacing=".3">META</text>
+                            <text x="30" y="84.5" text-anchor="middle" font-family="Arial" font-size="5" font-weight="800" fill="#0E2E36"><?= $metaAlvo ?></text>
                         </g>
 
-                        <!-- PRATO DIREITO (progresso: pastas empilhando) -->
+                        <!-- PRATO DIREITO (progresso: pastas de processo empilhando) -->
                         <g>
-                            <path d="M 120 72 Q 136 88 152 72 L 148 76 L 124 76 Z" fill="#0E2E36" stroke="#0a1f24" stroke-width="1"/>
-                            <ellipse cx="136" cy="72" rx="16" ry="3" fill="#173d46"/>
-                            <!-- Pastas empilhadas (uma por unidade de progresso) -->
+                            <ellipse cx="190" cy="92" rx="26" ry="6" fill="#5a3a18"/>
+                            <path d="M 164 88 Q 190 108 216 88 Q 212 96 207 98 L 173 98 Q 168 96 164 88 Z" fill="url(#<?= $__uniq ?>-prato)" stroke="#5a3a18" stroke-width=".7"/>
+                            <ellipse cx="190" cy="87" rx="24" ry="4.5" fill="#c8934c" opacity=".7"/>
+                            <ellipse cx="190" cy="86" rx="22" ry="3.5" fill="#7a4d1f"/>
+                            <ellipse cx="190" cy="87" rx="18" ry="2.5" fill="url(#<?= $__uniq ?>-prato)" opacity=".8"/>
+                            <circle cx="190" cy="88" r="2" fill="#5a3a18"/>
+
+                            <!-- PASTAS DE PROCESSO empilhadas -->
                             <?php for ($i = 0; $i < $__pastas; $i++):
-                                $y = 68 - ($i * 3); // empilha de baixo pra cima, 3px por pasta
-                                $offset = ($i % 2 === 0) ? 0 : 1; // leve ziguezague
+                                $y = 82 - ($i * 4.5);
+                                $offset = ($i % 2 === 0) ? 0 : 1.5;
+                                $x = 175 + $offset;
                             ?>
-                                <rect x="<?= 125 + $offset ?>" y="<?= $y ?>" width="22" height="3" rx=".5" fill="#B87333" stroke="#8a5722" stroke-width=".3">
-                                    <animate attributeName="opacity" from="0" to="1" dur=".3s" begin="<?= 0.3 + $i * 0.1 ?>s" fill="freeze"/>
-                                </rect>
-                                <line x1="<?= 129 + $offset ?>" y1="<?= $y + 1.5 ?>" x2="<?= 143 + $offset ?>" y2="<?= $y + 1.5 ?>" stroke="#8a5722" stroke-width=".3" opacity=".5"/>
+                                <g opacity="0">
+                                    <animate attributeName="opacity" from="0" to="1" dur=".35s" begin="<?= 0.4 + $i * 0.12 ?>s" fill="freeze"/>
+                                    <!-- Sombra da pasta -->
+                                    <rect x="<?= $x + .5 ?>" y="<?= $y + .5 ?>" width="30" height="4" rx=".5" fill="#000" opacity=".25"/>
+                                    <!-- Pasta creme -->
+                                    <rect x="<?= $x ?>" y="<?= $y ?>" width="30" height="4" rx=".5" fill="url(#<?= $__uniq ?>-pasta)" stroke="#8a6f4c" stroke-width=".3"/>
+                                    <!-- Aba da pasta (canto superior) -->
+                                    <rect x="<?= $x + 1 ?>" y="<?= $y - .8 ?>" width="7" height="1.2" rx=".3" fill="#d4bc93" stroke="#8a6f4c" stroke-width=".2"/>
+                                    <!-- Selo bronze (brasão) -->
+                                    <circle cx="<?= $x + 26 ?>" cy="<?= $y + 2 ?>" r=".9" fill="#B87333" stroke="#5a3a18" stroke-width=".2"/>
+                                    <!-- Linhas horizontais simulando papel -->
+                                    <line x1="<?= $x + 3 ?>" y1="<?= $y + 1.5 ?>" x2="<?= $x + 22 ?>" y2="<?= $y + 1.5 ?>" stroke="#8a6f4c" stroke-width=".15" opacity=".5"/>
+                                    <line x1="<?= $x + 3 ?>" y1="<?= $y + 2.7 ?>" x2="<?= $x + 20 ?>" y2="<?= $y + 2.7 ?>" stroke="#8a6f4c" stroke-width=".15" opacity=".4"/>
+                                </g>
                             <?php endfor; ?>
                         </g>
                     </g>
 
-                    <!-- Selo % no topo -->
-                    <g>
-                        <circle cx="80" cy="20" r="14" fill="#f5ede3" stroke="#B87333" stroke-width="1.5"/>
-                        <text x="80" y="19" text-anchor="middle" font-family="'Cormorant Garamond',serif" font-size="6" font-weight="700" fill="#78350f">TIME</text>
-                        <text x="80" y="27" text-anchor="middle" font-family="Arial" font-size="8" font-weight="800" fill="#0E2E36"><?= $metaPct ?>%</text>
+                    <!-- ═══ SELO % (medalhão dourado no topo) ═══ -->
+                    <g transform="translate(110, 25)">
+                        <!-- Fita/laço -->
+                        <path d="M -14 3 L -8 -8 L 0 -3 L 8 -8 L 14 3 Z" fill="#8a1e1e" stroke="#5a1010" stroke-width=".4"/>
+                        <path d="M -8 -8 L -6 -3 L -2 -6 Z" fill="#5a1010"/>
+                        <path d="M 8 -8 L 6 -3 L 2 -6 Z" fill="#5a1010"/>
+                        <!-- Medalhão -->
+                        <circle cx="0" cy="8" r="14" fill="url(#<?= $__uniq ?>-latao)" stroke="#5a3a18" stroke-width="1"/>
+                        <circle cx="0" cy="8" r="12" fill="none" stroke="#5a3a18" stroke-width=".3"/>
+                        <circle cx="0" cy="8" r="10.5" fill="#f5ede3" stroke="#B87333" stroke-width=".5"/>
+                        <text x="0" y="6" text-anchor="middle" font-family="'Cormorant Garamond',serif" font-size="4.5" font-weight="700" fill="#78350f" letter-spacing=".5">TIME</text>
+                        <text x="0" y="13" text-anchor="middle" font-family="Arial" font-size="7" font-weight="800" fill="#0E2E36"><?= $metaPct ?>%</text>
                     </g>
 
                     <?php if ($metaBatida): ?>
                     <!-- Brilhos ao redor quando bate -->
                     <g class="pd-brilhos">
-                        <text x="20" y="30" font-size="10" fill="#facc15">✨</text>
-                        <text x="140" y="30" font-size="10" fill="#facc15">✨</text>
-                        <text x="80" y="8" font-size="8" fill="#facc15">⭐</text>
+                        <text x="30" y="55" font-size="14" fill="#facc15">✨</text>
+                        <text x="185" y="55" font-size="14" fill="#facc15">✨</text>
+                        <text x="20" y="130" font-size="10" fill="#facc15">⭐</text>
+                        <text x="195" y="130" font-size="10" fill="#facc15">⭐</text>
                     </g>
                     <?php endif; ?>
                 </svg>
