@@ -692,18 +692,16 @@ $mapaNomes = array(
 );
 ?>
 <style>
-.br-mapa-wrap { display:grid; grid-template-columns: minmax(340px, 1fr) auto auto; gap:1.2rem; align-items:start; }
+.br-mapa-wrap { display:grid; grid-template-columns: minmax(340px, 1fr) auto; gap:1.2rem; align-items:start; }
 @media (max-width:780px) { .br-mapa-wrap { grid-template-columns: 1fr; } }
-.br-internacional { display:flex; flex-direction:column; gap:.65rem; padding-top:.4rem; }
-.br-internacional h5 { font-family:'Cormorant Garamond',serif; margin:0 0 .1rem; font-size:.9rem; color:#052228; font-weight:700; }
-.br-pais { display:flex; flex-direction:column; align-items:center; gap:.25rem; }
-.br-pais-nome { font-size:.62rem; font-weight:700; color:#4b5563; letter-spacing:.02em; text-transform:uppercase; }
-.br-flag { width:46px; height:32px; border-radius:4px; border:1px solid rgba(0,0,0,.2); box-shadow:0 1px 3px rgba(0,0,0,.12); }
-.br-flag-es { background: linear-gradient(to bottom, #c60b1e 0 25%, #ffc400 25% 75%, #c60b1e 75% 100%); }
-.br-flag-co { background: linear-gradient(to bottom, #fcd116 0 50%, #003893 50% 75%, #ce1126 75% 100%); }
-.br-pais-card { width:46px; height:46px; border-radius:6px; background:#fef3c7; color:#78350f; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:'Outfit',sans-serif; font-size:.62rem; font-weight:800; line-height:1; letter-spacing:.02em; transition:transform .12s, box-shadow .12s; cursor:default; user-select:none; }
-.br-pais-card:hover { transform:scale(1.15); box-shadow:0 4px 12px rgba(0,0,0,.15); }
-.br-pais-card .qtd { font-size:.58rem; font-weight:700; opacity:.85; margin-top:2px; }
+/* Amanda 11/07: paises internacionais ocupam posicoes vazias do proprio grid do mapa */
+.br-pais-uf { position:relative; overflow:hidden; }
+.br-pais-uf::before { content:''; position:absolute; inset:0; border-radius:6px; z-index:0; }
+.br-pais-uf.br-flag-es::before { background: linear-gradient(to bottom, #c60b1e 0 25%, #ffc400 25% 75%, #c60b1e 75% 100%); }
+.br-pais-uf.br-flag-co::before { background: linear-gradient(to bottom, #fcd116 0 50%, #003893 50% 75%, #ce1126 75% 100%); }
+.br-pais-uf > * { position:relative; z-index:1; text-shadow:0 1px 2px rgba(0,0,0,.55); }
+.br-pais-uf .sigla { background:rgba(0,0,0,.35); padding:1px 5px; border-radius:3px; color:#fff; font-weight:800; }
+.br-pais-uf .qtd { background:rgba(0,0,0,.35); padding:0 5px; border-radius:3px; color:#fff !important; margin-top:2px; }
 .br-mapa { display:grid; grid-template-columns: repeat(11, minmax(32px, 44px)); grid-auto-rows: minmax(32px, 44px); gap:4px; padding:8px; background:#f9fafb; border-radius:10px; }
 .br-uf { display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:6px; font-family:'Outfit',sans-serif; font-size:.62rem; font-weight:800; letter-spacing:.02em; line-height:1; cursor:default; transition:transform .12s, box-shadow .12s; user-select:none; }
 .br-uf:hover { transform:scale(1.15); box-shadow:0 4px 12px rgba(0,0,0,.15); z-index:5; position:relative; }
@@ -733,19 +731,14 @@ $mapaNomes = array(
                 <?php if ($q > 0): ?><span class="qtd"><?= $q ?></span><?php endif; ?>
             </div>
             <?php endforeach; ?>
-        </div>
-        <!-- Amanda 11/07: alcance internacional (bandeiras + qtd de processos por pais) -->
-        <div class="br-internacional">
-            <h5>🌍 Internacional</h5>
-            <div class="br-pais">
-                <div class="br-flag br-flag-es" title="Espanha — 1 processo"></div>
-                <div class="br-pais-card" title="Espanha — 1 processo">ES <span class="qtd">1</span></div>
-                <div class="br-pais-nome">Espanha</div>
+            <!-- Amanda 11/07: paises internacionais dentro do proprio grid do mapa -->
+            <div class="br-uf br-pais-uf br-flag-co" title="Colômbia — 1 processo" style="grid-row:1;grid-column:1;">
+                <span class="sigla">CO</span>
+                <span class="qtd">1</span>
             </div>
-            <div class="br-pais">
-                <div class="br-flag br-flag-co" title="Colômbia — 1 processo"></div>
-                <div class="br-pais-card" title="Colômbia — 1 processo">CO <span class="qtd">1</span></div>
-                <div class="br-pais-nome">Colômbia</div>
+            <div class="br-uf br-pais-uf br-flag-es" title="Espanha — 1 processo" style="grid-row:1;grid-column:11;">
+                <span class="sigla">ES</span>
+                <span class="qtd">1</span>
             </div>
         </div>
         <div class="br-mapa-legenda">
