@@ -38,16 +38,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (empty($nome)) { flash_set('error','Nome obrigatório.'); redirect(module_url('presenca','perfis.php')); }
 
-        if ($id > 0) {
-            $st = $pdo->prepare("UPDATE presenca_perfil SET nome=?, slug=?, ticket_min=?, ticket_max=?, verba_min=?, verba_max=?, cor_hex=?, ordem=?, ativo=? WHERE id=?");
-            $st->execute(array($nome, $slug, $tMin, $tMax, $vMin, $vMax, $cor, $ordem, $ativo, $id));
-            audit_log('presenca_perfil_edit', 'presenca_perfil', $id, $nome);
-            flash_set('success','Perfil atualizado.');
-        } else {
-            $st = $pdo->prepare("INSERT INTO presenca_perfil (nome,slug,ticket_min,ticket_max,verba_min,verba_max,cor_hex,ordem,ativo) VALUES (?,?,?,?,?,?,?,?,?)");
-            $st->execute(array($nome, $slug, $tMin, $tMax, $vMin, $vMax, $cor, $ordem, $ativo));
-            audit_log('presenca_perfil_new', 'presenca_perfil', (int)$pdo->lastInsertId(), $nome);
-            flash_set('success','Perfil criado.');
+        try {
+            if ($id > 0) {
+                $st = $pdo->prepare("UPDATE presenca_perfil SET nome=?, slug=?, ticket_min=?, ticket_max=?, verba_min=?, verba_max=?, cor_hex=?, ordem=?, ativo=? WHERE id=?");
+                $st->execute(array($nome, $slug, $tMin, $tMax, $vMin, $vMax, $cor, $ordem, $ativo, $id));
+                audit_log('presenca_perfil_edit', 'presenca_perfil', $id, $nome);
+                flash_set('success','Perfil atualizado.');
+            } else {
+                $st = $pdo->prepare("INSERT INTO presenca_perfil (nome,slug,ticket_min,ticket_max,verba_min,verba_max,cor_hex,ordem,ativo) VALUES (?,?,?,?,?,?,?,?,?)");
+                $st->execute(array($nome, $slug, $tMin, $tMax, $vMin, $vMax, $cor, $ordem, $ativo));
+                audit_log('presenca_perfil_new', 'presenca_perfil', (int)$pdo->lastInsertId(), $nome);
+                flash_set('success','Perfil criado.');
+            }
+        } catch (PDOException $e) {
+            // Amanda 11/07: sem try/catch, INSERT com slug duplicado morria
+            // silencioso e a pagina parecia "resetar". Agora avisa claro.
+            if (strpos($e->getMessage(), 'Duplicate') !== false || strpos($e->getMessage(), '1062') !== false) {
+                flash_set('error', '⚠ Já existe um perfil com o nome "' . $nome . '" (slug: ' . $slug . '). Recarregue a página (Ctrl+F5) e edite o existente em vez de criar novo.');
+            } else {
+                flash_set('error', 'Erro ao salvar perfil: ' . $e->getMessage());
+            }
         }
         redirect(module_url('presenca','perfis.php'));
     }
@@ -143,11 +153,28 @@ require_once APP_ROOT . '/templates/layout_start.php';
     💡 O perfil do cliente é <strong>derivado automaticamente</strong> da maior faixa de honorários dos processos ativos dele. Você nunca escolhe "Essencial" ou "Premium" na mão — o sistema decide pela faixa. Aqui você ajusta as faixas e a verba de cada perfil.
 </div>
 
-<?php $editar = null; if (isset($_GET['editar']) && (int)$_GET['editar'] > 0) {
-    $st = $pdo->prepare("SELECT * FROM presenca_perfil WHERE id = ?");
-    $st->execute(array((int)$_GET['editar']));
-    $editar = $st->fetch(PDO::FETCH_ASSOC);
-} ?>
+<?php
+$editar = null;
+$editarAvisoNaoEncontrado = false;
+if (isset($_GET['editar'])) {
+    $idPedido = (int)$_GET['editar'];
+    if ($idPedido > 0) {
+        $st = $pdo->prepare("SELECT * FROM presenca_perfil WHERE id = ?");
+        $st->execute(array($idPedido));
+        $editar = $st->fetch(PDO::FETCH_ASSOC) ?: null;
+        if (!$editar) $editarAvisoNaoEncontrado = true;
+    } else {
+        // ?editar=0 ou vazio — sinal de link antigo cacheado apontando pra perfil apagado
+        $editarAvisoNaoEncontrado = true;
+    }
+}
+?>
+
+<?php if ($editarAvisoNaoEncontrado): ?>
+<div style="background:#fef2f2;border:1.5px solid #fecaca;border-radius:8px;padding:12px 16px;margin-bottom:14px;font-size:.9rem;color:#7f1d1d;">
+    ⚠ <strong>Você clicou em Editar num perfil que não existe mais.</strong> Provável cache da tela — dê Ctrl+F5 pra recarregar. Os perfis reais aparecem na lista abaixo.
+</div>
+<?php endif; ?>
 
 <div class="pp-form">
     <h3><?= $editar ? '✏️ Editando: ' . e($editar['nome']) : '➕ Novo perfil' ?></h3>
