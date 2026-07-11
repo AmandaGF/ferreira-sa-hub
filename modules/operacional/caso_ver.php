@@ -113,6 +113,9 @@ $tasks = $tasks->fetchAll();
 // Junta tudo em UMA query — pode ter mais de 1 registro (raro, mas possivel se
 // abriu, depois de anos abriu de novo).
 $_renuPend = array();
+// Amanda tb pediu: fundo da pasta fica vermelho se HOUVER renuncia registrada
+// (independente de cumprida ou nao) — sinal visual persistente igual ao Kanban.
+$_renuTipoMaisRecente = null;
 try {
     $stRp = $pdo->prepare("
         SELECT r.id, r.tipo, r.motivo, r.motivo_outro, r.observacao, r.created_at,
@@ -128,6 +131,10 @@ try {
     ");
     $stRp->execute(array($caseId));
     $_renuPend = $stRp->fetchAll(PDO::FETCH_ASSOC);
+
+    $stRt = $pdo->prepare("SELECT tipo FROM renuncias WHERE case_id = ? ORDER BY created_at DESC LIMIT 1");
+    $stRt->execute(array($caseId));
+    $_renuTipoMaisRecente = $stRt->fetchColumn() ?: null;
 } catch (Exception $e) {}
 
 // 01/07/2026 Amanda: config atual de acompanhamento diário via WhatsApp
@@ -1553,6 +1560,12 @@ body.cv-polo-reu .cv-painel { background:#fff5f6; border-color:#fecdd3; }
 body.cv-polo-autor .cv-painel { background:#f7fef8; border-color:#bbf7d0; }
 body.cv-polo-reu .cv-tabs-wrap { background:#fff5f6; border-color:#fecdd3; }
 body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
+/* 10/07/2026 Amanda: case com renuncia/desistencia registrada ganha fundo
+   vermelho claro (mesmo que ja tenha sido cumprida) — sinal visual persistente,
+   igual ao card vermelho no Kanban. Prevalece sobre a cor do polo. */
+body.cv-renunciado { background:#fef2f2 !important; }
+body.cv-renunciado .cv-painel { background:#fef5f5; border-color:#fecaca; }
+body.cv-renunciado .cv-tabs-wrap { background:#fef5f5; border-color:#fecaca; }
 </style>
 <?php
 // Amanda 10/07/2026: pre-carrega chamados vinculados ao case ou cliente.
@@ -8896,6 +8909,9 @@ window.pedirObsRealizado = function(form) {
         var polo = <?= json_encode($case['representamos_polo'] ?? '') ?>;
         if (polo === 'reu') document.body.classList.add('cv-polo-reu');
         else if (polo === 'autor') document.body.classList.add('cv-polo-autor');
+        // Amanda 10/07: case com renuncia/desistencia -> fundo vermelho persistente
+        var renuTipo = <?= json_encode($_renuTipoMaisRecente ?? '') ?>;
+        if (renuTipo === 'renuncia' || renuTipo === 'desistencia') document.body.classList.add('cv-renunciado');
         // Aba inicial: hash da URL ou 'visao'
         var hashAba = (location.hash || '').replace('#', '');
         var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','gerid','helpdesk','treinamentos','ia'];

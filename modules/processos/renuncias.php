@@ -242,23 +242,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['acao'] ?? '') === 'baixar_
     if (!validate_csrf()) { flash_set('error', 'Sessão expirada.'); redirect(module_url('processos', 'renuncias.php') . '#operacional'); }
     $tid = (int)($_POST['task_id'] ?? 0);
     $vc  = (int)($_POST['voltar_caso'] ?? 0);
+    $va  = trim($_POST['voltar_aba'] ?? 'operacional'); // 'historico' | 'operacional'
+    if (!in_array($va, array('historico','operacional'), true)) $va = 'operacional';
     if ($tid) {
         $pdo->prepare("UPDATE case_tasks SET status = 'concluido', completed_at = NOW() WHERE id = ?")->execute(array($tid));
         audit_log('renuncia_tarefa_baixa', 'task', $tid, 'baixa via renúncias');
         flash_set('success', 'Renúncia/desistência marcada como cumprida! 🎉');
     }
-    redirect($vc ? module_url('operacional', 'caso_ver.php?id=' . $vc) : module_url('processos', 'renuncias.php') . '#operacional');
+    redirect($vc ? module_url('operacional', 'caso_ver.php?id=' . $vc) : module_url('processos', 'renuncias.php') . '#' . $va);
 }
 
 // ── Dados: histórico ─────────────────────────────────────
+// Amanda 10/07: JOIN com case_tasks pra trazer o status (concluido=cumprido).
 $lista = $pdo->query("SELECT r.*, c.title AS case_title, c.case_number, c.drive_folder_url,
                              cl.name AS client_name, u.name AS reg_por,
-                             sv.id AS vip_id, sv.ativo AS vip_ativo
+                             sv.id AS vip_id, sv.ativo AS vip_ativo,
+                             t.status AS task_status, t.completed_at AS task_completed_at
                       FROM renuncias r
                       JOIN cases c ON c.id = r.case_id
                       JOIN clients cl ON cl.id = r.client_id
                       LEFT JOIN users u ON u.id = r.created_by
                       LEFT JOIN salavip_usuarios sv ON sv.cliente_id = r.client_id
+                      LEFT JOIN case_tasks t ON t.id = r.task_id
                       ORDER BY r.created_at DESC LIMIT 500")->fetchAll();
 
 // ── Dados: operacional (tarefas de renúncia/desistência ainda abertas) ──
@@ -450,13 +455,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
   <?php else: ?>
   <div style="overflow-x:auto;">
   <table class="rd-table">
-    <thead><tr><th>Data</th><th>Tipo</th><th>Cliente</th><th>Processo</th><th>Motivo</th><th>Registrado por</th><th>Comprovante</th><th>Pasta</th><th>Central VIP</th></tr></thead>
+    <thead><tr><th>Data</th><th>Status</th><th>Tipo</th><th>Cliente</th><th>Processo</th><th>Motivo</th><th>Registrado por</th><th>Comprovante</th><th>Pasta</th><th>Central VIP</th></tr></thead>
     <tbody>
       <?php foreach ($lista as $r):
         $mot = $r['motivo'] === 'outro' ? ($r['motivo_outro'] ?: 'Outro') : ($MOTIVOS[$r['motivo']] ?? $r['motivo']);
+        $_cumprido = ($r['task_status'] ?? '') === 'concluido';
+        $_dtCumpr  = $_cumprido && !empty($r['task_completed_at']) ? ' em ' . date('d/m/Y', strtotime($r['task_completed_at'])) : '';
       ?>
       <tr>
         <td><?= date('d/m/Y', strtotime($r['created_at'])) ?></td>
+        <td>
+          <?php if ($_cumprido): ?>
+            <span class="rd-chip" style="background:#dcfce7;color:#15803d;" title="Cumprido<?= $_dtCumpr ?>">✓ CUMPRIDO</span>
+          <?php else: ?>
+            <span class="rd-chip" style="background:#fef3c7;color:#92400e;">⏳ PENDENTE</span>
+            <?php if (!empty($r['task_id'])): ?>
+            <form method="post" style="display:inline;margin-left:4px;" onsubmit="var b=this.querySelector('button');if(b.disabled)return false;b.disabled=true;b.style.opacity='.6';return confirm('Marcar como cumprido?');">
+              <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
+              <input type="hidden" name="acao" value="baixar_tarefa">
+              <input type="hidden" name="task_id" value="<?= (int)$r['task_id'] ?>">
+              <input type="hidden" name="voltar_aba" value="historico">
+              <button type="submit" class="btn btn-sm" style="background:#15803d;color:#fff;border:none;padding:2px 8px;font-size:.7rem;font-weight:700;" title="Marcar como cumprido">✓</button>
+            </form>
+            <?php endif; ?>
+          <?php endif; ?>
+        </td>
         <td><span class="rd-chip <?= e($r['tipo']) ?>"><?= e($TIPOS[$r['tipo']] ?? $r['tipo']) ?></span></td>
         <td><?= e($r['client_name']) ?></td>
         <td><?= e($r['case_number'] ?: $r['case_title']) ?></td>
