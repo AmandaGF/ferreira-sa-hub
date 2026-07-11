@@ -1678,4 +1678,137 @@ HTML,
     'missao' => 'Faça o **Tour Completo**: (1) Entre no seu Painel do Dia e localize pelo menos 1 item real; (2) Abra a **ficha de qualquer cliente** e navegue pelas 7 abas do drawer (não precisa entender tudo — só ver o que existe); (3) Abra a **pasta de qualquer processo** e navegue pelas abas Compromissos, Andamentos, Documentos e Tarefas; (4) Vá em **WhatsApp CRM** e abra uma conversa qualquer só pra ver o layout; (5) Abra o **Portal de Links** (canto direito superior, ícone de balança) e veja quantos tribunais e ferramentas estão cadastrados; (6) Volte pra `/treinamento` e comece o próximo módulo da sua área. Marque essa missão como cumprida só depois de fazer os 6 passos.',
 ),
 
+// ═══════════════════════════════════════════════════════════════════
+// ADMIN — CADASTRAR COLABORADOR (Amanda 10/07/2026)
+// Treinamento pro Luiz (admin) usar o modulo /admin/onboarding pra
+// cadastrar novo colaborador: dados, perfil de cargo, remuneracao,
+// documentos aplicaveis, geracao do link de boas-vindas.
+// ═══════════════════════════════════════════════════════════════════
+'admin-cadastrar-colaborador' => array(
+    'por_que' => 'Quando entra alguém novo no escritório — estagiário(a), advogado(a) associado(a), CLT, prestador PJ/MEI ou sócio — o cadastro pro **onboarding administrativo** é feito por aqui. É o que gera o **link único de boas-vindas** (que a pessoa acessa com nome + data de nascimento), define **qual bolsa/salário/pró-labore** ela recebe, e **quais documentos ela precisa assinar** (contrato, termo de sigilo, LGPD, checklist admissional, POP). O objetivo: menos WhatsApp, menos planilha, tudo num só lugar com histórico e assinaturas rastreáveis.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/admin/onboarding.php</span>
+  </div>
+  <div class="tm-screen-body" style="padding:1.2rem 1.4rem;">
+    <div style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;color:#052228;margin-bottom:.6rem;">👋 Onboarding de Colaboradores</div>
+    <div style="font-size:.75rem;color:#6b7280;margin-bottom:1rem;">Cadastre nova colaboradora/colaborador e envie o link de boas-vindas. Acesso via nome completo + data de nascimento.</div>
+    <div style="background:#fff;border:1.5px solid #e5e7eb;border-radius:10px;padding:1rem;">
+      <div style="font-weight:800;color:#B87333;font-size:.8rem;margin-bottom:.6rem;">➕ Novo Cadastro</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;">
+        <div><div style="font-size:.65rem;color:#78350f;font-weight:700;margin-bottom:2px;">Nome completo *</div><div style="border:1px solid #d1d5db;border-radius:6px;padding:6px 8px;background:#fafafa;font-size:.75rem;color:#6b7280;">Ana Beatriz Ferreira de Sá</div></div>
+        <div><div style="font-size:.65rem;color:#78350f;font-weight:700;margin-bottom:2px;">Data de nascimento *</div><div style="border:1px solid #d1d5db;border-radius:6px;padding:6px 8px;background:#fafafa;font-size:.75rem;color:#6b7280;">15/03/2001</div></div>
+        <div><div style="font-size:.65rem;color:#78350f;font-weight:700;margin-bottom:2px;">CPF</div><div style="border:1px solid #d1d5db;border-radius:6px;padding:6px 8px;background:#fafafa;font-size:.75rem;color:#6b7280;">123.456.789-00</div></div>
+        <div><div style="font-size:.65rem;color:#78350f;font-weight:700;margin-bottom:2px;">Perfil / Cargo *</div><div style="border:1px solid #B87333;border-radius:6px;padding:6px 8px;background:#fff7ed;font-size:.75rem;color:#78350f;font-weight:700;">Estagiária ▾</div></div>
+      </div>
+      <div style="margin-top:.7rem;padding:.5rem .6rem;background:#e0f2fe;border-left:3px solid #0369a1;border-radius:4px;font-size:.7rem;color:#075985;">💡 Perfil selecionado define automaticamente quais documentos aparecem pra vincular no bloco de baixo.</div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela de cadastro — só nome + data de nascimento são obrigatórios pra começar. Os outros campos vão aparecendo conforme o perfil escolhido.</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Escolha do PERFIL / CARGO — muda tudo</span>
+  </div>
+  <div class="tm-screen-body" style="padding:1.2rem 1.4rem;">
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:.6rem;">
+      <div style="background:#fff;border:2px solid #B87333;border-radius:8px;padding:.7rem;"><div style="font-weight:800;color:#78350f;font-size:.85rem;">🎓 Estagiário(a)</div><div style="font-size:.7rem;color:#6b7280;margin-top:2px;">Modalidade I (OAB) ou II (acadêmica) · bolsa + aux. transporte · seguro</div></div>
+      <div style="background:#fff;border:2px solid #0369a1;border-radius:8px;padding:.7rem;"><div style="font-weight:800;color:#075985;font-size:.85rem;">⚖️ Advogado(a) Associado(a)</div><div style="font-size:.7rem;color:#6b7280;margin-top:2px;">Contrato de associação · honorários · sem vínculo CLT</div></div>
+      <div style="background:#fff;border:2px solid #059669;border-radius:8px;padding:.7rem;"><div style="font-weight:800;color:#065f46;font-size:.85rem;">👔 CLT</div><div style="font-size:.7rem;color:#6b7280;margin-top:2px;">Salário registrado em carteira · benefícios · encargos</div></div>
+      <div style="background:#fff;border:2px solid #9333ea;border-radius:8px;padding:.7rem;"><div style="font-weight:800;color:#6b21a8;font-size:.85rem;">🤝 Sócio(a)</div><div style="font-weight:normal;font-size:.7rem;color:#6b7280;margin-top:2px;">Sociedade de advogados · pro-labore · quotas</div></div>
+      <div style="background:#fff;border:2px solid #d97706;border-radius:8px;padding:.7rem;"><div style="font-weight:800;color:#78350f;font-size:.85rem;">💼 Prestador PJ / MEI</div><div style="font-size:.7rem;color:#6b7280;margin-top:2px;">CNPJ + razão social · escopo de serviços · emite NF? · dados bancários</div></div>
+      <div style="background:#fff;border:2px solid #6b7280;border-radius:8px;padding:.7rem;"><div style="font-weight:800;color:#374151;font-size:.85rem;">📌 Outro</div><div style="font-size:.7rem;color:#6b7280;margin-top:2px;">Freelancer, autônomo, colaborador eventual</div></div>
+    </div>
+    <div style="margin-top:.8rem;padding:.6rem .8rem;background:#fef3c7;border-left:3px solid #d97706;border-radius:4px;font-size:.72rem;color:#78350f;">⚠️ O <b>perfil não é só um rótulo</b> — ele determina quais documentos aparecem pra assinar, se pede CNPJ, se pede modalidade de estágio, se calcula seguro etc. Escolha certo desde o começo.</div>
+  </div>
+  <p class="tm-screen-caption">6 tipos de perfil, cada um com fluxo próprio. Se errar, é fácil corrigir depois (editar cadastro), mas os documentos vinculados podem precisar ser refeitos.</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">Após salvar — LINK ÚNICO gerado pra colaboradora</span>
+  </div>
+  <div class="tm-screen-body" style="padding:1.2rem 1.4rem;">
+    <div style="background:linear-gradient(135deg,#fff7ed,#ffe9d3);border:2px solid #d7ab90;border-radius:12px;padding:1rem 1.2rem;">
+      <div style="font-weight:800;color:#6a3c2c;font-size:.9rem;margin-bottom:.4rem;">🔗 Link de boas-vindas — Ana Beatriz</div>
+      <div style="font-size:.72rem;color:#6a3c2c;margin-bottom:.4rem;">Compartilhe esse link com a colaboradora:</div>
+      <div style="background:#fff;padding:.5rem .7rem;border-radius:6px;border:1px solid #d7ab90;font-size:.72rem;color:#6a3c2c;font-family:monospace;word-break:break-all;">ferreiraesa.com.br/conecta/publico/onboarding/?token=a7fEk2r9BmXpQ8vNlZ...</div>
+      <div style="display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap;">
+        <div style="background:#052228;color:#fff;padding:.4rem .8rem;border-radius:6px;font-size:.7rem;font-weight:700;">📋 Copiar link</div>
+        <div style="background:#fff;border:1px solid #052228;color:#052228;padding:.4rem .8rem;border-radius:6px;font-size:.7rem;font-weight:700;">👁 Visualizar</div>
+        <div style="background:#fef3c7;color:#92400e;padding:.4rem .8rem;border-radius:6px;font-size:.7rem;font-weight:700;border:1px solid #fcd34d;">🔄 Regenerar</div>
+        <div style="background:#fff7ed;border:1.5px solid #d7ab90;color:#6a3c2c;padding:.4rem .8rem;border-radius:6px;font-size:.7rem;font-weight:700;">🛡️ Gerar ficha p/ corretor de seguro</div>
+      </div>
+      <div style="margin-top:.6rem;font-size:.7rem;color:#6a3c2c;"><b>Como ela acessa:</b> digita o nome completo (igual ao cadastro) + data de nascimento (DD/MM/AAAA).</div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Ao salvar, o sistema gera automaticamente um token único. Você copia o link e manda pelo WhatsApp. A colaboradora entra e acessa a página de boas-vindas dela — com contrato, termo de sigilo, checklist etc.</p>
+</figure>
+HTML,
+    'passos' => array(
+        '**1. Acesse `/admin/onboarding`** (menu lateral → Admin → 👋 Onboarding de Colaboradores). O módulo é acesso **exclusivo admin** — só quem tem role `admin` consegue entrar.',
+        '**2. Nome completo + data de nascimento.** São os DOIS campos obrigatórios. Escreva o nome EXATAMENTE como vai constar em contrato — é o que a colaboradora vai digitar depois pra fazer login na página pública dela. Se errar, ela não consegue entrar. Data no formato dd/mm/aaaa.',
+        '**3. CPF.** Se preencher, o sistema **gera automaticamente a senha institucional** no padrão da casa: `CPF sem pontuação + @` (ex: `12345678900@`). Se você preferir uma senha manual, digita no campo Senha inicial.',
+        '**4. E-mail institucional** (só se a pessoa vai ter e-mail @ferreiraesa.com.br). WhatsApp é opcional mas útil — o sistema puxa a foto de perfil do WhatsApp dela via Z-API pra aparecer na página de boas-vindas. Se falhar (perfil privado), tem botão de upload manual.',
+        '**5. Perfil / Cargo.** ESCOLHA COM CUIDADO — determina o resto do formulário:
+  • **Estagiário(a)** → aparece Modalidade (I OAB / II acadêmica), datas de início/fim, bolsa, auxílio-transporte, seguro, semestre, instituição de ensino.
+  • **Advogado(a) Associado(a)** → contrato de associação, honorários.
+  • **CLT** → salário registrado.
+  • **Sócio(a)** → pró-labore + quotas.
+  • **Prestador PJ / MEI / Autônomo** → CNPJ, razão social, escopo de serviços, dados bancários, se emite NF, período do contrato.
+  • **Outro** → freelancer/eventual (campos genéricos).',
+        '**6. Modalidade de trabalho** (remoto / híbrido / presencial) + **dias trabalhados** + **horário de início e fim**. Se híbrido/presencial, preencha o endereço em "Local presencial".',
+        '**7. Setor e Cargo** (texto livre — ex: "Financeiro", "Auxiliar administrativo"). São usados no crachá, no contrato e na apresentação.',
+        '**8. Remuneração.** Tipo (bolsa / salário / honorário / pró-labore) + valor + data de pagamento. Aceita R$ com vírgula OU ponto (o sistema entende os dois formatos brasileiros). Benefícios em texto livre (ex: "vale-refeição R$ 30/dia + plano de saúde Amil").',
+        '**9. Kit de boas-vindas.** Tamanho de camisa (P/M/G/GG), cor favorita, se tem alergia, se consome álcool. Isso vira pauta pro pessoal do marketing preparar o kit físico. A própria colaboradora pode preencher depois na página dela — não é obrigatório aqui.',
+        '**10. Documentos aplicáveis.** No fim do formulário, marque quais documentos essa colaboradora precisa assinar. Os que aparecem dependem do perfil:
+  • **Estagiário** → Termo de Compromisso, Confidencialidade + LGPD, POP, Checklist Admissional.
+  • **Prestador Marketing** → Contrato Prestação Marketing.
+  • **Prestador Comercial** → Contrato Prestação Comercial.
+  • Todos → Confidencialidade + LGPD.
+  Marcar aqui **NÃO gera o documento assinado** — só vincula o tipo. A colaboradora preenche os campos dela e assina depois, na página de boas-vindas.',
+        '**11. Salvar.** Ao clicar, o sistema:
+  1) grava o cadastro com status = **pendente**;
+  2) gera um **token único** (48 caracteres aleatórios);
+  3) mostra um card destacado com o **link de boas-vindas** e botões (📋 Copiar, 👁 Visualizar, 🔄 Regenerar).',
+        '**12. Envie o link pra colaboradora** pelo WhatsApp/e-mail. Ao acessar, ela digita nome completo + data de nascimento pra entrar. Nesse momento, o status vira **ativo**. Quando ela assinar todos os documentos, vira **aceito**.',
+        '**13. Ficha do seguro.** Se for estagiário, botão **🛡️ Gerar ficha p/ corretor** cria um PDF com os dados dela formatados pra você enviar pro corretor de seguro (Amanda cadastra a apólice depois no campo próprio).',
+        '**14. Acompanhar.** A lista embaixo mostra todos os cadastros ativos com status (pendente / ativo / aceito). Você pode **editar**, **arquivar** (some da lista mas preserva histórico), **reativar** ou **excluir** (só se ainda não foi acessado).',
+    ),
+    'atencao' => '**⚠️ Regras críticas do cadastro:**
+
+• **Nome completo e data de nascimento SÃO A CHAVE DE LOGIN da colaboradora.** Se você errar por engano ("Ana Beatriz Ferrera" em vez de "Ferreira"), ela não consegue acessar. Corrija ANTES de mandar o link.
+
+• **Perfil de cargo define documentos.** Se marcar "estagiário" e depois mudar pra "CLT", os documentos que já foram vinculados NÃO somem sozinhos — você precisa desmarcar/arquivar. O sistema preserva histórico pra não perder assinaturas anteriores.
+
+• **Senha padrão FSA = CPF+@**. Só é gerada se você deixar o campo "Senha inicial" em branco. Se preencher, o padrão NÃO se aplica. Não digite senha manual sem motivo — o padrão CPF@ facilita a vida do RH depois.
+
+• **Link de boas-vindas é público** (não precisa login). Qualquer um com o link entra na página. O acesso à ATIVAÇÃO (nome + data nasc) é a barreira. Se vazar o link antes de ela usar, gere um novo em "🔄 Regenerar" — o antigo para de funcionar.
+
+• **Arquivar ≠ Excluir**:
+  • **Arquivar** — some da lista principal, mas dados + assinaturas preservados. Reversível.
+  • **Excluir** — apaga PRA SEMPRE. Só permitido se o cadastro nunca foi acessado (sem `ultimo_acesso_em`). Depois que ela entrou uma vez, só arquivar.
+
+• **LGPD**: dados sensíveis (CPF, RG, endereço, dados bancários) ficam armazenados. Não exporte nem compartilhe fora do sistema. A ficha do seguro é a única exceção — vai criptografada pra corretor autorizado.',
+    'dica' => 'Alguns atalhos que economizam tempo:
+
+• **Foto da colaboradora** — se ela tiver WhatsApp com foto pública, o sistema puxa sozinho quando você cadastra o número. Se der erro ("perfil privado"), peça pra ela liberar a privacidade da foto pra "Todos" e clique de novo no botão "🔄 Buscar foto do WhatsApp" na tela de edição.
+
+• **Autocomplete de nome** — se você começar a digitar o nome de alguém que já tem cadastro (ativo ou arquivado), o sistema sugere. Útil pra RE-cadastrar ex-colaboradora que voltou — reaproveita CPF, data nasc, etc.
+
+• **ViaCEP integrado** — nos campos de endereço, digite o CEP e o resto (rua, bairro, cidade, UF) preenche sozinho. Vale pra estagiários que precisam do endereço no contrato.
+
+• **Regenerar token** — se o link foi mandado pro WhatsApp errado ou vazou, é 1 clique. O antigo para de funcionar na hora.
+
+• **Ficha do corretor** — antes de gerar, escolha a cobertura de seguro no dropdown (R$ 30k a R$ 500k). O PDF sai formatado com identidade visual do escritório.
+
+• **Salvar em rascunho**: o formulário não tem "salvar rascunho" — se você começar e sair, perde tudo. Preencha até o fim antes de fechar a aba. Se precisar consultar algo (CPF, CNPJ), abra em outra aba.',
+    'missao' => 'Cadastre um **colaborador de teste** pra treinar o fluxo completo. Sugestão de dados: nome "Teste Onboarding [seu nome]", nascimento 01/01/2000, CPF 000.000.000-00, perfil "outro". Depois de salvar: (1) copie o link, (2) abra em aba anônima, (3) faça login com o nome + data e veja o que a colaboradora enxerga. Depois volte no cadastro e **arquive** o teste pra não poluir a lista. Marque a missão como cumprida.',
+),
+
 );

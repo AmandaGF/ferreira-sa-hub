@@ -68,6 +68,8 @@ $catMap = array(
     'wiki'                         => 'internas',
     'ranking'                      => 'internas',
     'links-tribunais'              => 'internas',
+    // 👔 Admin
+    'admin-cadastrar-colaborador'  => 'internas',
 );
 
 $modulos = $pdo->query(
