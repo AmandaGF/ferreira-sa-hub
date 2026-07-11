@@ -4,7 +4,10 @@
  *
  * Por enquanto só cuida da TOCADA 2 (petição distribuída):
  *   - Cases com jorjao_distribuicao_tocado=0 E (case_number preenchido OU
- *     status='em_andamento') → toca sino + marca como tocado.
+ *     status IN ('em_andamento','distribuido')) → toca sino + marca como tocado.
+ *   - Amanda 11/07: incluido 'distribuido' — a stage "Distribuido — aguard.
+ *     despacho" e exatamente quando a peticao entra no PJe (o CNJ pode
+ *     demorar dias pra vir). Sem isso, o sino nao tocava.
  *
  * Config cron cPanel (a cada 10 min):
  *   *\/10 * * * *  curl -s "https://ferreiraesa.com.br/conecta/cron/jorjao_sinos.php?key=fsa-hub-deploy-2026"
@@ -52,7 +55,7 @@ try {
         LEFT JOIN clients c ON c.id = cs.client_id
         WHERE cs.jorjao_distribuicao_tocado = 0
           AND ((cs.case_number IS NOT NULL AND cs.case_number <> '')
-               OR cs.status = 'em_andamento')
+               OR cs.status IN ('em_andamento', 'distribuido'))
           AND cs.updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         ORDER BY cs.updated_at DESC
         LIMIT 20
