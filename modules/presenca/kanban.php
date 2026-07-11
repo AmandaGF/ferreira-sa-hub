@@ -43,7 +43,7 @@ $colunas = array(
 $porStatus = array(); foreach (array_keys($colunas) as $s) $porStatus[$s] = array();
 foreach ($envios as $e) if (isset($porStatus[$e['status']])) $porStatus[$e['status']][] = $e;
 
-$perfis = $pdo->query("SELECT id, nome FROM presenca_perfil WHERE ativo=1 ORDER BY ordem")->fetchAll(PDO::FETCH_ASSOC);
+$perfisPresenca = $pdo->query("SELECT id, nome FROM presenca_perfil WHERE ativo=1 ORDER BY ordem")->fetchAll(PDO::FETCH_ASSOC);
 $fases  = $pdo->query("SELECT id, nome FROM presenca_fase WHERE ativo=1 ORDER BY ordem")->fetchAll(PDO::FETCH_ASSOC);
 $fornecs = $pdo->query("SELECT id, nome FROM presenca_fornecedor WHERE ativo=1 ORDER BY nome")->fetchAll(PDO::FETCH_ASSOC);
 
@@ -109,7 +109,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <label>Perfil:</label>
     <select name="perfil" onchange="this.form.submit()">
         <option value="0">Todos</option>
-        <?php foreach ($perfis as $p): ?><option value="<?= (int)$p['id'] ?>" <?= $filtroPerfil===(int)$p['id']?'selected':'' ?>><?= e($p['nome']) ?></option><?php endforeach; ?>
+        <?php foreach ($perfisPresenca as $p): ?><option value="<?= (int)$p['id'] ?>" <?= $filtroPerfil===(int)$p['id']?'selected':'' ?>><?= e($p['nome']) ?></option><?php endforeach; ?>
     </select>
     <label>Fase:</label>
     <select name="fase" onchange="this.form.submit()">

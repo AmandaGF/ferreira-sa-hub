@@ -73,11 +73,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // ── Lista ──
-$perfis = $pdo->query("SELECT * FROM presenca_perfil ORDER BY ordem ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
+$perfisPresenca = $pdo->query("SELECT * FROM presenca_perfil ORDER BY ordem ASC, id ASC")->fetchAll(PDO::FETCH_ASSOC);
 
 // Contagem de clientes que caem em cada faixa (aproximado — usa a maior faixa de honorários dos cases do cliente)
 $clientesPorPerfil = array();
-foreach ($perfis as $p) $clientesPorPerfil[$p['id']] = 0;
+foreach ($perfisPresenca as $p) $clientesPorPerfil[$p['id']] = 0;
 try {
     $stC = $pdo->query("
         SELECT
@@ -91,7 +91,7 @@ try {
     foreach ($stC as $r) {
         $h = (float)$r['honorario'];
         if ($h <= 0) continue;
-        foreach ($perfis as $p) {
+        foreach ($perfisPresenca as $p) {
             $ok = true;
             if ($p['ticket_min'] !== null && $h < (float)$p['ticket_min']) $ok = false;
             if ($p['ticket_max'] !== null && $h > (float)$p['ticket_max']) $ok = false;
@@ -101,11 +101,6 @@ try {
 } catch (Exception $e) {}
 
 $csrf = generate_csrf_token();
-
-// Marker de deploy pra Amanda confirmar que ve minha versao
-$deployMarker = 'v2026-07-11T11:45 · ' . count($perfis) . ' perfis no banco (IDs: ' . implode(',', array_map(function($p){ return $p['id']; }, $perfis)) . ')';
-try { if (function_exists('audit_log')) audit_log('presenca_perfis_view', 'presenca_perfil', 0, 'total_no_banco=' . count($perfis)); } catch (Exception $e) {}
-
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
@@ -154,18 +149,6 @@ require_once APP_ROOT . '/templates/layout_start.php';
     <a href="<?= module_url('presenca') ?>" class="pp-back">← Voltar</a>
 </div>
 
-<!-- DIAG: instrumentacao minha (Amanda 11/07 review). Confirmando que servidor
-     entrega os dados esperados. Se voce ler isso, foi eu no commit. -->
-<div style="background:#052228;color:#d7ab90;padding:10px 14px;border-radius:6px;margin-bottom:14px;font-family:'JetBrains Mono',Consolas,monospace;font-size:.72rem;letter-spacing:.03em;">
-    🔧 DEPLOY MARKER (instrumentação minha) · <?= e($deployMarker) ?>
-    <div style="margin-top:6px;color:#d7ab90;opacity:.85;font-size:.68rem;">
-        Dados brutos que o servidor entregou pra este render:
-    </div>
-    <pre style="background:#000;color:#7fd8b8;padding:8px;border-radius:4px;margin:6px 0 0;font-size:.68rem;overflow-x:auto;max-height:200px;"><?= e(json_encode($perfis, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE)) ?></pre>
-    <div style="margin-top:6px;color:#d7ab90;opacity:.85;font-size:.68rem;">
-        Se aqui aparecem 3 objetos (Essencial/Premium/Alta) mas a lista visual embaixo mostra 1 só, é bug de renderização de CSS (não de banco). Se aqui mostra 1 zerado, é bug de banco.
-    </div>
-</div>
 
 <div class="pp-explica">
     💡 O perfil do cliente é <strong>derivado automaticamente</strong> da maior faixa de honorários dos processos ativos dele. Você nunca escolhe "Essencial" ou "Premium" na mão — o sistema decide pela faixa. Aqui você ajusta as faixas e a verba de cada perfil.
@@ -249,7 +232,7 @@ if (isset($_GET['editar'])) {
 </div>
 
 <div class="pp-grid">
-    <?php foreach ($perfis as $p):
+    <?php foreach ($perfisPresenca as $p):
         $tMin = $p['ticket_min'] !== null ? 'R$ ' . number_format((float)$p['ticket_min'], 0, ',', '.') : 'sem mínimo';
         $tMax = $p['ticket_max'] !== null ? 'R$ ' . number_format((float)$p['ticket_max'], 0, ',', '.') : 'sem teto';
         $vMin = 'R$ ' . number_format((float)$p['verba_min'], 0, ',', '.');

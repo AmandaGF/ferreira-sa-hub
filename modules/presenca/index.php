@@ -80,13 +80,13 @@ $pctMatriz    = $regrasMax > 0 ? round(($totRegras / $regrasMax) * 100) : 0;
 // Aqui achamos as combinacoes SEM regra pra listar no checklist.
 $celulasVazias = array();
 try {
-    $perfis = $pdo->query("SELECT id, nome FROM presenca_perfil WHERE ativo = 1 ORDER BY ordem, id")->fetchAll(PDO::FETCH_ASSOC);
+    $perfisPresenca = $pdo->query("SELECT id, nome FROM presenca_perfil WHERE ativo = 1 ORDER BY ordem, id")->fetchAll(PDO::FETCH_ASSOC);
     $fases  = $pdo->query("SELECT id, nome FROM presenca_fase WHERE ativo = 1 ORDER BY ordem, id")->fetchAll(PDO::FETCH_ASSOC);
     $preenchidas = array();
     foreach ($pdo->query("SELECT perfil_id, fase_id FROM presenca_regra WHERE ativo = 1 AND (brinde_id IS NOT NULL OR frase_id IS NOT NULL OR verba_prevista > 0)") as $r) {
         $preenchidas[$r['perfil_id'] . '_' . $r['fase_id']] = true;
     }
-    foreach ($perfis as $p) foreach ($fases as $f) {
+    foreach ($perfisPresenca as $p) foreach ($fases as $f) {
         if (empty($preenchidas[$p['id'] . '_' . $f['id']])) {
             $celulasVazias[] = $p['nome'] . ' × ' . $f['nome'];
         }

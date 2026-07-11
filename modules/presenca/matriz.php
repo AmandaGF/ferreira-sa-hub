@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$perfis = $pdo->query("SELECT * FROM presenca_perfil WHERE ativo=1 ORDER BY ordem, id")->fetchAll(PDO::FETCH_ASSOC);
+$perfisPresenca = $pdo->query("SELECT * FROM presenca_perfil WHERE ativo=1 ORDER BY ordem, id")->fetchAll(PDO::FETCH_ASSOC);
 $fases  = $pdo->query("SELECT * FROM presenca_fase WHERE ativo=1 ORDER BY ordem, id")->fetchAll(PDO::FETCH_ASSOC);
 $brindes = $pdo->query("SELECT id, nome, categoria FROM presenca_brinde WHERE ativo=1 ORDER BY nome")->fetchAll(PDO::FETCH_ASSOC);
 $frases = $pdo->query("SELECT id, texto, fase_id FROM presenca_frase WHERE ativo=1 ORDER BY fase_id IS NULL, fase_id, id")->fetchAll(PDO::FETCH_ASSOC);
@@ -70,13 +70,13 @@ foreach ($pdo->query("SELECT r.*, b.nome AS brinde_nome, f.texto AS frase_texto 
 // Amanda 11/07 (review): "matriz mostra 10/15 mas nao lista quais faltam".
 // Lista das combinacoes vazias pra chip destacado no topo.
 $vaziasList = array();
-foreach ($perfis as $p) foreach ($fases as $f) {
+foreach ($perfisPresenca as $p) foreach ($fases as $f) {
     $chave = $p['id'] . '_' . $f['id'];
     $r = $regras[$chave] ?? null;
     $preenchida = $r && (!empty($r['brinde_id']) || !empty($r['frase_id']) || (float)$r['verba_prevista'] > 0);
     if (!$preenchida) $vaziasList[] = array('perfil'=>$p['nome'], 'fase'=>$f['nome'], 'anchor'=>'c_'.$p['id'].'_'.$f['id']);
 }
-$totalCelulas = count($perfis) * count($fases);
+$totalCelulas = count($perfisPresenca) * count($fases);
 $preenchidas = $totalCelulas - count($vaziasList);
 
 $csrf = generate_csrf_token();
@@ -158,7 +158,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             </tr>
         </thead>
         <tbody>
-            <?php foreach ($perfis as $p): ?>
+            <?php foreach ($perfisPresenca as $p): ?>
             <tr>
                 <td class="pm-perfil-nome" style="border-right-color: <?= e($p['cor_hex']) ?>;">
                     <?= e($p['nome']) ?>
