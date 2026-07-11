@@ -87,28 +87,45 @@ function datajud_buscar_processo($numero_processo, $tribunal = 'TJRJ') {
         'size' => 1
     ));
 
-    $ch = curl_init();
-    curl_setopt_array($ch, array(
-        CURLOPT_URL            => $url,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 30,
-        CURLOPT_CONNECTTIMEOUT => 10,
-        CURLOPT_HTTPHEADER     => array(
-            'Content-Type: application/json',
-            'Authorization: APIKey ' . DATAJUD_API_KEY,
-        ),
-        CURLOPT_SSL_VERIFYPEER => true,
-    ));
+    // Amanda 10/07/2026: API do CNJ estava demorando 20-34s por chamada
+    // (Elasticsearch overload — took:19982ms). Timeout 60s + retry com
+    // backoff em 429/timeout evita ficar deixando processos como "erro"
+    // apenas porque a API deles estava lenta naquele instante.
+    $maxTentativas = 3;
+    $response = false; $httpCode = 0; $curlError = ''; $ultimoBackoff = 0;
+    for ($tentativa = 1; $tentativa <= $maxTentativas; $tentativa++) {
+        $ch = curl_init();
+        curl_setopt_array($ch, array(
+            CURLOPT_URL            => $url,
+            CURLOPT_POST           => true,
+            CURLOPT_POSTFIELDS     => $payload,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT        => 60,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_HTTPHEADER     => array(
+                'Content-Type: application/json',
+                'Authorization: APIKey ' . DATAJUD_API_KEY,
+            ),
+            CURLOPT_SSL_VERIFYPEER => true,
+        ));
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
 
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-    curl_close($ch);
+        // Sucesso, erro fatal ou nao-retentavel: sai do loop
+        if ($httpCode === 200) break;
+        if ($httpCode === 401 || $httpCode === 403 || $httpCode === 400) break;
+
+        // Retentavel: 429 (rate limit) ou timeout (0)
+        if ($tentativa < $maxTentativas) {
+            $ultimoBackoff = pow(2, $tentativa) * 1000000; // 2s, 4s
+            usleep($ultimoBackoff);
+        }
+    }
 
     if ($curlError) {
-        return array('erro' => 'curl_error', 'msg' => $curlError);
+        return array('erro' => 'curl_error', 'msg' => $curlError . ' (' . $maxTentativas . ' tentativas)');
     }
 
     if ($httpCode === 401 || $httpCode === 403) {
@@ -116,7 +133,7 @@ function datajud_buscar_processo($numero_processo, $tribunal = 'TJRJ') {
     }
 
     if ($httpCode !== 200) {
-        return array('erro' => 'http_' . $httpCode, 'msg' => 'Erro HTTP ' . $httpCode);
+        return array('erro' => 'http_' . $httpCode, 'msg' => 'Erro HTTP ' . $httpCode . ' (' . $maxTentativas . ' tentativas)');
     }
 
     $data = json_decode($response, true);

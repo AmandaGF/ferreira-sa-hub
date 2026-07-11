@@ -79,9 +79,10 @@ foreach ($casos as $i => $caso) {
         echo "ERRO: " . ($resultado['msg'] ?? 'desconhecido') . "\n";
     }
 
-    // Rate limit: 1 segundo entre chamadas
+    // Rate limit: 2 segundos entre chamadas — Amanda 10/07/2026: API do CNJ
+    // estava aplicando 429 com 1s. 2s reduz risco.
     if ($i < count($casos) - 1) {
-        sleep(1);
+        sleep(2);
     }
 }
 
