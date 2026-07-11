@@ -81,6 +81,7 @@ document.addEventListener('click', function(ev) {
 }, true);
 </script>
 <script src="<?= url('assets/js/fix-webm-duration.js') ?>?v=<?= date('YmdHi') ?>"></script>
+<script src="<?= url('assets/js/fsa_feedback.js') ?>?v=<?= date('YmdHi') ?>"></script>
 <!-- PWA: service worker + install prompt + update banner -->
 <script>
 (function() {

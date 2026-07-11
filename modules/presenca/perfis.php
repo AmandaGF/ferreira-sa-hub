@@ -179,7 +179,7 @@ if (isset($_GET['editar'])) {
 
 <div class="pp-form">
     <h3><?= $editar ? '✏️ Editando: ' . e($editar['nome']) : '➕ Novo perfil' ?></h3>
-    <form method="POST" onsubmit="return ppConfirmarPerfil(this)">
+    <form method="POST">
         <?= csrf_input() ?>
         <input type="hidden" name="acao" value="salvar">
         <?php if ($editar): ?><input type="hidden" name="id" value="<?= (int)$editar['id'] ?>"><?php endif; ?>
@@ -264,29 +264,40 @@ if (isset($_GET['editar'])) {
 </div>
 
 <script>
-// Amanda 11/07 review: pedido de confirmacao antes de gravar (bug antigo:
-// perfil salvo com valores diferentes dos digitados). Confirm mostra o
-// que VAI ser salvo — se ela ver algo estranho, cancela.
-function ppConfirmarPerfil(f) {
-    if (f.dataset.enviando === '1') return false;
-    var nome  = (f.querySelector('[name=nome]') || {}).value || '';
-    var tMin  = (f.querySelector('[name=ticket_min]') || {}).value || '';
-    var tMax  = (f.querySelector('[name=ticket_max]') || {}).value || '';
-    var vMin  = (f.querySelector('[name=verba_min]') || {}).value || '';
-    var vMax  = (f.querySelector('[name=verba_max]') || {}).value || '';
-    var ativo = (f.querySelector('[name=ativo]') || {}).checked;
-    var msg = 'Revise antes de salvar:\n\n' +
-        '  Nome: ' + (nome || '(vazio)') + '\n' +
-        '  Ticket: ' + (tMin ? 'R$ ' + tMin : 'sem minimo') + ' - ' + (tMax ? 'R$ ' + tMax : 'sem teto') + '\n' +
-        '  Verba: R$ ' + (vMin || '0') + ' - R$ ' + (vMax || '0') + '\n' +
-        '  Ativo: ' + (ativo ? 'Sim' : 'Nao') + '\n\n' +
-        'Confirmar?';
-    if (!confirm(msg)) return false;
-    f.dataset.enviando = '1';
-    var b = f.querySelector('button[type=submit]');
-    if (b) { b.disabled = true; b.innerHTML = '⏳ Salvando...'; }
-    return true;
-}
+// Wrap todos os forms POST desta pagina com FsaFeedback (watchdog + botao).
+// Form de "Novo perfil / Editar" ganha confirmacao dinamica com resumo dos valores
+// (bug antigo: perfil salvo com valores diferentes dos digitados).
+document.addEventListener('DOMContentLoaded', function() {
+    if (!window.FsaFeedback) return;
+    var forms = document.querySelectorAll('form[method=POST]');
+    for (var i = 0; i < forms.length; i++) {
+        var f = forms[i];
+        // Se e o form de salvar perfil (tem input name=nome + acao=salvar), intercepta confirm dinamico
+        if (f.querySelector('input[name=nome]') && f.querySelector('input[name=acao][value=salvar]')) {
+            f.addEventListener('submit', function(ev) {
+                var form = ev.currentTarget;
+                if (form.dataset.fsaConfirmado === '1') return;
+                ev.preventDefault();
+                var nome  = (form.querySelector('[name=nome]') || {}).value || '';
+                var tMin  = (form.querySelector('[name=ticket_min]') || {}).value || '';
+                var tMax  = (form.querySelector('[name=ticket_max]') || {}).value || '';
+                var vMin  = (form.querySelector('[name=verba_min]') || {}).value || '';
+                var vMax  = (form.querySelector('[name=verba_max]') || {}).value || '';
+                var ativo = (form.querySelector('[name=ativo]') || {}).checked;
+                var msg = 'Revise antes de salvar:\n\n' +
+                    '  Nome: ' + (nome || '(vazio)') + '\n' +
+                    '  Ticket: ' + (tMin ? 'R$ ' + tMin : 'sem minimo') + ' - ' + (tMax ? 'R$ ' + tMax : 'sem teto') + '\n' +
+                    '  Verba: R$ ' + (vMin || '0') + ' - R$ ' + (vMax || '0') + '\n' +
+                    '  Ativo: ' + (ativo ? 'Sim' : 'Nao') + '\n\n' +
+                    'Confirmar?';
+                if (!confirm(msg)) return;
+                form.dataset.fsaConfirmado = '1';
+                form.submit();
+            }, true);
+        }
+        FsaFeedback.wrapForm(f);
+    }
+});
 </script>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>

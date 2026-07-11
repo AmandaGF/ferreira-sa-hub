@@ -241,17 +241,14 @@ function pmSalvar(el) {
             info.td.classList.add('acabou-de-salvar','preenchida');
             info.td.classList.remove('vazia');
             setTimeout(function(){ info.td.classList.remove('acabou-de-salvar'); }, 1200);
+            if (window.FsaFeedback) FsaFeedback.campoOk(el);
         } else {
-            // Amanda 11/07: aviso visivel quando save falha (antes ficava silencioso)
-            info.td.style.outline = '2px solid #dc2626';
-            info.td.title = 'Erro ao salvar: ' + (j.erro || 'sem detalhes');
-            setTimeout(function(){ info.td.style.outline = ''; }, 3000);
+            var msg = j.erro || 'erro';
+            if (window.FsaFeedback) { FsaFeedback.campoErro(el, msg); FsaFeedback.erro('Não salvou: ' + msg); }
         }
     })
     .catch(function(e) {
-        info.td.style.outline = '2px solid #dc2626';
-        info.td.title = 'Falha de rede ao salvar';
-        setTimeout(function(){ info.td.style.outline = ''; }, 3000);
+        if (window.FsaFeedback) { FsaFeedback.campoErro(el, 'rede'); FsaFeedback.erro('Falha de rede ao salvar'); }
     });
 }
 
