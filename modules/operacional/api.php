@@ -1366,6 +1366,32 @@ switch ($action) {
                 audit_log($procCategory === 'extrajudicial' ? 'extrajudicial' : 'processo_distribuido', 'case', $caseId, ($procCategory === 'extrajudicial' ? 'Extrajudicial: ' : 'Processo: ') . ($procNumero ?: $procVara));
                 notify_gestao('Processo distribuído!', ($currentCase ? $currentCase['title'] : 'Caso') . ' — ' . $procNumero . ' (' . $procVara . ')', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $caseId), '🏛️');
 
+                // Amanda 11/07: dispara o sino do Jorjao IMEDIATAMENTE (sem esperar cron de 10min)
+                // se for status distribuido (nao extrajudicial) e ainda nao tocou.
+                if ($procCategory !== 'extrajudicial') {
+                    try {
+                        require_once APP_ROOT . '/core/functions_jorjao.php';
+                        $stTocado = $pdo->prepare("SELECT jorjao_distribuicao_tocado FROM cases WHERE id = ?");
+                        $stTocado->execute(array($caseId));
+                        if ((int)$stTocado->fetchColumn() === 0 && jorjao_tocada_ativa('peticao_distribuida')) {
+                            $stCase = $pdo->prepare("SELECT cs.id, cs.title, cs.status, cs.case_number, cs.case_type,
+                                cs.client_id, cs.responsible_user_id, cs.created_at, cs.updated_at,
+                                c.name AS client_name FROM cases cs LEFT JOIN clients c ON c.id = cs.client_id WHERE cs.id = ?");
+                            $stCase->execute(array($caseId));
+                            $caseData = $stCase->fetch(PDO::FETCH_ASSOC);
+                            if ($caseData) {
+                                $r = jorjao_peticao_distribuida($caseData);
+                                $pdo->prepare("UPDATE cases SET jorjao_distribuicao_tocado = 1 WHERE id = ?")->execute(array($caseId));
+                                if (empty($r['ok'])) {
+                                    audit_log('jorjao_sino_falhou', 'case', $caseId, 'inline: ' . ($r['erro'] ?? '?'));
+                                }
+                            }
+                        }
+                    } catch (Exception $e) {
+                        try { audit_log('jorjao_sino_erro', 'case', $caseId, 'inline exception: ' . $e->getMessage()); } catch (Exception $e2) {}
+                    }
+                }
+
                 // Web Push — processo distribuído: notifica gestão + responsável do caso
                 if (function_exists('push_notify_role')) {
                     try {
