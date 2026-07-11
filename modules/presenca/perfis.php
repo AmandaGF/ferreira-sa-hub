@@ -101,6 +101,11 @@ try {
 } catch (Exception $e) {}
 
 $csrf = generate_csrf_token();
+
+// Marker de deploy pra Amanda confirmar que ve minha versao
+$deployMarker = 'v2026-07-11T11:45 · ' . count($perfis) . ' perfis no banco (IDs: ' . implode(',', array_map(function($p){ return $p['id']; }, $perfis)) . ')';
+try { if (function_exists('audit_log')) audit_log('presenca_perfis_view', 'presenca_perfil', 0, 'total_no_banco=' . count($perfis)); } catch (Exception $e) {}
+
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
 
@@ -147,6 +152,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div class="sub">Faixa de honorários → perfil do cliente (Essencial/Premium/Alta) — determina qual presente/verba se aplica</div>
     </div>
     <a href="<?= module_url('presenca') ?>" class="pp-back">← Voltar</a>
+</div>
+
+<!-- Marker de deploy — Amanda: se ver esta linha, servidor deu resposta atualizada -->
+<div style="background:#052228;color:#d7ab90;padding:6px 12px;border-radius:6px;margin-bottom:14px;font-family:'JetBrains Mono',Consolas,monospace;font-size:.72rem;letter-spacing:.03em;">
+    🔧 DEPLOY MARKER · <?= e($deployMarker) ?>
 </div>
 
 <div class="pp-explica">
