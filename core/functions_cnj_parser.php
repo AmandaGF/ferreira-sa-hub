@@ -166,7 +166,7 @@ function parse_cnj($cnj) {
 function _cnj_comarca_tjrj($codigo) {
     static $map = array(
         // Comarcas (0001 a 0087) — municipios do RJ
-        '0001' => 'Rio de Janeiro (Capital)',
+        '0001' => 'Rio de Janeiro', // Capital pura — sem regional
         '0002' => 'Niterói',
         '0003' => 'Angra dos Reis',
         '0004' => 'São Gonçalo',
