@@ -19,7 +19,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $faseId   = (int)($_POST['fase_id'] ?? 0);
         $brindeId = (int)($_POST['brinde_id'] ?? 0) ?: null;
         $fraseId  = (int)($_POST['frase_id'] ?? 0) ?: null;
-        $verba    = (float)str_replace(',', '.', str_replace('.', '', $_POST['verba_prevista'] ?? '0'));
+        $verbaRaw = $_POST['verba_prevista'] ?? '';
+        $verba    = (float)str_replace(',', '.', str_replace('.', '', $verbaRaw));
+        // Amanda 11/07: logging temporario pra investigar bug de verba nao persistir
+        try { audit_log('presenca_matriz_debug', 'presenca_regra', 0, "p=$perfilId f=$faseId | verba_raw='$verbaRaw' -> $verba"); } catch (Exception $e) {}
 
         if (!$perfilId || !$faseId) {
             header('Content-Type: application/json');
