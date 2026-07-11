@@ -125,11 +125,11 @@ function parse_cnj($cnj) {
             if (isset($trUfEstadual[$tr])) {
                 $out['uf'] = $trUfEstadual[$tr];
                 $out['tribunal_nome'] = 'TJ-' . $trUfEstadual[$tr];
-                // Comarca DESATIVADA temporariamente (Amanda 10/07 apontou codigos
-                // errados — inventei sem consultar a tabela oficial do TJRJ).
-                // Reativar so quando tabela vier de fonte oficial (CNJ Codificacao
-                // do TJRJ ou API SGT). Ate la, UF ja e ganho grande.
-                // if ($out['uf'] === 'RJ') { $out['comarca'] = _cnj_comarca_tjrj(...); }
+                // Comarca — tabela oficial do TJRJ (fonte:
+                // tjrj.jus.br/consultas/cod_serventias/cons_cod_serventias)
+                if ($out['uf'] === 'RJ') {
+                    $out['comarca'] = _cnj_comarca_tjrj($out['origem_codigo']);
+                }
             }
             break;
         case '9':
@@ -151,95 +151,130 @@ function parse_cnj($cnj) {
 }
 
 /**
- * DESATIVADA em 10/07 apos Amanda testar e apontar codigos errados
- * (colei 0066 = "Tres Rios" mas o certo era Volta Redonda). A tabela foi
- * montada por chute e nao bate com a Codificacao Uniforme (SGT/CNJ) do TJRJ.
+ * Tabela OFICIAL de codigos de comarca/regional do TJRJ.
  *
- * Antes de reativar, buscar a tabela OFICIAL — CNJ SGT (Sistema de Gestao
- * de Tabelas Processuais Unificadas) ou tabela publicada pelo TJRJ direto.
- * Enquanto isso, o parser retorna comarca vazia e o usuario preenche manual.
+ * Fonte: https://www.tjrj.jus.br/consultas/cod_serventias/cons_cod_serventias
+ * Baixada em 10/07/2026 apos Amanda apontar que a tabela anterior (chutada)
+ * tinha codigos errados (colei 0066=Tres Rios mas o certo e Volta Redonda —
+ * na oficial 0063=Tres Rios e 0066=Volta Redonda).
+ *
+ * Cobre 88 comarcas + 11 regionais da Capital + 4 comarcas da Capital com
+ * bairro (Copacabana/Lagoa/Tijuca/Vila Isabel) + varas especializadas.
+ *
+ * Codigos 0000 (2a instancia) e 9000 (Turmas Recursais) NAO tem comarca fisica.
  */
 function _cnj_comarca_tjrj($codigo) {
-    return ''; // desativada — ver nota acima
-    static $map = array( // codigos abaixo NAO usar sem verificar oficial
-        // Capital
-        '0001' => 'Capital',
-        '0209' => 'Regional da Barra da Tijuca (Capital)',
-        '0212' => 'Regional de Jacarepaguá (Capital)',
-        '0210' => 'Regional de Madureira (Capital)',
-        '0211' => 'Regional de Bangu (Capital)',
-        '0213' => 'Regional de Campo Grande (Capital)',
-        '0208' => 'Regional de Santa Cruz (Capital)',
-        '0202' => 'Regional da Ilha do Governador (Capital)',
-        '0203' => 'Regional de Pavuna (Capital)',
-        '0204' => 'Regional de Guaratiba (Capital)',
-        '0207' => 'Regional de Méier (Capital)',
-
-        // Baixada Fluminense e Grande Rio
-        '0038' => 'Duque de Caxias',
-        '0016' => 'Duque de Caxias',
-        '0043' => 'Nova Iguaçu',
-        '0018' => 'Nova Iguaçu',
-        '0021' => 'São Gonçalo',
-        '0052' => 'São Gonçalo',
-        '0020' => 'São João de Meriti',
-        '0019' => 'Nilópolis',
-        '0026' => 'Belford Roxo',
-        '0027' => 'Belford Roxo',
-        '0029' => 'Queimados',
-        '0022' => 'Itaguaí',
-        '0023' => 'Mesquita',
-        '0025' => 'Japeri',
-        '0037' => 'Niterói',
+    static $map = array(
+        // Comarcas (0001 a 0087) — municipios do RJ
+        '0001' => 'Rio de Janeiro (Capital)',
         '0002' => 'Niterói',
-        '0028' => 'Magé',
-        '0035' => 'Magé',
-        '0024' => 'Guapimirim',
-        '0039' => 'Itaboraí',
-        '0041' => 'Tanguá',
-        '0042' => 'Rio Bonito',
-        '0034' => 'Maricá',
-        '0030' => 'São Pedro da Aldeia',
-        '0031' => 'Cabo Frio',
-        '0011' => 'Cabo Frio',
-
-        // Regiao dos Lagos e Norte
-        '0032' => 'Araruama',
-        '0033' => 'Saquarema',
-        '0036' => 'Iguaba Grande',
-        '0004' => 'Campos dos Goytacazes',
-        '0044' => 'Campos dos Goytacazes',
-        '0045' => 'São Fidélis',
-        '0046' => 'São Francisco de Itabapoana',
-        '0047' => 'Macaé',
-        '0048' => 'Rio das Ostras',
-        '0049' => 'Casimiro de Abreu',
-        '0050' => 'Silva Jardim',
-
-        // Interior sul e centro
-        '0010' => 'Petrópolis',
-        '0056' => 'Petrópolis',
-        '0015' => 'Teresópolis',
-        '0057' => 'Teresópolis',
-        '0007' => 'Nova Friburgo',
-        '0058' => 'Nova Friburgo',
-        '0008' => 'Cantagalo',
-        '0009' => 'Cordeiro',
-        '0012' => 'Volta Redonda',
-        '0059' => 'Volta Redonda',
-        '0013' => 'Barra Mansa',
-        '0060' => 'Barra Mansa',
-        '0014' => 'Resende',
-        '0061' => 'Resende',
-        '0017' => 'Angra dos Reis',
-        '0062' => 'Angra dos Reis',
+        '0003' => 'Angra dos Reis',
+        '0004' => 'São Gonçalo',
+        '0005' => 'Arraial do Cabo',
         '0006' => 'Barra do Piraí',
-        '0063' => 'Barra do Piraí',
-        '0064' => 'Vassouras',
-        '0065' => 'Valença',
-        '0066' => 'Três Rios',
-        '0067' => 'Sapucaia',
-        '0068' => 'Paraíba do Sul',
+        '0007' => 'Barra Mansa',
+        '0008' => 'Belford Roxo',
+        '0009' => 'Bom Jardim',
+        '0010' => 'Bom Jesus de Itabapoana',
+        '0011' => 'Cabo Frio',
+        '0012' => 'Cachoeiras de Macacu',
+        '0013' => 'Cambuci',
+        '0014' => 'Campos dos Goytacazes',
+        '0015' => 'Cantagalo',
+        '0016' => 'Carmo',
+        '0017' => 'Casimiro de Abreu',
+        '0018' => 'Conceição de Macabu',
+        '0019' => 'Cordeiro',
+        '0020' => 'Duas Barras',
+        '0021' => 'Duque de Caxias',
+        '0022' => 'Engenheiro Paulo de Frontin',
+        '0023' => 'Itaboraí',
+        '0024' => 'Itaguaí',
+        '0025' => 'Itaocara',
+        '0026' => 'Itaperuna',
+        '0027' => 'Laje do Muriaé',
+        '0028' => 'Macaé',
+        '0029' => 'Magé',
+        '0030' => 'Mangaratiba',
+        '0031' => 'Maricá',
+        '0032' => 'Mendes',
+        '0033' => 'Miguel Pereira',
+        '0034' => 'Miracema',
+        '0035' => 'Natividade',
+        '0036' => 'Nilópolis',
+        '0037' => 'Nova Friburgo',
+        '0038' => 'Nova Iguaçu',
+        '0039' => 'Paracambi',
+        '0040' => 'Paraíba do Sul',
+        '0041' => 'Paraty',
+        '0042' => 'Petrópolis',
+        '0043' => 'Piraí',
+        '0044' => 'Porciúncula',
+        '0045' => 'Resende',
+        '0046' => 'Rio Bonito',
+        '0047' => 'Rio Claro',
+        '0048' => 'Rio das Flores',
+        '0049' => 'Santa Maria Madalena',
+        '0050' => 'Santo Antônio de Pádua',
+        '0051' => 'São Fidelis',
+        '0052' => 'Araruama',
+        '0053' => 'São João da Barra',
+        '0054' => 'São João de Meriti',
+        '0055' => 'São Pedro da Aldeia',
+        '0056' => 'São Sebastião do Alto',
+        '0057' => 'Sapucaia',
+        '0058' => 'Saquarema',
+        '0059' => 'Silva Jardim',
+        '0060' => 'Sumidouro',
+        '0061' => 'Teresópolis',
+        '0062' => 'Trajano de Moraes',
+        '0063' => 'Três Rios',
+        '0064' => 'Valença',
+        '0065' => 'Vassouras',
+        '0066' => 'Volta Redonda',
+        '0067' => 'Queimados',
+        '0068' => 'Rio das Ostras',
+        '0069' => 'Iguaba Grande',
+        '0070' => 'São Francisco do Itabapoana',
+        '0071' => 'Porto Real - Quatis',
+        '0072' => 'Paty do Alferes',
+        '0073' => 'Guapimirim',
+        '0075' => 'Magé - Regional de Inhomirim',
+        '0076' => 'São José do Vale do Rio Preto',
+        '0077' => 'Seropédica',
+        '0078' => 'Búzios',
+        '0079' => 'Itaipava (Regional)',
+        '0080' => 'Italva',
+        '0081' => 'Itatiaia',
+        '0082' => 'Pinheiral',
+        '0083' => 'Japeri',
+        '0084' => 'Carapebus / Quissamã',
+        '0087' => 'Alcântara (Regional)',
+
+        // Regionais da Capital (0202 a 0212)
+        '0202' => 'Rio de Janeiro (Regional de Madureira)',
+        '0203' => 'Rio de Janeiro (Regional de Jacarepaguá)',
+        '0204' => 'Rio de Janeiro (Regional de Bangu)',
+        '0205' => 'Rio de Janeiro (Regional de Campo Grande)',
+        '0206' => 'Rio de Janeiro (Regional de Santa Cruz)',
+        '0207' => 'Rio de Janeiro (Regional da Ilha do Governador)',
+        '0208' => 'Rio de Janeiro (Regional do Méier)',
+        '0209' => 'Rio de Janeiro (Regional da Barra da Tijuca)',
+        '0210' => 'Rio de Janeiro (Regional da Leopoldina)',
+        '0211' => 'Rio de Janeiro (Regional da Pavuna)',
+        '0212' => 'Rio de Janeiro (Regional da Região Oceânica)',
+
+        // Comarcas da Capital com bairro (0251 a 0256)
+        '0251' => 'Rio de Janeiro (Copacabana)',
+        '0252' => 'Rio de Janeiro (Lagoa)',
+        '0253' => 'Rio de Janeiro (Tijuca)',
+        '0254' => 'Rio de Janeiro (Vila Isabel)',
+        '0255' => 'Rio de Janeiro (1ª Vara Infância e Juventude Protetiva)',
+        '0256' => 'Rio de Janeiro (2ª Vara Infância e Juventude Protetiva)',
+
+        // Especiais (sem municipio)
+        '0000' => '2ª Instância',
+        '9000' => 'Turmas Recursais',
     );
     return isset($map[$codigo]) ? $map[$codigo] : '';
 }

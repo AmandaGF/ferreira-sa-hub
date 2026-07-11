@@ -1815,14 +1815,30 @@ function cnjAutoPreencher(valor) {
             selUf.style.background = '#dcfce7';
             if (typeof filtrarCidades === 'function') filtrarCidades();
         }
-        // Comarca (cidade) — so preenche se conhecida (por ora so TJRJ) e vazio
+        // Comarca (cidade) — so preenche se conhecida (por ora so TJRJ) e vazio.
+        // Tabela oficial TJRJ ja retorna nomes prontos ("Rio de Janeiro (Regional
+        // da Barra da Tijuca)", "Volta Redonda", "Tres Rios", etc). Extrai so a
+        // parte antes do parenteses pro campo Cidade — se tem regional, e uma
+        // sub-divisao da Capital.
         var inpCom = document.getElementById('comarcaCidade');
         if (inpCom && !inpCom.value && j.comarca) {
-            // Extrai so o nome antes de parenteses (ex: "Regional da Barra da Tijuca (Capital)")
             var nomeCidade = j.comarca.replace(/\s*\(.*?\)\s*/g, '').trim();
-            if (nomeCidade.indexOf('Capital') !== -1) nomeCidade = 'Rio de Janeiro';
             inpCom.value = nomeCidade;
             inpCom.style.background = '#dcfce7';
+            // Se a comarca tem "(Regional de X)" ou "(Copacabana|Lagoa|Tijuca|Vila Isabel)",
+            // preenche automaticamente o campo Regional tambem.
+            var mRegional = j.comarca.match(/\((?:Regional (?:de |da |do )|1ª Vara|2ª Vara)?(.+?)\)/);
+            if (mRegional) {
+                var selTem = document.getElementById('temRegional');
+                var inpReg = document.querySelector('input[name="regional"]');
+                if (selTem && inpReg && !inpReg.value) {
+                    selTem.value = 'sim';
+                    var campoReg = document.getElementById('campoRegional');
+                    if (campoReg) campoReg.style.display = 'block';
+                    inpReg.value = mRegional[1].trim();
+                    inpReg.style.background = '#dcfce7';
+                }
+            }
         }
     })
     .catch(function() { if (hint) { hint.style.display = 'none'; } });
