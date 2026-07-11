@@ -2479,6 +2479,25 @@ $_actAttBtn = $_actBlocked
 
 <script>
 // Amanda 09/07/2026: aviso de custo antes de disparar geração de ofício via IA (aba GERID).
+window.cvConfirmarContatosGerid = function(f) {
+  var msg = '⚠️ ATENÇÃO: esta ação chama IA (Claude Sonnet + web search).\n\n'
+          + 'Cada busca custa aproximadamente R$ 0,10 a R$ 0,20 do orçamento de IA.\n\n'
+          + 'A IA vai:\n'
+          + '  1. Identificar a empresa no texto do resultado GERID\n'
+          + '  2. Buscar endereço + emails de RH/jurídico + telefone online\n'
+          + '  3. Criar tarefa "📞 Contatos" na pasta do caso\n\n'
+          + 'NÃO redige ofício — pra contato inicial antes de decidir se envia ofício formal.\n\n'
+          + 'Confirma?';
+  if (!confirm(msg)) return false;
+  var btn = f.querySelector('button[type="submit"]');
+  if (btn) {
+    if (btn.disabled) return false;
+    btn.disabled = true;
+    btn.textContent = '⏳ Buscando... (10-30s)';
+    setTimeout(function(){ if (btn.disabled) { btn.disabled = false; btn.textContent = '🔍 Buscar dados da empresa'; } }, 60000);
+  }
+  return true;
+};
 window.cvConfirmarOficioGerid = function(f) {
   var msg = '⚠️ ATENÇÃO: esta ação chama IA (Claude Sonnet + web search).\n\n'
           + 'Cada geração custa aproximadamente R$ 0,15 a R$ 0,30 do orçamento de IA do escritório.\n\n'
@@ -2741,23 +2760,37 @@ try {
             <a href="<?= module_url('gerid') ?>?baixar=<?= (int)$_gr['id'] ?>" target="_blank" style="color:#0e7490;text-decoration:none;font-weight:600;">📎 ver printscreen</a>
           <?php endif; ?>
           <?php if (!empty($_gr['tem_vinculo']) && $_gr['status'] === 'concluida'):
-              // Amanda 09/07/2026: botao pra gerar oficio via IA (manual).
-              // Dedup: verifica se ja tem tarefa gerada.
-              $_jaTemOf = false;
+              // Amanda 09-10/07/2026: 2 botoes — Buscar contatos e Gerar oficio.
+              $_jaTemOf = false; $_jaTemCt = false;
               try {
                   $_stChkOf = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'oficio_desconto_folha' AND title LIKE ? LIMIT 1");
                   $_stChkOf->execute(array($caseId, '%[gerid#' . (int)$_gr['id'] . ']%'));
                   $_jaTemOf = (bool)$_stChkOf->fetchColumn();
+                  $_stChkCt = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'gerid_contatos_empresa' AND title LIKE ? LIMIT 1");
+                  $_stChkCt->execute(array($caseId, '%[gerid-contatos#' . (int)$_gr['id'] . ']%'));
+                  $_jaTemCt = (bool)$_stChkCt->fetchColumn();
               } catch (Throwable $e) {}
           ?>
+              <?php if ($_jaTemCt): ?>
+                  <span style="color:#0369a1;font-weight:600;font-size:.7rem;" title="Contatos ja buscados — ver tarefa na aba Compromissos/Tarefas">✓ contatos buscados</span>
+              <?php else: ?>
+                  <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;margin:0;" onsubmit="return cvConfirmarContatosGerid(this);">
+                      <?= csrf_input() ?>
+                      <input type="hidden" name="acao" value="gerar_oficio">
+                      <input type="hidden" name="modo" value="contatos">
+                      <input type="hidden" name="id" value="<?= (int)$_gr['id'] ?>">
+                      <button type="submit" style="background:#0369a1;color:#fff;border:none;border-radius:5px;padding:3px 9px;font-size:.7rem;font-weight:700;cursor:pointer;" title="IA busca endereço + emails + telefone da empresa (SEM redigir oficio). Cria tarefa na pasta.">🔍 Buscar dados da empresa</button>
+                  </form>
+              <?php endif; ?>
               <?php if ($_jaTemOf): ?>
                   <span style="color:#059669;font-weight:600;font-size:.7rem;" title="Ofício já foi gerado — ver tarefa na aba Compromissos/Tarefas">✓ ofício gerado</span>
               <?php else: ?>
                   <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;margin:0;" onsubmit="return cvConfirmarOficioGerid(this);">
                       <?= csrf_input() ?>
                       <input type="hidden" name="acao" value="gerar_oficio">
+                      <input type="hidden" name="modo" value="oficio">
                       <input type="hidden" name="id" value="<?= (int)$_gr['id'] ?>">
-                      <button type="submit" style="background:#7c3aed;color:#fff;border:none;border-radius:5px;padding:3px 9px;font-size:.7rem;font-weight:700;cursor:pointer;" title="IA (Sonnet + web search) busca contatos da empresa e redige ofício pronto pra revisão. Cria tarefa na pasta.">🤖 Gerar ofício desconto folha</button>
+                      <button type="submit" style="background:#7c3aed;color:#fff;border:none;border-radius:5px;padding:3px 9px;font-size:.7rem;font-weight:700;cursor:pointer;" title="IA (Sonnet + web search) busca contatos da empresa e redige ofício pronto pra revisão. Cria tarefa na pasta.">📮 Gerar ofício desconto folha</button>
                   </form>
               <?php endif; ?>
           <?php endif; ?>

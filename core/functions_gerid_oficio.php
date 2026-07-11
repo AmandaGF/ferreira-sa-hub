@@ -36,8 +36,13 @@ if (!function_exists('gerid_gerar_oficio_desconto')) {
  * Gera oficio de desconto em folha via IA + web search.
  * @return array{ok:bool, erro:?string, task_id:?int, texto:?string}
  */
-function gerid_gerar_oficio_desconto(PDO $pdo, $pesquisaId) {
+function gerid_gerar_oficio_desconto(PDO $pdo, $pesquisaId, $modo = 'oficio') {
     require_once __DIR__ . '/functions_ia.php';
+    // Amanda 10/07/2026: 2 modos suportados —
+    //   'oficio'   (default): identifica empresa + busca contatos + REDIGE oficio pronto
+    //   'contatos': so identifica empresa + busca contatos (util quando so precisa
+    //               ligar/mandar email antes de decidir se vale oficio formal)
+    $modo = in_array($modo, array('oficio','contatos'), true) ? $modo : 'oficio';
 
     // 1) Busca dados da pesquisa + case + cliente
     $st = $pdo->prepare(
@@ -56,16 +61,53 @@ function gerid_gerar_oficio_desconto(PDO $pdo, $pesquisaId) {
     if ((int)$p['tem_vinculo'] !== 1) return array('ok' => false, 'erro' => 'Pesquisa nao eh POSITIVA', 'task_id' => null, 'texto' => null);
     if (empty($p['case_id'])) return array('ok' => false, 'erro' => 'Sem case vinculado (nao criamos tarefa avulsa)', 'task_id' => null, 'texto' => null);
 
-    // Dedup: se ja existe tarefa gerada pra essa pesquisa, nao duplica
+    // Dedup por modo — cada modo tem sufixo distinto pra permitir gerar os 2
+    $tipoTk = ($modo === 'contatos') ? 'gerid_contatos_empresa' : 'oficio_desconto_folha';
+    $tagTk = ($modo === 'contatos') ? '[gerid-contatos#' : '[gerid#';
     try {
-        $stChk = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'oficio_desconto_folha' AND title LIKE ? LIMIT 1");
-        $stChk->execute(array((int)$p['case_id'], '%[gerid#' . (int)$pesquisaId . ']%'));
+        $stChk = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = ? AND title LIKE ? LIMIT 1");
+        $stChk->execute(array((int)$p['case_id'], $tipoTk, '%' . $tagTk . (int)$pesquisaId . ']%'));
         if ($stChk->fetchColumn()) {
-            return array('ok' => false, 'erro' => 'Ja existe tarefa pra essa pesquisa', 'task_id' => null, 'texto' => null);
+            return array('ok' => false, 'erro' => 'Ja existe tarefa desse tipo pra essa pesquisa', 'task_id' => null, 'texto' => null);
         }
-    } catch (Throwable $e) { /* schema pode nao ter tipo 'oficio_desconto_folha', ignora */ }
+    } catch (Throwable $e) { /* schema pode nao ter tipos, ignora */ }
 
-    // 2) Prompt system pra IA
+    // 2) Prompt system pra IA — muda conforme modo
+    if ($modo === 'contatos') {
+        $system = <<<PROMPT
+Voce e uma assistente juridica do escritorio Ferreira & Sa Advocacia, especializada
+em execucao de alimentos.
+
+TAREFA: quando uma pesquisa GERID confirma que o alimentante possui vinculo
+empregaticio, voce vai APENAS:
+
+1. IDENTIFICAR a empresa empregadora a partir do texto do resultado da pesquisa.
+2. BUSCAR na internet, via web search, os contatos oficiais da empresa:
+   endereco fisico, e-mail(s) de RH / juridico / departamento pessoal, telefone.
+   Foque em fontes oficiais (site da propria empresa, CNPJ.ws, Reclame Aqui,
+   LinkedIn corporativo). Use no maximo 3 buscas.
+3. NAO redija oficio — o objetivo aqui e so preparar os dados para contato inicial
+   (Amanda decide se abrira oficio formal depois).
+
+FORMATO DA RESPOSTA (JSON UNICO, sem markdown fences):
+{
+  "empresa_identificada": "Nome da Empresa LTDA",
+  "cnpj": "00.000.000/0000-00 ou null se nao encontrou",
+  "endereco": "Rua..., Cidade/UF, CEP",
+  "contatos": [
+    {"tipo": "email_rh", "valor": "rh@empresa.com.br", "fonte": "site oficial"},
+    {"tipo": "email_juridico", "valor": "juridico@...", "fonte": "..."},
+    {"tipo": "telefone", "valor": "(11) ...", "fonte": "..."}
+  ],
+  "observacoes_amanda": "O que a Amanda precisa saber antes de fazer contato (ex: horario de atendimento, canal preferido, se atende por whatsapp corporativo)",
+  "fontes_web": ["url1", "url2"]
+}
+
+Se nao conseguiu identificar a empresa, retorne:
+{"empresa_identificada": null, "erro": "Nao foi possivel identificar a empresa no texto do resultado."}
+PROMPT;
+        $userMsgFinal = "Agora: identifique a empresa e busque os contatos oficiais para contato inicial. NAO redija oficio.";
+    } else {
     $system = <<<PROMPT
 Voce e uma assistente juridica do escritorio Ferreira & Sa Advocacia, especializada
 em execucao de alimentos.
@@ -111,6 +153,8 @@ FORMATO DA RESPOSTA (JSON UNICO, sem markdown fences):
 Se voce NAO conseguiu identificar a empresa a partir do texto, retorne:
 {"empresa_identificada": null, "erro": "Nao foi possivel identificar a empresa no texto do resultado. Peca ao Luiz Eduardo pra complementar a pesquisa com nome/CNPJ da empregadora."}
 PROMPT;
+        $userMsgFinal = "Agora: identifique a empresa, busque contatos online, e redija o oficio.";
+    }
 
     // 3) User message com dados
     $userMsg = "PESQUISA GERID (id " . (int)$p['id'] . "):\n\n"
@@ -125,7 +169,7 @@ PROMPT;
              . "- Nosso cliente (credor da pensao): " . ($p['client_name'] ?? '?') . "\n"
              . "- Numero do processo: " . ($p['case_number'] ?: 'ainda nao distribuido') . "\n"
              . "- Titulo do caso: " . ($p['case_title'] ?? '?') . "\n\n"
-             . "Agora: identifique a empresa, busque contatos online, e redija o oficio.";
+             . $userMsgFinal;
 
     // 4) Chamada IA com web_search
     $modelo = 'claude-sonnet-4-6';
@@ -169,17 +213,20 @@ PROMPT;
         );
     }
 
-    if (!empty($j['erro']) && empty($j['corpo_oficio'])) {
+    if (!empty($j['erro']) && (empty($j['corpo_oficio']) && $modo !== 'contatos')) {
         // Cria tarefa curta pra Amanda saber que a IA nao conseguiu
-        $tituloTk = '⚠️ GERID positivo: IA nao gerou oficio - ' . $p['parte_nome'] . ' [gerid#' . (int)$p['id'] . ']';
-        $descTk = "A pesquisa GERID de " . $p['parte_nome'] . " deu POSITIVO, mas a IA nao conseguiu identificar/gerar o oficio automaticamente.\n\n"
+        $tituloTk = '⚠️ GERID positivo: IA nao gerou ' . ($modo === 'contatos' ? 'contatos' : 'oficio')
+                  . ' - ' . $p['parte_nome'] . ' ' . $tagTk . (int)$p['id'] . ']';
+        $descTk = "A pesquisa GERID de " . $p['parte_nome'] . " deu POSITIVO, mas a IA nao conseguiu identificar/gerar os dados automaticamente.\n\n"
                 . "Motivo: " . $j['erro'] . "\n\n"
-                . "Peca ao Luiz Eduardo pra complementar a pesquisa com nome + CNPJ da empregadora e refaca este oficio manualmente.\n\n"
+                . "Peca ao Luiz Eduardo pra complementar a pesquisa com nome + CNPJ da empregadora e refaca manualmente.\n\n"
                 . "---\nResposta bruta da IA:\n" . mb_substr($textoBruto, 0, 1500);
     } else {
-        // Monta tarefa com rascunho completo
+        // Monta tarefa com rascunho completo (oficio) ou so contatos
         $empresaLbl = !empty($j['empresa_identificada']) ? $j['empresa_identificada'] : 'Empresa nao identificada';
-        $tituloTk = '📮 Enviar oficio desconto folha - ' . $empresaLbl . ' [gerid#' . (int)$p['id'] . ']';
+        $tituloTk = ($modo === 'contatos')
+            ? '📞 Contatos empresa - ' . $empresaLbl . ' ' . $tagTk . (int)$p['id'] . ']'
+            : '📮 Enviar oficio desconto folha - ' . $empresaLbl . ' ' . $tagTk . (int)$p['id'] . ']';
 
         $descPartes = array();
         $descPartes[] = "🎯 EMPRESA IDENTIFICADA: " . $empresaLbl
@@ -203,9 +250,16 @@ PROMPT;
             $descPartes[] = "\n🔗 Fontes web usadas: " . implode(' · ', $j['fontes_web']);
         }
 
-        $descPartes[] = "\n" . str_repeat('=', 60) . "\n📄 RASCUNHO DO OFICIO (revise antes de enviar):\n"
-                     . str_repeat('=', 60) . "\n\n"
-                     . (!empty($j['corpo_oficio']) ? $j['corpo_oficio'] : '[IA nao gerou corpo]');
+        if ($modo === 'contatos') {
+            $descPartes[] = "\n" . str_repeat('=', 60)
+                         . "\n📞 Use estes dados pra fazer contato inicial com a empresa.\n"
+                         . "Se decidir enviar oficio formal depois, volte na aba GERID e clique em 'Gerar oficio desconto folha'.\n"
+                         . str_repeat('=', 60);
+        } else {
+            $descPartes[] = "\n" . str_repeat('=', 60) . "\n📄 RASCUNHO DO OFICIO (revise antes de enviar):\n"
+                         . str_repeat('=', 60) . "\n\n"
+                         . (!empty($j['corpo_oficio']) ? $j['corpo_oficio'] : '[IA nao gerou corpo]');
+        }
 
         $descTk = implode("\n", $descPartes);
     }
@@ -215,11 +269,12 @@ PROMPT;
         $assignedTo = !empty($p['created_by']) ? (int)$p['created_by'] : null;
         $stTk = $pdo->prepare(
             "INSERT INTO case_tasks (case_id, title, tipo, descricao, assigned_to, due_date, prioridade, status, sort_order, created_at)
-             VALUES (?, ?, 'oficio_desconto_folha', ?, ?, ?, 'alta', 'a_fazer', 0, NOW())"
+             VALUES (?, ?, ?, ?, ?, ?, 'alta', 'a_fazer', 0, NOW())"
         );
         $stTk->execute(array(
             (int)$p['case_id'],
             mb_substr($tituloTk, 0, 250),
+            $tipoTk,
             $descTk,
             $assignedTo,
             date('Y-m-d', strtotime('+5 days')),
@@ -241,7 +296,7 @@ PROMPT;
             try { audit_log('gerid_oficio_gerado', 'gerid', (int)$p['id'], 'task_id=' . $taskId . ' empresa=' . ($j['empresa_identificada'] ?? '?')); } catch (Throwable $e) {}
         }
 
-        return array('ok' => true, 'erro' => null, 'task_id' => $taskId, 'texto' => $descTk);
+        return array('ok' => true, 'erro' => null, 'task_id' => $taskId, 'case_id' => (int)$p['case_id'], 'modo' => $modo, 'texto' => $descTk);
     } catch (Throwable $e) {
         return array('ok' => false, 'erro' => 'INSERT task: ' . $e->getMessage(), 'task_id' => null, 'texto' => null);
     }

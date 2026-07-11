@@ -133,20 +133,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // /admin/ia_custo.php. Redir de volta pro módulo com flash.
     if ($acao === 'gerar_oficio') {
         $id = (int)($_POST['id'] ?? 0);
+        // Amanda 10/07/2026: agora aceita 'modo' — 'oficio' (default, redige texto completo)
+        // ou 'contatos' (so busca endereco + telefones + emails pra Amanda ligar antes).
+        $modo = ($_POST['modo'] ?? 'oficio') === 'contatos' ? 'contatos' : 'oficio';
         if (!$id) { flash_set('error', 'ID inválido.'); redirect(module_url('gerid')); }
         require_once APP_ROOT . '/core/functions_gerid_oficio.php';
         if (function_exists('gerid_oficio_auto_ativo') && !gerid_oficio_auto_ativo()) {
             flash_set('error', 'Feature "Ofício desconto folha" está DESLIGADA em /admin/ia_custo.php. Ligue antes de usar.');
             redirect(module_url('gerid'));
         }
-        $r = gerid_gerar_oficio_desconto($pdo, $id);
+        $r = gerid_gerar_oficio_desconto($pdo, $id, $modo);
         if (!empty($r['ok'])) {
-            flash_set('success', '✓ Ofício gerado! Tarefa criada na pasta do processo (task #' . (int)$r['task_id'] . '). Revise antes de enviar.');
+            $lbl = ($modo === 'contatos') ? 'Contatos da empresa' : 'Ofício';
+            // Amanda 10/07: redir DIRETO pra ficha do caso na aba tarefas — mais rapido
+            // do que voltar pro gerid e ter que caçar a tarefa depois.
+            $urlDestino = module_url('operacional', 'caso_ver.php?id=' . (int)$r['case_id']) . '#compromissos';
+            flash_set('success', '✓ ' . $lbl . ' pronto na aba Tarefas dessa pasta (task #' . (int)$r['task_id'] . '). Revise antes de enviar.');
+            audit_log('gerid_gerar_oficio', 'gerid', $id, 'ok modo=' . $modo . ' task#' . (int)$r['task_id']);
+            redirect($urlDestino);
         } else {
-            flash_set('error', 'Falha ao gerar ofício: ' . ($r['erro'] ?? 'erro desconhecido'));
+            flash_set('error', 'Falha: ' . ($r['erro'] ?? 'erro desconhecido'));
+            audit_log('gerid_gerar_oficio', 'gerid', $id, 'falha modo=' . $modo . ': ' . ($r['erro'] ?? '?'));
+            redirect(module_url('gerid'));
         }
-        audit_log('gerid_gerar_oficio', 'gerid', $id, !empty($r['ok']) ? ('ok task#' . (int)$r['task_id']) : ('falha: ' . ($r['erro'] ?? '?')));
-        redirect(module_url('gerid'));
     }
 
     // 29/06/2026 Amanda: excluir pesquisa (duplicada ou erro). Marca task vinculada
@@ -674,25 +683,42 @@ require_once APP_ROOT . '/templates/layout_start.php';
           <br><a href="?baixar=<?= (int)$g['id'] ?>" target="_blank" rel="noopener" style="font-size:.72rem;color:#0c4a6e;text-decoration:none;font-weight:600;">📸 Ver print INSS</a>
         <?php endif; ?>
         <?php if (!empty($g['tem_vinculo']) && !empty($g['case_id'])):
-            // Amanda 09/07/2026: botao manual pra gerar oficio de desconto folha via IA.
-            // Detecta se ja existe tarefa gerada pra essa pesquisa (dedup visual).
-            $_jaTemOficio = false;
+            // Amanda 09-10/07/2026: 2 botoes — Contatos (so pesquisa) e Oficio (redige texto).
+            // Dedup por tipo distinto: gerid_contatos_empresa vs oficio_desconto_folha.
+            $_jaTemOficio = false; $_jaTemContatos = false;
             try {
                 $stChkOf = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'oficio_desconto_folha' AND title LIKE ? LIMIT 1");
                 $stChkOf->execute(array((int)$g['case_id'], '%[gerid#' . (int)$g['id'] . ']%'));
                 $_jaTemOficio = (bool)$stChkOf->fetchColumn();
+                $stChkCt = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'gerid_contatos_empresa' AND title LIKE ? LIMIT 1");
+                $stChkCt->execute(array((int)$g['case_id'], '%[gerid-contatos#' . (int)$g['id'] . ']%'));
+                $_jaTemContatos = (bool)$stChkCt->fetchColumn();
             } catch (Throwable $e) {}
         ?>
-          <?php if ($_jaTemOficio): ?>
-            <br><span style="font-size:.7rem;color:#059669;font-weight:600;" title="Ofício já foi gerado — abra a tarefa na pasta do processo">✓ Ofício já gerado</span>
-          <?php else: ?>
-            <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;margin-top:4px;" onsubmit="return gdConfirmarOficio(this);">
-              <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
-              <input type="hidden" name="acao" value="gerar_oficio">
-              <input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
-              <button type="submit" style="margin-top:5px;background:#7c3aed;color:#fff;border:none;border-radius:5px;padding:4px 9px;font-size:.7rem;font-weight:700;cursor:pointer;" title="IA (Sonnet + web search) busca contatos da empresa e redige ofício pronto pra revisão. Cria tarefa na pasta do caso.">🤖 Gerar ofício desconto folha</button>
-            </form>
-          <?php endif; ?>
+          <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px;">
+            <?php if ($_jaTemContatos): ?>
+              <span style="font-size:.7rem;color:#0369a1;font-weight:600;" title="Contatos ja pesquisados — abra a tarefa na pasta do processo">✓ Contatos ja buscados</span>
+            <?php else: ?>
+              <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;" onsubmit="return gdConfirmarContatos(this);">
+                <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
+                <input type="hidden" name="acao" value="gerar_oficio">
+                <input type="hidden" name="modo" value="contatos">
+                <input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
+                <button type="submit" style="background:#0369a1;color:#fff;border:none;border-radius:5px;padding:4px 9px;font-size:.7rem;font-weight:700;cursor:pointer;width:100%;" title="IA busca endereço + emails + telefone da empresa pra Amanda ligar/mandar email antes. NAO redige oficio.">🔍 Buscar dados da empresa</button>
+              </form>
+            <?php endif; ?>
+            <?php if ($_jaTemOficio): ?>
+              <span style="font-size:.7rem;color:#059669;font-weight:600;" title="Ofício ja gerado — abra a tarefa na pasta do processo">✓ Ofício ja gerado</span>
+            <?php else: ?>
+              <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;" onsubmit="return gdConfirmarOficio(this);">
+                <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
+                <input type="hidden" name="acao" value="gerar_oficio">
+                <input type="hidden" name="modo" value="oficio">
+                <input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
+                <button type="submit" style="background:#7c3aed;color:#fff;border:none;border-radius:5px;padding:4px 9px;font-size:.7rem;font-weight:700;cursor:pointer;width:100%;" title="IA busca contatos E redige oficio pronto pra revisao. Cria tarefa na pasta do caso.">📮 Gerar ofício desconto folha</button>
+              </form>
+            <?php endif; ?>
+          </div>
         <?php endif; ?>
       </td>
       <td style="padding:9px 11px;"><?= e($g['reg_por'] ?: '—') ?><br><span style="color:#999;font-size:.78rem;"><?= $g['created_at'] ? date('d/m/Y', strtotime($g['created_at'])) : '' ?></span></td>
@@ -736,6 +762,24 @@ function gdBuscarCli(q){
 }
 // Amanda 09/07/2026: aviso de custo antes de disparar geração de ofício via IA.
 // Sonnet + web search custa ~R$ 0,15-0,30 por chamada — pedir com moderação.
+function gdConfirmarContatos(f) {
+  var msg = '⚠️ ATENÇÃO: esta ação chama IA (Claude Sonnet + web search).\n\n'
+          + 'Cada busca custa aproximadamente R$ 0,10 a R$ 0,20 do orçamento de IA do escritório.\n\n'
+          + 'A IA vai:\n'
+          + '  1. Identificar a empresa no texto do resultado\n'
+          + '  2. Buscar endereço, e-mails de RH/jurídico e telefone online\n'
+          + '  3. Criar tarefa "📞 Contatos" na pasta do caso\n\n'
+          + 'NÃO redige ofício — use pra contato inicial antes de decidir se envia ofício formal.\n\n'
+          + 'Confirma?';
+  if (!confirm(msg)) return false;
+  var btn = f.querySelector('button[type="submit"]');
+  if (btn) {
+    if (btn.disabled) return false;
+    btn.disabled = true;
+    btn.textContent = '⏳ Buscando... (10-30s)';
+  }
+  return true;
+}
 function gdConfirmarOficio(f) {
   var msg = '⚠️ ATENÇÃO: esta ação chama IA (Claude Sonnet + web search).\n\n'
           + 'Cada geração custa aproximadamente R$ 0,15 a R$ 0,30 do orçamento de IA do escritório.\n\n'
