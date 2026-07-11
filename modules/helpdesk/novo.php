@@ -216,10 +216,10 @@ echo voltar_ao_processo_html();
                 </div>
                 <div class="form-group">
                     <label class="form-label">Processo vinculado</label>
-                    <select name="case_id" id="processoSelect" class="form-select">
+                    <select name="case_id" id="processoSelect" class="form-select" onchange="preencherCaseNumber()">
                         <option value="">— Selecionar —</option>
                         <?php if ($preCase): ?>
-                        <option value="<?= $preCaseId ?>" selected><?= e($preCase['title']) ?></option>
+                        <option value="<?= $preCaseId ?>" data-case-number="<?= e($preCase['case_number'] ?? '') ?>" selected><?= e($preCase['title']) ?></option>
                         <?php endif; ?>
                     </select>
                 </div>
@@ -239,7 +239,7 @@ echo voltar_ao_processo_html();
             <div class="form-row">
                 <div class="form-group">
                     <label class="form-label">Nº do processo</label>
-                    <input type="text" name="case_number" class="form-input" value="<?= e($_POST['case_number'] ?? ($preCase ? $preCase['case_number'] : '')) ?>">
+                    <input type="text" name="case_number" id="caseNumberInput" class="form-input" value="<?= e($_POST['case_number'] ?? ($preCase ? $preCase['case_number'] : '')) ?>">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Prazo/SLA</label>
@@ -288,6 +288,8 @@ function carregarProcessos() {
                 var opt = document.createElement('option');
                 opt.value = cases[i].id;
                 opt.textContent = cases[i].title + (cases[i].case_number ? ' — ' + cases[i].case_number : '');
+                // Amanda 10/07: guarda case_number pra auto-preencher o input abaixo
+                opt.setAttribute('data-case-number', cases[i].case_number || '');
                 select.appendChild(opt);
             }
             if (cases.length === 0) {
@@ -298,6 +300,21 @@ function carregarProcessos() {
         }
     };
     xhr.send();
+}
+// Amanda 10/07: ao escolher o processo, copia o Nº pro campo "Nº do processo"
+// (so sobrescreve se o campo estiver vazio ou tiver o numero do processo anterior,
+// pra nao apagar um numero que o usuario digitou manualmente).
+var caseNumberAnterior = document.getElementById('caseNumberInput') ? document.getElementById('caseNumberInput').value : '';
+function preencherCaseNumber() {
+    var sel = document.getElementById('processoSelect');
+    var input = document.getElementById('caseNumberInput');
+    if (!sel || !input) return;
+    var opt = sel.options[sel.selectedIndex];
+    var novoNum = opt ? (opt.getAttribute('data-case-number') || '') : '';
+    if (input.value.trim() === '' || input.value.trim() === caseNumberAnterior) {
+        input.value = novoNum;
+        caseNumberAnterior = novoNum;
+    }
 }
 <?php if ($preClientId): ?>
 document.getElementById('clienteSelect').value = '<?= (int)$preClientId ?>';
