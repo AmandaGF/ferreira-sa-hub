@@ -1797,9 +1797,23 @@ function preencherCidades(nomes) {
 // So preenche campos VAZIOS — nunca sobrescreve o que o usuario ja digitou.
 function cnjAutoPreencher(valor) {
     var hint = document.getElementById('cnjParseHint');
+    var inputCnj = document.getElementById('caseNumberCnjInput');
     var digits = (valor || '').replace(/\D/g, '');
-    // Aceita 17-20 digitos — CNJs com zero perdido em algum campo sao completados pelo backend
-    if (digits.length < 17 || digits.length > 20) { if (hint) { hint.style.display = 'none'; } return; }
+    // Reset visual (limpa borda vermelha de tentativa anterior)
+    if (inputCnj) { inputCnj.style.borderColor = ''; inputCnj.style.background = ''; }
+    if (digits.length === 0) { if (hint) { hint.style.display = 'none'; } return; }
+    // Amanda 10/07: se falta digito, marca VERMELHO e nao chama a API — CNJ
+    // oficial tem exatamente 20 digitos. Nao "consertar" no escuro.
+    if (digits.length !== 20) {
+        if (hint) {
+            var faltam = 20 - digits.length;
+            hint.textContent = '⚠ CNJ incompleto — falta' + (faltam === 1 ? '' : 'm') + ' ' + faltam + ' díg' + (faltam === 1 ? 'ito' : 'itos') + ' (padrão CNJ = 20)';
+            hint.style.color = '#dc2626';
+            hint.style.display = 'inline';
+        }
+        if (inputCnj) { inputCnj.style.borderColor = '#dc2626'; inputCnj.style.background = '#fef2f2'; }
+        return;
+    }
     fetch('<?= url("api/parse_cnj.php") ?>?cnj=' + encodeURIComponent(valor), {
         credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
@@ -1808,7 +1822,7 @@ function cnjAutoPreencher(valor) {
         if (!j || !j.ok) { if (hint) { hint.style.display = 'none'; } return; }
         var msg = j.tribunal_nome || j.segmento_nome || '';
         if (j.uf) msg += ' · ' + j.uf;
-        if (hint) { hint.textContent = '✓ ' + msg; hint.style.display = 'inline'; }
+        if (hint) { hint.textContent = '✓ ' + msg; hint.style.color = '#059669'; hint.style.display = 'inline'; }
         // UF (select comarca_uf) — so preenche se estiver vazio
         var selUf = document.getElementById('comarcaUf');
         if (selUf && !selUf.value && j.uf) {

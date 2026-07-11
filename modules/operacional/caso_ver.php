@@ -6658,8 +6658,20 @@ document.addEventListener('DOMContentLoaded', function() {
 // Volta Redonda e declinado pra Resende — o valor manual persiste).
 function cvAutoPreencherCnj(valor) {
     var digits = (valor || '').replace(/\D/g, '');
-    // Aceita 17-20 digitos — CNJs com zero perdido em algum campo (ex: ".004" -> ".0004") sao completados pelo backend
-    if (digits.length < 17 || digits.length > 20) return;
+    var inpCnj = document.getElementById('cvCampoCaseNumber');
+    // Reset visual
+    if (inpCnj) { inpCnj.style.borderColor = ''; inpCnj.style.background = ''; }
+    if (digits.length === 0) return;
+    // Amanda 10/07: se falta digito, marca VERMELHO — nao "consertar" no escuro.
+    if (digits.length !== 20) {
+        if (inpCnj) {
+            inpCnj.style.borderColor = '#dc2626';
+            inpCnj.style.background = '#fef2f2';
+            var faltam = 20 - digits.length;
+            inpCnj.title = 'CNJ incompleto — falta' + (faltam === 1 ? '' : 'm') + ' ' + faltam + ' díg' + (faltam === 1 ? 'ito' : 'itos') + ' (padrão CNJ = 20)';
+        }
+        return;
+    }
     fetch('<?= url("api/parse_cnj.php") ?>?cnj=' + encodeURIComponent(valor), {
         credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }
     })
