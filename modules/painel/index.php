@@ -1831,7 +1831,7 @@ if ($_painelMostraEsfriando) {
         )->fetchColumn();
     } catch (Exception $e) {}
 }
-<?php
+
 // ── Amanda 11/07: mini-card de Entregas Pendentes (contratados sem CNJ) ──
 $_epTot = 0; $_epCrit = 0; $_epAten = 0;
 try {
