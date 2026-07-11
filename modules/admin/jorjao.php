@@ -73,6 +73,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect($_SERVER['REQUEST_URI']);
     }
 
+    if ($act === 'salvar_meta_dopamina') {
+        _cfg_set($pdo, 'meta_dopamina_ativa',   !empty($_POST['meta_ativa']) ? '1' : '0');
+        _cfg_set($pdo, 'meta_dopamina_alvo',    (string)max(1, (int)($_POST['meta_alvo'] ?? 300)));
+        _cfg_set($pdo, 'meta_dopamina_premio',  clean_str($_POST['meta_premio'] ?? '', 200));
+        $per = in_array($_POST['meta_periodo'] ?? '', array('mensal','semanal'), true) ? $_POST['meta_periodo'] : 'mensal';
+        _cfg_set($pdo, 'meta_dopamina_periodo', $per);
+        flash_set('success', '✓ Meta coletiva atualizada.');
+        redirect($_SERVER['REQUEST_URI']);
+    }
+
     if ($act === 'template_salvar') {
         $id = (int)($_POST['id'] ?? 0);
         $tocada = $_POST['tocada'] ?? '';
@@ -412,6 +422,48 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 
     <button type="submit" class="jz-btn-primary">Salvar configurações</button>
+  </form>
+</div>
+
+<!-- 🍾 Meta coletiva de dopamina -->
+<?php
+$metaAtiva   = _cfg_get($pdo, 'meta_dopamina_ativa', '1') === '1';
+$metaAlvo    = (int)_cfg_get($pdo, 'meta_dopamina_alvo', '300');
+$metaPremio  = _cfg_get($pdo, 'meta_dopamina_premio', 'Almoço em restaurante da equipe');
+$metaPeriodo = _cfg_get($pdo, 'meta_dopamina_periodo', 'mensal');
+?>
+<div class="jz-card" style="margin-top:1rem;background:linear-gradient(135deg,#fef3c7,#f5ede3);border:1.5px solid #B87333;">
+  <h3 style="margin:0 0 .6rem;color:#78350f;">🍾 Meta coletiva de dopamina</h3>
+  <p style="margin:0 0 1rem;font-size:.85rem;color:#78350f;line-height:1.5;">
+    Aparece no painel de dopamina de <strong>todos os funcionários</strong> — uma garrafa que enche conforme
+    a soma dos pontos do time cresce. Ao bater a meta, todo mundo ganha o prêmio configurado.
+    <br><small style="opacity:.85;">💡 Distribuições valem 2 pontos cada (mais trabalhosas). As outras categorias valem 1.</small>
+  </p>
+  <form method="POST" data-fsa-skip="1">
+    <?= csrf_input() ?>
+    <input type="hidden" name="action" value="salvar_meta_dopamina">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:.8rem;margin-bottom:.8rem;">
+      <label style="display:flex;align-items:center;gap:.5rem;font-size:.9rem;font-weight:700;color:#78350f;cursor:pointer;">
+        <input type="checkbox" name="meta_ativa" value="1" <?= $metaAtiva ? 'checked' : '' ?>>
+        Mostrar garrafa no painel de todo mundo
+      </label>
+      <div>
+        <label style="display:block;font-size:.72rem;font-weight:700;color:#78350f;text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px;">Período</label>
+        <select name="meta_periodo" style="width:100%;padding:6px 8px;border:1.5px solid #B87333;border-radius:6px;font-size:.88rem;">
+          <option value="mensal"  <?= $metaPeriodo === 'mensal' ? 'selected' : '' ?>>Mensal (reinicia dia 1)</option>
+          <option value="semanal" <?= $metaPeriodo === 'semanal' ? 'selected' : '' ?>>Semanal (reinicia segunda)</option>
+        </select>
+      </div>
+      <div>
+        <label style="display:block;font-size:.72rem;font-weight:700;color:#78350f;text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px;">Meta (pontos)</label>
+        <input type="number" name="meta_alvo" value="<?= $metaAlvo ?>" min="1" style="width:100%;padding:6px 8px;border:1.5px solid #B87333;border-radius:6px;font-size:.88rem;font-weight:700;">
+      </div>
+      <div>
+        <label style="display:block;font-size:.72rem;font-weight:700;color:#78350f;text-transform:uppercase;letter-spacing:.03em;margin-bottom:3px;">Prêmio ao bater</label>
+        <input type="text" name="meta_premio" value="<?= e($metaPremio) ?>" maxlength="200" placeholder="Ex: Almoço em restaurante japonês por conta da casa" style="width:100%;padding:6px 8px;border:1.5px solid #B87333;border-radius:6px;font-size:.88rem;">
+      </div>
+    </div>
+    <button type="submit" class="jz-btn-primary" style="background:#B87333;">💾 Salvar meta coletiva</button>
   </form>
 </div>
 

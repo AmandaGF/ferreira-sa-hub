@@ -414,7 +414,17 @@ try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND DATE(created_at)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['renuncias'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
-$dopaTotal = array_sum($dopa);
+// Amanda 11/07: peso duplo em distribuicoes (trabalhosas). Central em 1 lugar
+// pra facilitar mudanca futura de pesos por categoria.
+$dopaPesos = array(
+    'distribuicoes' => 2, // peticao distribuida vale 2 pontos
+);
+function dopa_pontos_da_categoria($catCounts, $pesos) {
+    $total = 0;
+    foreach ($catCounts as $cat => $qtd) $total += ((int)$qtd) * (isset($pesos[$cat]) ? $pesos[$cat] : 1);
+    return $total;
+}
+$dopaTotal = dopa_pontos_da_categoria($dopa, $dopaPesos);
 
 // ── Progresso do dia: itens DATADOS para hoje (tarefas due hoje + prazos hoje + compromissos hoje) ──
 $diaTot = 0; $diaFeito = 0;
@@ -452,7 +462,12 @@ $histQ = array(
 foreach ($histQ as $cat => $h) {
     try { $q = $pdo->prepare($h[0]); $q->execute($h[1]); foreach ($q->fetchAll() as $row) {
         $d = substr($row['d'], 0, 10);
-        if (isset($dias7[$d])) { $dias7[$d] += (int)$row['c']; $dias7det[$d][$cat] += (int)$row['c']; }
+        if (isset($dias7[$d])) {
+            $peso = isset($dopaPesos[$cat]) ? $dopaPesos[$cat] : 1;
+            $qtd  = (int)$row['c'];
+            $dias7[$d] += $qtd * $peso;         // total do dia ja com peso
+            $dias7det[$d][$cat] += $qtd;         // detalhe cru pra breakdown
+        }
     } } catch (Exception $e) {}
 }
 $dopaMax = max(1, max($dias7));
@@ -493,7 +508,7 @@ $dopaSomaDesde = function($pdo, $uid, $desde) {
         UNION ALL SELECT COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND concluido_em>=?
         UNION ALL SELECT COUNT(*) c FROM audit_log al LEFT JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.entity_type='agenda' AND al.user_id=? AND al.created_at>=? AND al.action='AGENDA_STATUS' AND al.details LIKE 'Status: realizado%' AND COALESCE(ae.tipo,'') NOT IN ('onboarding','balcao_virtual')
         UNION ALL SELECT COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido'
-        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=?
+        UNION ALL SELECT COUNT(*)*2 c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=?
         UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? AND created_at>=?
         UNION ALL SELECT COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='21'
         UNION ALL SELECT COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='24'
@@ -514,6 +529,33 @@ $inicioMes    = date('Y-m-01') . ' 00:00:00';
 $semanaTotal  = $dopaSomaDesde($pdo, $viewUserId, $inicioSemana);
 $mesTotal     = $dopaSomaDesde($pdo, $viewUserId, $inicioMes);
 $mesNome      = array(1=>'jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez')[(int)date('n')];
+
+// ── Meta coletiva de dopamina (garrafa enchendo) ────────────
+$metaConfig = array();
+try {
+    foreach ($pdo->query("SELECT chave, valor FROM configuracoes WHERE chave LIKE 'meta_dopamina_%'") as $r) {
+        $metaConfig[$r['chave']] = $r['valor'];
+    }
+} catch (Exception $e) {}
+$metaAtiva   = ($metaConfig['meta_dopamina_ativa'] ?? '1') === '1';
+$metaAlvo    = (int)($metaConfig['meta_dopamina_alvo'] ?? 300);
+$metaPremio  = $metaConfig['meta_dopamina_premio'] ?? '';
+$metaPeriodo = $metaConfig['meta_dopamina_periodo'] ?? 'mensal';
+$metaInicio  = $metaPeriodo === 'semanal' ? $inicioSemana : $inicioMes;
+$metaLabelPeriodo = $metaPeriodo === 'semanal' ? 'nesta semana' : 'em ' . $mesNome;
+
+// Soma pontos de TODOS os usuarios ativos no periodo (mesma logica de peso duplo)
+$metaPontosTime = 0;
+if ($metaAtiva && $metaAlvo > 0) {
+    try {
+        $qUsers = $pdo->query("SELECT id FROM users WHERE is_active = 1");
+        foreach ($qUsers as $u) {
+            $metaPontosTime += $dopaSomaDesde($pdo, (int)$u['id'], $metaInicio);
+        }
+    } catch (Exception $e) {}
+}
+$metaPct     = $metaAlvo > 0 ? min(100, round(($metaPontosTime / $metaAlvo) * 100)) : 0;
+$metaBatida  = $metaPontosTime >= $metaAlvo;
 
 // Nome do alvo (quando gestão olha agenda de outro)
 $dopaSelf = ($viewUserId === $userId);
@@ -621,6 +663,30 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-dopa-stat .n{font-size:1.25rem;font-weight:800;}
 .pd-dopa-stat .l{font-size:.72rem;font-weight:600;opacity:.92;}
 .pd-dopa-stat.z{opacity:.5;}
+.pd-dopa-stat-x2{position:relative;background:linear-gradient(135deg,rgba(184,115,51,.35),rgba(184,115,51,.15));border:1.5px solid rgba(184,115,51,.6);}
+.pd-x2-badge{position:absolute;top:-8px;right:-8px;background:#B87333;color:#fff;font-size:.65rem;font-weight:900;padding:1px 6px;border-radius:999px;box-shadow:0 2px 6px rgba(0,0,0,.3);letter-spacing:.05em;}
+
+/* 🍾 Meta coletiva — garrafa enchendo */
+.pd-meta-coletiva{display:flex;justify-content:space-between;align-items:center;gap:1rem;background:linear-gradient(135deg,rgba(184,115,51,.18),rgba(255,255,255,.08));border:1.5px solid rgba(184,115,51,.35);border-radius:14px;padding:.9rem 1.1rem;margin-bottom:1rem;position:relative;overflow:hidden;}
+.pd-meta-coletiva.batida{border-color:#facc15;background:linear-gradient(135deg,rgba(250,204,21,.25),rgba(184,115,51,.2));animation:pdMetaGlow 2s ease-in-out infinite alternate;}
+@keyframes pdMetaGlow{from{box-shadow:0 0 20px rgba(250,204,21,.3);}to{box-shadow:0 0 40px rgba(250,204,21,.6);}}
+.pd-meta-info{flex:1;min-width:0;}
+.pd-meta-titulo{font-size:.85rem;font-weight:700;margin-bottom:.35rem;display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;}
+.pd-meta-batida-tag{background:#facc15;color:#78350f;font-size:.65rem;font-weight:900;padding:2px 8px;border-radius:999px;letter-spacing:.05em;animation:pdMetaBounce 1s ease-in-out infinite;}
+@keyframes pdMetaBounce{0%,100%{transform:translateY(0);}50%{transform:translateY(-3px);}}
+.pd-meta-numeros{font-family:'Cormorant Garamond',Georgia,serif;font-size:1.4rem;font-weight:700;line-height:1;margin-bottom:.35rem;display:flex;align-items:baseline;gap:.3rem;}
+.pd-meta-atual{color:#fff;font-size:1.8rem;}
+.pd-meta-sep{opacity:.5;}
+.pd-meta-alvo{opacity:.7;font-size:1.1rem;}
+.pd-meta-pct{margin-left:auto;background:rgba(255,255,255,.15);padding:1px 10px;border-radius:999px;font-family:'Outfit',sans-serif;font-size:.75rem;font-weight:700;}
+.pd-meta-premio{font-size:.75rem;line-height:1.35;margin-bottom:.25rem;opacity:.92;}
+.pd-meta-premio strong{color:#fbbf24;}
+.pd-meta-faltam{font-size:.7rem;opacity:.78;font-style:italic;}
+.pd-meta-garrafa{position:relative;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+.pd-meta-garrafa svg{filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));}
+.pd-meta-confete{position:absolute;top:-8px;left:50%;transform:translateX(-50%);font-size:1.3rem;animation:pdMetaSpark 1.5s ease-in-out infinite;pointer-events:none;}
+@keyframes pdMetaSpark{0%,100%{opacity:.7;transform:translateX(-50%) scale(1);}50%{opacity:1;transform:translateX(-50%) scale(1.15) rotate(-5deg);}}
+@media (max-width:640px){.pd-meta-coletiva{flex-direction:column;text-align:center;}.pd-meta-pct{margin-left:0;}}
 .pd-dopa-totais{display:flex;gap:.7rem;margin-top:.9rem;}
 .pd-dopa-total-card{flex:1;display:flex;align-items:center;gap:.7rem;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);border-radius:14px;padding:.7rem .95rem;backdrop-filter:blur(2px);}
 .pd-dopa-total-ico{font-size:1.6rem;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.2));}
@@ -971,11 +1037,75 @@ function confirmarCancelamento(caseId, btn) {
         </div>
         <?php endif; ?>
 
+        <?php if ($metaAtiva && $metaAlvo > 0): ?>
+        <!-- 🍾 Meta coletiva: garrafa enchendo (soma pontos do TIME inteiro) -->
+        <div class="pd-meta-coletiva <?= $metaBatida ? 'batida' : '' ?>">
+            <div class="pd-meta-info">
+                <div class="pd-meta-titulo">
+                    🍾 Meta do time <?= $metaLabelPeriodo ?>
+                    <?php if ($metaBatida): ?><span class="pd-meta-batida-tag">🎉 BATEMOS!</span><?php endif; ?>
+                </div>
+                <div class="pd-meta-numeros">
+                    <span class="pd-meta-atual"><?= $metaPontosTime ?></span>
+                    <span class="pd-meta-sep">/</span>
+                    <span class="pd-meta-alvo"><?= $metaAlvo ?></span>
+                    <span class="pd-meta-pct"><?= $metaPct ?>%</span>
+                </div>
+                <?php if ($metaPremio): ?>
+                    <div class="pd-meta-premio">
+                        <?= $metaBatida ? '🏆 Prêmio conquistado:' : '🎁 Ao atingir:' ?>
+                        <strong><?= e($metaPremio) ?></strong>
+                    </div>
+                <?php endif; ?>
+                <?php if (!$metaBatida): ?>
+                    <div class="pd-meta-faltam">Faltam <strong><?= max(0, $metaAlvo - $metaPontosTime) ?></strong> pontos — todo mundo somando junto!</div>
+                <?php endif; ?>
+            </div>
+            <div class="pd-meta-garrafa" title="Meta coletiva do time — cada baixa de qualquer pessoa enche a garrafa">
+                <svg viewBox="0 0 80 130" xmlns="http://www.w3.org/2000/svg" style="width:80px;height:130px;">
+                    <!-- Rolha -->
+                    <rect x="30" y="4" width="20" height="14" rx="2" fill="#8b5a2b" class="pd-rolha"/>
+                    <rect x="28" y="16" width="24" height="4" fill="#654321"/>
+                    <!-- Gargalo -->
+                    <rect x="32" y="20" width="16" height="20" fill="#0E2E36"/>
+                    <!-- Corpo da garrafa (contorno) -->
+                    <path d="M 22 40 Q 22 42 24 44 L 24 118 Q 24 126 32 126 L 48 126 Q 56 126 56 118 L 56 44 Q 58 42 58 40 Z" fill="#0E2E36" stroke="#0a1f24" stroke-width="1.5"/>
+                    <!-- Recorte interno pro liquido -->
+                    <clipPath id="pdGarrafaClip">
+                        <path d="M 27 45 L 27 116 Q 27 122 33 122 L 47 122 Q 53 122 53 116 L 53 45 Z"/>
+                    </clipPath>
+                    <!-- Liquido enchendo (bronze do escritorio) -->
+                    <g clip-path="url(#pdGarrafaClip)">
+                        <rect x="27" y="122" width="26" height="0" fill="#B87333" class="pd-liquido"
+                              data-h="<?= max(2, (int)round(77 * $metaPct / 100)) ?>"
+                              style="transform: translateY(<?= -max(2, (int)round(77 * $metaPct / 100)) ?>px);">
+                            <animate attributeName="height" from="0" to="<?= max(2, (int)round(77 * $metaPct / 100)) ?>" dur="1.2s" fill="freeze" begin="0.3s"/>
+                        </rect>
+                        <!-- Onda no topo -->
+                        <path d="M 27 <?= 122 - max(2, (int)round(77 * $metaPct / 100)) ?> Q 34 <?= 118 - max(2, (int)round(77 * $metaPct / 100)) ?> 40 <?= 122 - max(2, (int)round(77 * $metaPct / 100)) ?> T 53 <?= 122 - max(2, (int)round(77 * $metaPct / 100)) ?> L 53 122 L 27 122 Z"
+                              fill="#d18948" opacity=".7"/>
+                    </g>
+                    <!-- Rotulo -->
+                    <rect x="26" y="70" width="28" height="24" fill="#f5ede3" stroke="#B87333" stroke-width="1"/>
+                    <text x="40" y="82" text-anchor="middle" font-family="'Cormorant Garamond',serif" font-size="9" font-weight="700" fill="#0E2E36">FS</text>
+                    <text x="40" y="91" text-anchor="middle" font-family="Arial" font-size="6" fill="#78350f"><?= $metaPct ?>%</text>
+                </svg>
+                <?php if ($metaBatida): ?>
+                    <div class="pd-meta-confete">✨🎉✨</div>
+                <?php endif; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="pd-dopa-stats">
             <div class="pd-dopa-stat <?= $dopa['tarefas'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['tarefas'] ?></span><span class="l">✅ Tarefas</span></div>
             <div class="pd-dopa-stat <?= $dopa['prazos'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['prazos'] ?></span><span class="l">⚖️ Prazos</span></div>
             <div class="pd-dopa-stat <?= $dopa['agenda'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['agenda'] ?></span><span class="l">📅 Compromissos</span></div>
-            <div class="pd-dopa-stat <?= $dopa['distribuicoes'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['distribuicoes'] ?></span><span class="l">🏛️ Distribuições</span></div>
+            <div class="pd-dopa-stat pd-dopa-stat-x2 <?= $dopa['distribuicoes'] ? '' : 'z' ?>" title="Distribuições valem 2 pontos cada — dá trabalho e a gente reconhece!">
+                <span class="pd-x2-badge">×2</span>
+                <span class="n"><?= (int)$dopa['distribuicoes'] ?></span>
+                <span class="l">🏛️ Distribuições</span>
+            </div>
             <div class="pd-dopa-stat <?= $dopa['movimentacoes'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['movimentacoes'] ?></span><span class="l">🔄 Movimentações</span></div>
             <div class="pd-dopa-stat <?= $dopa['leads21'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['leads21'] ?></span><span class="l">👋 Leads (21)</span></div>
             <div class="pd-dopa-stat <?= $dopa['clientes24'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['clientes24'] ?></span><span class="l">💬 Clientes (24)</span></div>
