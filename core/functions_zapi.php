@@ -476,6 +476,90 @@ function zapi_send_text($ddd, $telefone, $mensagem, $replyTo = null) {
     $err  = curl_error($ch);
     curl_close($ch);
     $json = json_decode($resp, true);
+    $result = array(
+        'ok'        => ($code >= 200 && $code < 300),
+        'http_code' => $code,
+        'data'      => $json ?: $resp,
+        'erro'      => $err,
+    );
+
+    // Amanda 12/07/2026: DETECÇÃO DE MSG FANTASMA + RETRY AUTOMÁTICO.
+    // Bug real: Queila (case #1175, 12/07 10:24) e outros clientes recebiam
+    // 0 mensagens porque Z-API respondia HTTP 200 + id sintetico "3EB0..."
+    // (20 chars) mas NUNCA entregava a msg. Sistema salvava como enviada e
+    // ninguem sabia. Fix: quando detectar id sintetico, esperar 1.5s e tentar
+    // uma vez de novo. Se ainda sintetico -> ok=false com erro claro pra atendente.
+    if ($result['ok'] && !zapi_arg_no_retry_fantasma()) {
+        $midRetornado = '';
+        if (is_array($result['data'])) {
+            $midRetornado = $result['data']['id'] ?? ($result['data']['zaapId'] ?? ($result['data']['messageId'] ?? ''));
+        }
+        if (zapi_id_eh_sintetico($midRetornado)) {
+            // Registra tentativa fantasma
+            try { audit_log('zapi_msg_fantasma_detectada', 'zapi_conversas', 0, "canal=$ddd tel=$phoneZapi mid1=$midRetornado"); } catch (Exception $e) {}
+            usleep(1500000); // 1.5s
+            // Retry — chama recursivamente com flag pra evitar loop
+            $result2 = zapi_send_text_retry_interno($url, $headers, $body);
+            $mid2 = '';
+            if (is_array($result2['data'] ?? null)) {
+                $mid2 = $result2['data']['id'] ?? ($result2['data']['zaapId'] ?? ($result2['data']['messageId'] ?? ''));
+            }
+            if (!zapi_id_eh_sintetico($mid2) && !empty($result2['ok'])) {
+                // Retry funcionou — retorna resposta boa
+                try { audit_log('zapi_msg_fantasma_retry_ok', 'zapi_conversas', 0, "canal=$ddd tel=$phoneZapi mid2=$mid2"); } catch (Exception $e) {}
+                return $result2;
+            }
+            // Retry também falhou — retorna erro pro atendente
+            try { audit_log('zapi_msg_fantasma_retry_falhou', 'zapi_conversas', 0, "canal=$ddd tel=$phoneZapi mid2=$mid2"); } catch (Exception $e) {}
+            return array(
+                'ok'        => false,
+                'http_code' => $result['http_code'],
+                'data'      => $result['data'],
+                'erro'      => 'Z-API respondeu OK mas com id sintético (mensagem provavelmente não foi entregue). Tentei 2x. Aguarde 1-2 minutos e envie de novo.',
+                'fantasma'  => true,
+            );
+        }
+    }
+    return $result;
+}
+
+/**
+ * Amanda 12/07/2026: helper — id sintético = prefixo 3EB0 + tamanho 20 chars.
+ * Detectado pelo padrão de bugs em canal 24 (ver memoria zapi_message_id_prefix).
+ */
+function zapi_id_eh_sintetico($id) {
+    if (!$id || !is_string($id)) return false;
+    return (strlen($id) === 20 && substr($id, 0, 4) === '3EB0');
+}
+
+/**
+ * Flag interna pra evitar retry-de-retry-de-retry (recursão infinita).
+ */
+function zapi_arg_no_retry_fantasma() {
+    static $flag = false;
+    if (func_num_args() > 0) $flag = (bool)func_get_arg(0);
+    return $flag;
+}
+
+/**
+ * Retry interno usado apenas por zapi_send_text quando detecta id sintético.
+ * Refaz o mesmo POST sem passar de novo pela lógica de detecção.
+ */
+function zapi_send_text_retry_interno($url, $headers, $body) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, array(
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 20,
+        CURLOPT_POST           => true,
+        CURLOPT_HTTPHEADER     => $headers,
+        CURLOPT_POSTFIELDS     => json_encode($body),
+        CURLOPT_SSL_VERIFYPEER => false,
+    ));
+    $resp = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err  = curl_error($ch);
+    curl_close($ch);
+    $json = json_decode($resp, true);
     return array(
         'ok'        => ($code >= 200 && $code < 300),
         'http_code' => $code,
