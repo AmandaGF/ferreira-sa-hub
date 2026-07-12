@@ -46,7 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // o codigo TOTP do app (muda a cada 30s, ja e' one-time). pending_2fa na
     // sessao ainda controla o fluxo. CSRF stale (PWA cache/cookie perdido)
     // travava usuario mesmo com senha e codigo corretos.
-    if (false) {
+    unset($_SESSION[CSRF_TOKEN_NAME]);
+    if (true) {
         $codigo = preg_replace('/\D/', '', $_POST['codigo'] ?? '');
         if (strlen($codigo) !== 6) {
             $error = 'Digite os 6 dígitos.';
