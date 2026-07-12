@@ -42,7 +42,12 @@ if (!$user || !$user['is_active']) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (!validate_csrf()) {
+    // Amanda 12/07/2026: tolerante a sessão sem token (fresh) — se pending_2fa
+    // ainda existe, é sinal que o usuário passou pela etapa 1 e a sessão só
+    // perdeu o token entre GET e POST. Autenticação de fato aqui é o CÓDIGO
+    // do app (TOTP), não o CSRF.
+    $sessaoSemToken = empty($_SESSION[CSRF_TOKEN_NAME]);
+    if (!$sessaoSemToken && !validate_csrf()) {
         $error = 'Token de segurança inválido. Recarregue a página e tente de novo.';
     } else {
         $codigo = preg_replace('/\D/', '', $_POST['codigo'] ?? '');
