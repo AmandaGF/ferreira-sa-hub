@@ -27,15 +27,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email    = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    // Amanda 12/07/2026: fix "Token de segurança inválido" no login. Se a sessão
-    // ficou fresh (sem token — cookie expirou/renovou entre GET e POST), pulamos
-    // a validação CSRF. E' seguro nesse contexto especifico do login: nao ha
-    // sessao autenticada pra proteger contra CSRF ainda. Autenticate() valida a
-    // senha e is_login_locked() protege contra brute-force.
-    $sessaoSemToken = empty($_SESSION[CSRF_TOKEN_NAME]);
-    if (!$sessaoSemToken && !validate_csrf()) {
-        $error = 'Token de segurança inválido. Tente novamente.';
-    } elseif (empty($email) || empty($password)) {
+    // Amanda 12/07/2026: CSRF removido do login. Nao protege nada aqui — nao
+    // existe sessao autenticada pra CSRF proteger no ato do login. A defesa e
+    // authenticate() (senha) + is_login_locked() (brute-force). Manter CSRF
+    // aqui gerava "Token invalido" quando sessao tinha token stale (PWA cache,
+    // cookie perdido, etc) e travava o usuario fora do sistema. Renova o
+    // token de qualquer forma pra proxima sessao autenticada.
+    unset($_SESSION[CSRF_TOKEN_NAME]);
+    if (empty($email) || empty($password)) {
         $error = 'Preencha e-mail e senha.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'E-mail inválido.';

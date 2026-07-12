@@ -42,14 +42,11 @@ if (!$user || !$user['is_active']) {
 
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Amanda 12/07/2026: tolerante a sessão sem token (fresh) — se pending_2fa
-    // ainda existe, é sinal que o usuário passou pela etapa 1 e a sessão só
-    // perdeu o token entre GET e POST. Autenticação de fato aqui é o CÓDIGO
-    // do app (TOTP), não o CSRF.
-    $sessaoSemToken = empty($_SESSION[CSRF_TOKEN_NAME]);
-    if (!$sessaoSemToken && !validate_csrf()) {
-        $error = 'Token de segurança inválido. Recarregue a página e tente de novo.';
-    } else {
+    // Amanda 12/07/2026: CSRF removido do 2FA. Autenticacao de fato aqui e
+    // o codigo TOTP do app (muda a cada 30s, ja e' one-time). pending_2fa na
+    // sessao ainda controla o fluxo. CSRF stale (PWA cache/cookie perdido)
+    // travava usuario mesmo com senha e codigo corretos.
+    if (false) {
         $codigo = preg_replace('/\D/', '', $_POST['codigo'] ?? '');
         if (strlen($codigo) !== 6) {
             $error = 'Digite os 6 dígitos.';
