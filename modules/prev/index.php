@@ -191,7 +191,18 @@ try {
            AND cs.case_number IS NOT NULL AND cs.case_number <> ''
          ORDER BY cs.updated_at DESC LIMIT 3");
     $_prevUltDist = $stDist->fetchAll();
-} catch (Exception $e) {}
+
+    // Amanda 13/07: card "Requerimentos administrativos" (INSS, perícia, recursos adm)
+    $stAdm = $pdo->query(
+        "SELECT cs.id, cs.title, cs.updated_at, cs.prev_status, cs.case_number, c.name AS client_name, u.name AS responsible_name
+         FROM cases cs
+         LEFT JOIN clients c ON c.id = cs.client_id
+         LEFT JOIN users u ON u.id = cs.responsible_user_id
+         WHERE cs.kanban_prev = 1
+           AND cs.prev_status IN ('aguardando_analise_inss','aguardando_pericia','recurso_administrativo','recurso_crps')
+         ORDER BY cs.updated_at DESC LIMIT 3");
+    $_prevUltAdm = $stAdm->fetchAll();
+} catch (Exception $e) { $_prevUltAdm = array(); }
 
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -285,8 +296,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
     </div>
 </div>
 
-<!-- Amanda 13/07/2026: Últimos cadastrados + Últimos distribuídos (só PREV) -->
-<div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:.75rem;margin-bottom:.75rem;">
+<!-- Amanda 13/07/2026: Últimos cadastrados + distribuídos + requerimentos administrativos -->
+<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem;margin-bottom:.75rem;">
     <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #3B4FA0;border-radius:var(--radius-md);padding:.6rem .85rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
             <strong style="font-size:.78rem;color:var(--petrol-900);">🆕 Últimos cadastrados</strong>
@@ -344,6 +355,45 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         </div>
                     </div>
                     <span style="font-size:.65rem;color:#15803d;font-weight:600;white-space:nowrap;"><?= $agoDistLbl ?></span>
+                </a>
+            <?php endforeach; ?>
+        <?php endif; ?>
+    </div>
+    <div style="background:#fff;border:1px solid var(--border);border-left:3px solid #D35400;border-radius:var(--radius-md);padding:.6rem .85rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem;">
+            <strong style="font-size:.78rem;color:var(--petrol-900);">📋 Requerimentos administrativos</strong>
+            <span style="font-size:.65rem;color:#64748b;">3 mais recentes</span>
+        </div>
+        <?php if (empty($_prevUltAdm)): ?>
+            <div style="color:#94a3b8;font-size:.75rem;padding:.3rem 0;">Nenhum ainda.</div>
+        <?php else:
+            $_admLbl = array(
+                'aguardando_analise_inss' => 'Análise INSS',
+                'aguardando_pericia'      => 'Perícia',
+                'recurso_administrativo'  => 'Recurso Adm.',
+                'recurso_crps'            => 'CRPS/CAJ',
+            );
+            foreach ($_prevUltAdm as $ua):
+                $agoAdm = time() - strtotime($ua['updated_at']);
+                if     ($agoAdm < 3600)   $agoAdmLbl = floor($agoAdm/60) . 'min atrás';
+                elseif ($agoAdm < 86400)  $agoAdmLbl = floor($agoAdm/3600) . 'h atrás';
+                elseif ($agoAdm < 604800) $agoAdmLbl = floor($agoAdm/86400) . 'd atrás';
+                else                       $agoAdmLbl = date('d/m', strtotime($ua['updated_at']));
+                $_fase = $_admLbl[$ua['prev_status']] ?? $ua['prev_status'];
+            ?>
+                <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$ua['id']) ?>"
+                   style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:4px 0;border-bottom:1px solid #f1f5f9;text-decoration:none;color:inherit;font-size:.75rem;">
+                    <div style="flex:1;min-width:0;">
+                        <div style="font-weight:600;color:var(--petrol-900);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <?= e($ua['title'] ?: 'Processo #' . $ua['id']) ?>
+                            <span style="background:#fef3c7;color:#92400e;font-size:.6rem;font-weight:700;padding:1px 6px;border-radius:8px;margin-left:4px;"><?= e($_fase) ?></span>
+                        </div>
+                        <div style="font-size:.66rem;color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+                            <?= e($ua['client_name'] ?: '—') ?>
+                            <?= $ua['responsible_name'] ? ' · ' . e(explode(' ', $ua['responsible_name'])[0]) : '' ?>
+                        </div>
+                    </div>
+                    <span style="font-size:.65rem;color:#D35400;font-weight:600;white-space:nowrap;"><?= $agoAdmLbl ?></span>
                 </a>
             <?php endforeach; ?>
         <?php endif; ?>
