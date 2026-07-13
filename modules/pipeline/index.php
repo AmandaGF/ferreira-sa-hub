@@ -663,6 +663,12 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
         <option value="">Tipo</option>
         <?php foreach ($tipos as $t): ?><option value="<?= e($t) ?>"><?= e($t) ?></option><?php endforeach; ?>
     </select>
+    <select id="filterOnboard" onchange="filterPipelineTable()" class="tbl-filter" title="Filtrar por On Board (Realizado / Não precisa / Sem marcar)">
+        <option value="">🎯 On Board</option>
+        <option value="sim">✓ Sim (realizado)</option>
+        <option value="nao">🚫 Não (não precisa)</option>
+        <option value="sem">⚪ Sem marcar</option>
+    </select>
     <?php
     $_tblTotal = count($allLeadsFlat);
     $_tblIni = $_tblTotal ? ($pOffset + 1) : 0;
@@ -705,7 +711,7 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
 </div>
 <?php endif; ?>
 <div class="tbl-wrap" style="max-height:75vh;overflow:auto;overflow-x:scroll;position:relative;width:100%;">
-<table class="tbl-grid" id="pipelineTableBody" style="width:2060px;min-width:2060px;">
+<table class="tbl-grid" id="pipelineTableBody" style="width:2140px;min-width:2140px;">
 <?php
 // Helper pra gerar link de sort (toggle asc/desc, preserva demais filtros)
 $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
@@ -735,6 +741,7 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     <th style="width:120px;"><?= $_sortLink('vencimento', 'Vencto 1ª') ?></th>
     <th style="width:160px;"><?= $_sortLink('pgto', 'Pgto') ?></th>
     <th style="width:110px;"><?= $_sortLink('responsavel', 'Responsável') ?></th>
+    <th style="width:80px;cursor:default;text-align:center;" title="On Board: ✓ Realizado / 🚫 Não precisa / — sem marcar. Clique nos radios pra marcar.">On Board</th>
     <th style="width:120px;"><?= $_sortLink('asaas', 'Asaas') ?></th>
     <th style="width:78px;cursor:default;" title="Marcação manual: pendente / já cadastrei / não precisa. Use o filtro pra ver só pendentes.">Marcar</th>
     <th style="width:90px;"><?= $_sortLink('urgencia', 'Urgência') ?></th>
@@ -754,7 +761,11 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
     $_fpRow = mb_strtoupper($lead['forma_pagamento'] ?? '');
     $_naoPrecisaAsaas = (strpos($_fpRow, 'RISCO') !== false || strpos($_fpRow, 'PRO BONO') !== false || strpos($_fpRow, 'PROBONO') !== false || strpos($_fpRow, 'PRÓ BONO') !== false) ? '1' : '';
 ?>
-<tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>" data-cadasaas="<?= e($lead['cadastro_asaas'] ?? '') ?>" data-naoprecisaasaas="<?= $_naoPrecisaAsaas ?>">
+<?php
+    // Amanda 13/07: filtro por On Board — 'sim' realizado, 'nao' nao precisa, 'sem' sem marcar.
+    $_onbState = !empty($lead['onboard_realizado']) ? 'sim' : (!empty($lead['onboard_nao_precisa']) ? 'nao' : 'sem');
+?>
+<tr data-stage="<?= $sk ?>" data-resp="<?= e($lead['assigned_name'] ?? '') ?>" data-type="<?= e($lead['case_type'] ?? '') ?>" data-cadasaas="<?= e($lead['cadastro_asaas'] ?? '') ?>" data-naoprecisaasaas="<?= $_naoPrecisaAsaas ?>" data-onboard="<?= $_onbState ?>">
     <td class="sticky-col-1" style="text-align:center;color:#999;font-size:.7rem;">
         <a href="<?= module_url('pipeline', 'lead_ver.php?id=' . $lid) ?>" style="color:#999;text-decoration:none;" title="Ver detalhes"><?= $n++ ?></a>
     </td>
@@ -823,6 +834,19 @@ $_sortLink = function($col, $label) use ($sortCol, $sortDir) {
             <option value="">—</option>
             <?php foreach ($users as $u): ?><option value="<?= $u['id'] ?>" <?= $lead['assigned_to'] == $u['id'] ? 'selected' : '' ?>><?= e(explode(' ', $u['name'])[0]) ?></option><?php endforeach; ?>
         </select>
+    </td>
+    <td style="text-align:center;min-width:75px;padding:2px 4px;">
+        <div class="onb-cell" style="display:flex;flex-direction:column;gap:1px;font-size:.62rem;line-height:1;" data-id="<?= $lid ?>">
+            <label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:#059669;" title="Onboarding realizado">
+                <input type="radio" name="onb_<?= $lid ?>" value="sim" <?= $_onbState === 'sim' ? 'checked' : '' ?> onchange="pipSaveOnboard(<?= $lid ?>,'sim',this)" style="margin:0;width:12px;height:12px;">✓ Sim
+            </label>
+            <label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:#b91c1c;" title="Cliente não precisa de onboarding">
+                <input type="radio" name="onb_<?= $lid ?>" value="nao" <?= $_onbState === 'nao' ? 'checked' : '' ?> onchange="pipSaveOnboard(<?= $lid ?>,'nao',this)" style="margin:0;width:12px;height:12px;">🚫 Não
+            </label>
+            <label style="display:flex;align-items:center;gap:3px;cursor:pointer;color:#6b7280;" title="Ainda não marcado">
+                <input type="radio" name="onb_<?= $lid ?>" value="sem" <?= $_onbState === 'sem' ? 'checked' : '' ?> onchange="pipSaveOnboard(<?= $lid ?>,'sem',this)" style="margin:0;width:12px;height:12px;">— Sem
+            </label>
+        </div>
     </td>
     <td style="text-align:center;min-width:150px;">
         <?php
@@ -1769,6 +1793,8 @@ function filterPipelineTable() {
     var stage = document.getElementById('filterStage').value;
     var resp = document.getElementById('filterResp').value;
     var tipo = document.getElementById('filterType').value;
+    var onbEl = document.getElementById('filterOnboard');
+    var onb = onbEl ? onbEl.value : '';
     var rows = document.querySelectorAll('#pipelineTableBody tbody tr');
     rows.forEach(function(row) {
         if (!row.dataset.stage) return;
@@ -1776,8 +1802,42 @@ function filterPipelineTable() {
         if (stage && row.dataset.stage !== stage) show = false;
         if (resp && row.dataset.resp !== resp) show = false;
         if (tipo && row.dataset.type !== tipo) show = false;
+        if (onb && row.dataset.onboard !== onb) show = false;
         row.style.display = show ? '' : 'none';
     });
+}
+
+// Amanda 13/07: salva On Board direto da tabela (radio Sim/Nao/Sem).
+// Reusa endpoint save_field ja usado pelos cards do kanban (onboard_nao_precisa)
+// + novo campo onboard_realizado. Atualiza data-onboard da linha pro filtro pegar na hora.
+function pipSaveOnboard(leadId, valor, radioEl) {
+    var realizado = valor === 'sim' ? 1 : 0;
+    var naoPrecisa = valor === 'nao' ? 1 : 0;
+    var tr = radioEl.closest('tr');
+    if (tr) tr.dataset.onboard = valor;
+
+    var url = '<?= module_url('pipeline','api.php') ?>';
+    var csrf = '<?= generate_csrf_token() ?>';
+
+    function salvar(campo, val) {
+        var fd = new FormData();
+        fd.append('action', 'save_field');
+        fd.append('lead_id', leadId);
+        fd.append('field', campo);
+        fd.append('value', val);
+        fd.append('csrf_token', csrf);
+        return fetch(url, { method:'POST', body: fd, credentials:'same-origin' })
+            .then(function(r){ return r.json().catch(function(){ return {ok:false}; }); });
+    }
+    // Salva os 2 campos (exclusivos entre si)
+    Promise.all([salvar('onboard_realizado', realizado), salvar('onboard_nao_precisa', naoPrecisa)])
+        .then(function(rs) {
+            var ok = rs.every(function(r){ return r && r.ok; });
+            if (window.FsaFeedback) {
+                if (ok) FsaFeedback.ok('On Board salvo');
+                else FsaFeedback.erro('Falhou salvar On Board');
+            }
+        });
 }
 
 // Filtro de responsável: server-side. Preserva demais filtros, reseta paginação.
