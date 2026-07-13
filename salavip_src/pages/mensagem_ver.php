@@ -19,7 +19,7 @@ if ($threadId <= 0) {
 $stmtThread = $pdo->prepare(
     "SELECT t.*, c.title AS processo_titulo
      FROM salavip_threads t
-     LEFT JOIN cases c ON c.id = t.case_id
+     LEFT JOIN cases c ON c.id = t.processo_id
      WHERE t.id = ? AND t.cliente_id = ?"
 );
 $stmtThread->execute([$threadId, $clienteId]);
