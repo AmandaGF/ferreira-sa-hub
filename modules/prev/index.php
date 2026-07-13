@@ -75,15 +75,12 @@ try {
     }
 } catch (Exception $e) {}
 
-// Tipos de benefício
-<?php
 // Amanda 13/07/2026: helper centralizado com lista ampliada de tipos previdenciários
 require_once APP_ROOT . '/core/functions_prev.php';
 $tiposBeneficio = prev_tipos_beneficio();
 // Self-heal: campo pra numero do procedimento administrativo (protocolo INSS,
 // diferente do NB — Numero do Beneficio ja existente)
 try { $pdo->exec("ALTER TABLE cases ADD COLUMN prev_numero_procedimento VARCHAR(50) DEFAULT NULL"); } catch (Exception $e) {}
-?>
 
 // Cores dos badges
 $tipoBadgeColors = array(
