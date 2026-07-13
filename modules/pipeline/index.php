@@ -143,6 +143,16 @@ if ($filterResp > 0) {
     $planilhaWhere .= " AND pl.assigned_to = ?";
     $planilhaParams[] = $filterResp;
 }
+// Amanda 13/07/2026: filtro On Board server-side (client-side nao funciona
+// direito porque a paginacao esconde leads das outras paginas).
+$filterOnb = isset($_GET['onb']) ? $_GET['onb'] : '';
+if ($filterOnb === 'sim') {
+    $planilhaWhere .= " AND pl.onboard_realizado = 1";
+} elseif ($filterOnb === 'nao') {
+    $planilhaWhere .= " AND pl.onboard_nao_precisa = 1";
+} elseif ($filterOnb === 'sem') {
+    $planilhaWhere .= " AND COALESCE(pl.onboard_realizado, 0) = 0 AND COALESCE(pl.onboard_nao_precisa, 0) = 0";
+}
 // "Só ativos": exclui leads canceladas/perdidas + cases cancelados pelo comercial.
 // Case cancelado é rastreado por cases.cancelado_pelo_comercial (bug relatado por
 // Amanda 02/07 — contratos que viraram case e foram cancelados depois continuavam
@@ -676,11 +686,11 @@ $mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06
         <option value="">Tipo</option>
         <?php foreach ($tipos as $t): ?><option value="<?= e($t) ?>"><?= e($t) ?></option><?php endforeach; ?>
     </select>
-    <select id="filterOnboard" onchange="filterPipelineTable()" class="tbl-filter" title="Filtrar por On Board (Realizado / Não precisa / Sem marcar)">
+    <select id="filterOnboard" onchange="filterPipelineByOnboard(this.value)" class="tbl-filter" title="Filtrar por On Board (Realizado / Não precisa / Sem marcar) — server-side, considera TODOS os leads">
         <option value="">🎯 On Board</option>
-        <option value="sim">✓ Sim (realizado)</option>
-        <option value="nao">🚫 Não (não precisa)</option>
-        <option value="sem">⚪ Sem marcar</option>
+        <option value="sim" <?= $filterOnb === 'sim' ? 'selected' : '' ?>>✓ Sim (realizado)</option>
+        <option value="nao" <?= $filterOnb === 'nao' ? 'selected' : '' ?>>🚫 Não (não precisa)</option>
+        <option value="sem" <?= $filterOnb === 'sem' ? 'selected' : '' ?>>⚪ Sem marcar</option>
     </select>
     <?php
     $_tblTotal = count($allLeadsFlat);
@@ -1859,6 +1869,16 @@ function filterPipelineByResp(respId) {
     var params = new URLSearchParams(window.location.search);
     if (respId && respId !== '0') params.set('resp', respId); else params.delete('resp');
     params.delete('tp'); // reset paginação
+    try { localStorage.setItem('pipeline_view', 'tabela'); } catch(e) {}
+    window.location.search = params.toString();
+}
+
+// Amanda 13/07: filtro On Board server-side (client-side nao filtrava direito
+// por causa da paginacao). Recarrega URL com ?onb=sim/nao/sem.
+function filterPipelineByOnboard(val) {
+    var params = new URLSearchParams(window.location.search);
+    if (val) params.set('onb', val); else params.delete('onb');
+    params.delete('tp'); // reset paginacao
     try { localStorage.setItem('pipeline_view', 'tabela'); } catch(e) {}
     window.location.search = params.toString();
 }
