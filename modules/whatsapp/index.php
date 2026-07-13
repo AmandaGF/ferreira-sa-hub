@@ -3996,6 +3996,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     alert('✓ Número corrigido para: ' + (j.telefone || atual));
                     window.waAbrir(convAtiva);
                     carregarLista();
+                } else if (j && j.conflito_id) {
+                    // Amanda 13/07: Nativania nao conseguia corrigir por causa desse
+                    // conflito. Ao inves de so avisar, oferece mesclar direto.
+                    var msg = 'Já existe outra conversa com esse número neste canal (#' + j.conflito_id + ').\n\n'
+                            + 'A ação correta é MESCLAR as duas conversas — todas as mensagens desta conversa vão pra a outra e esta some.\n\n'
+                            + 'Quer abrir a tela de mesclagem agora?';
+                    if (confirm(msg)) {
+                        window.waAbrirMesclar();
+                    }
                 } else {
                     alert('❌ ' + (j && j.error ? j.error : 'Falha ao corrigir número.'));
                 }
