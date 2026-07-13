@@ -15,6 +15,8 @@ $pdo = db();
 // Self-heal: flags para fluxo "Para Arquivar" sem afetar stage real ou outras telas
 try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN kanban_oculto TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN marcado_para_arquivar TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+// Amanda 13/07/2026: carimbo COM VINCULO quando GERID positivo
+try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN gerid_positivo TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
 // Estágios do funil (conforme doc técnico)
 $stages = array(

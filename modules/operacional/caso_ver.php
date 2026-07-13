@@ -797,9 +797,16 @@ if (!empty($_renuPend)):
 $_ehCancelado = ($case['status'] ?? '') === 'cancelado' || !empty($case['cancelado_pelo_comercial']);
 ?>
 <div class="caso-header cv-header-collapsivel<?= $_ehCancelado ? ' cancelado' : '' ?>" style="border-left:6px solid <?= $_ehCancelado ? '#7f1d1d' : $corStatus ?>;"><?php /* cor lateral pelo status */ ?>
+    <?php
+    // Amanda 13/07/2026: etiqueta RENUNCIAMOS aparece quando:
+    // (a) tabela renuncias tem registro OU
+    // (b) status do case ja e 'renunciamos' (case #1029 Felipe Maria x Alimentos
+    // caiu nesse fallback — sem registro na tabela, mas com status setado direto).
+    $_ehRenunciado = !empty($_renuTipoMaisRecente) || ($case['status'] ?? '') === 'renunciamos';
+    ?>
     <?php if ($_ehCancelado): ?>
     <span class="etiqueta-cancelado">❌ CANCELADO</span>
-    <?php elseif (!empty($_renuTipoMaisRecente)): ?>
+    <?php elseif ($_ehRenunciado): ?>
     <span class="etiqueta-renunciamos">📤 RENUNCIAMOS</span>
     <?php endif; ?>
     <h2 style="display:flex;align-items:center;gap:.5rem;">
@@ -9007,9 +9014,10 @@ window.pedirObsRealizado = function(form) {
         var polo = <?= json_encode($case['representamos_polo'] ?? '') ?>;
         if (polo === 'reu') document.body.classList.add('cv-polo-reu');
         else if (polo === 'autor') document.body.classList.add('cv-polo-autor');
-        // Amanda 10/07: case com renuncia/desistencia -> fundo vermelho persistente
+        // Amanda 13/07: case com renuncia (tabela renuncias OU status=renunciamos) -> fundo AMARELO persistente
         var renuTipo = <?= json_encode($_renuTipoMaisRecente ?? '') ?>;
-        if (renuTipo === 'renuncia' || renuTipo === 'desistencia') document.body.classList.add('cv-renunciado');
+        var ehRenunciado = <?= json_encode(!empty($_ehRenunciado)) ?>;
+        if (renuTipo === 'renuncia' || renuTipo === 'desistencia' || ehRenunciado) document.body.classList.add('cv-renunciado');
         // Aba inicial: hash da URL ou 'visao'
         var hashAba = (location.hash || '').replace('#', '');
         var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','gerid','helpdesk','treinamentos','ia'];
