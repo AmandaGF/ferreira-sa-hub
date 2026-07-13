@@ -92,19 +92,16 @@ require_once __DIR__ . '/../includes/header.php';
     <?php foreach ($mensagens as $msg): ?>
         <?php
         $isCliente = ($msg['origem'] === 'salavip');
-        $bgColor   = $isCliente ? 'rgba(201,169,78,.08)' : 'rgba(30,41,59,.6)';
-        $borderColor = $isCliente ? 'rgba(201,169,78,.3)' : 'rgba(100,116,139,.3)';
         $align     = $isCliente ? 'margin-left:2rem;' : 'margin-right:2rem;';
         $nome      = $isCliente ? 'Voc&ecirc;' : sv_e($msg['remetente_nome'] ?? 'Equipe F&S');
-        $nomeCor   = $isCliente ? '#c9a94e' : '#94a3b8';
         ?>
         <div class="sv-msg <?= $isCliente ? 'sv-msg-cliente' : 'sv-msg-equipe' ?>"
-             style="background:<?= $bgColor ?>;border:1px solid <?= $borderColor ?>;border-radius:.75rem;padding:1rem;<?= $align ?>">
+             style="border-radius:.75rem;padding:1rem;<?= $align ?>">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;flex-wrap:wrap;gap:.25rem;">
-                <strong style="color:<?= $nomeCor ?>;font-size:.85rem;"><?= $nome ?></strong>
-                <span style="color:#64748b;font-size:.75rem;"><?= sv_formatar_data_hora($msg['criado_em']) ?></span>
+                <strong class="sv-msg-nome" style="font-size:.85rem;"><?= $nome ?></strong>
+                <span class="sv-msg-data" style="font-size:.75rem;"><?= sv_formatar_data_hora($msg['criado_em']) ?></span>
             </div>
-            <div style="color:var(--sv-text);line-height:1.6;white-space:pre-wrap;"><?= sv_e($msg['mensagem']) ?></div>
+            <div class="sv-msg-texto" style="line-height:1.6;white-space:pre-wrap;"><?= sv_e($msg['mensagem']) ?></div>
             <?php if (!empty($msg['anexo_nome'])): ?>
                 <div style="margin-top:.75rem;padding-top:.5rem;border-top:1px solid rgba(100,116,139,.2);">
                     <span style="color:var(--sv-text-muted);font-size:.8rem;">

@@ -806,3 +806,39 @@ textarea.form-input {
     20%, 60% { transform: translateX(-8px); }
     40%, 80% { transform: translateX(8px); }
 }
+
+/* ============================================
+   Bolhas de mensagem (Central VIP) — Amanda 13/07/2026
+   As cores hardcoded ficavam ilegíveis no modo claro.
+   Agora respeitam variáveis do tema (light + dark).
+   ============================================ */
+
+/* Bolha do CLIENTE ("Você") — sempre dourada suave */
+.sv-msg-cliente {
+    background: var(--sv-accent-bg);
+    border: 1px solid var(--sv-border);
+}
+.sv-msg-cliente .sv-msg-nome { color: var(--sv-accent); }
+
+/* Bolha da EQUIPE (escritório) — neutra que respeita tema */
+.sv-msg-equipe {
+    background: var(--sv-bg-card);
+    border: 1px solid var(--sv-border);
+}
+.sv-msg-equipe .sv-msg-nome { color: var(--sv-text-muted); }
+
+/* Data + corpo — usam variáveis do tema */
+.sv-msg-data  { color: var(--sv-text-muted); }
+.sv-msg-texto { color: var(--sv-text); }
+
+/* Ajuste especial pro modo claro: bolha da equipe fica levemente
+   destacada do fundo pra criar contraste visual sem virar cinza-escuro */
+[data-theme="light"] .sv-msg-equipe {
+    background: rgba(255, 255, 255, 0.75);
+    border-color: rgba(139, 111, 78, 0.18);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+[data-theme="light"] .sv-msg-cliente {
+    background: rgba(176, 141, 110, 0.10);
+    border-color: rgba(139, 111, 78, 0.22);
+}
