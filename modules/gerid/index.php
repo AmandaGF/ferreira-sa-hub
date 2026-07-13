@@ -36,6 +36,8 @@ foreach (array(
     "ALTER TABLE gerid_pesquisas ADD COLUMN tratado_em DATETIME NULL",
     "ALTER TABLE gerid_pesquisas ADD COLUMN tratado_por INT UNSIGNED NULL",
     "ALTER TABLE gerid_pesquisas ADD COLUMN task_review_id INT UNSIGNED NULL",
+    // Amanda 13/07/2026: carimbo "COM VÍNCULO" no card do Kanban Comercial
+    "ALTER TABLE pipeline_leads ADD COLUMN gerid_positivo TINYINT(1) NOT NULL DEFAULT 0",
 ) as $_sqlAlter) { try { $pdo->exec($_sqlAlter); } catch (Exception $e) {} }
 
 // Download autenticado do printscreen
@@ -518,6 +520,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         } catch (Throwable $e) { /* envio silencioso por destinatario */ }
                     }
                     audit_log('gerid_email_equipe', 'gerid', (int)$id, $enviados . '/' . count($equipe) . ' emails de vinculo positivo enviados');
+                } catch (Throwable $e) { /* nao bloqueia fluxo */ }
+
+                // Amanda 13/07/2026: marca lead comercial com gerid_positivo=1 (carimbo
+                // "COM VÍNCULO" no card do Kanban) + cria TAREFA URGENTE pro comercial
+                // responsavel, pra chamar atencao imediata.
+                try {
+                    // Acha lead comercial vinculado (via linked_case_id, fallback client_id)
+                    $stLead = $pdo->prepare("SELECT id, assigned_to FROM pipeline_leads
+                                             WHERE (linked_case_id = ? AND ? > 0)
+                                                OR (client_id = ? AND ? > 0)
+                                             ORDER BY (linked_case_id = ?) DESC, created_at DESC LIMIT 1");
+                    $stLead->execute(array(
+                        (int)$row['case_id'], (int)$row['case_id'],
+                        (int)$row['client_id'], (int)$row['client_id'],
+                        (int)$row['case_id']
+                    ));
+                    $leadRow = $stLead->fetch(PDO::FETCH_ASSOC);
+                    if ($leadRow) {
+                        $pdo->prepare("UPDATE pipeline_leads SET gerid_positivo = 1 WHERE id = ?")
+                            ->execute(array((int)$leadRow['id']));
+                        audit_log('pipeline_gerid_carimbo', 'pipeline_leads', (int)$leadRow['id'], 'gerid#' . (int)$id);
+                    }
+
+                    // Tarefa URGENTE no case pra chamar atencao do comercial
+                    if (!empty($row['case_id'])) {
+                        $assignTo = 0;
+                        if ($leadRow && !empty($leadRow['assigned_to'])) $assignTo = (int)$leadRow['assigned_to'];
+                        if (!$assignTo && !empty($row['created_by'])) $assignTo = (int)$row['created_by'];
+                        if ($assignTo) {
+                            $tituloUrg = '🎯 URGENTE — GERID POSITIVO: ' . $row['parte_nome'];
+                            $descUrg = '⚠️ Pesquisa GERID retornou vínculo empregatício POSITIVO para '
+                                     . $row['parte_nome']
+                                     . ($row['parte_cpf'] ? ' (CPF ' . $row['parte_cpf'] . ')' : '')
+                                     . '.' . "\n\nRESULTADO: " . ($res ?: 'POSSUI vínculo (ver ficha do GERID pra detalhes).')
+                                     . "\n\nCOMERCIAL: acionar o cliente HOJE sobre próximos passos "
+                                     . '(ofício ao empregador, penhora salário, execução).';
+                            $pdo->prepare("INSERT INTO case_tasks (case_id, title, tipo, descricao, assigned_to, due_date, prioridade, status, sort_order, created_at)
+                                           VALUES (?,?,?,?,?,CURDATE(),'urgente','a_fazer',0,NOW())")
+                                ->execute(array((int)$row['case_id'], $tituloUrg, 'outros', $descUrg, $assignTo));
+                            $taskUrgId = (int)$pdo->lastInsertId();
+                            audit_log('gerid_task_urgente', 'case_tasks', $taskUrgId, 'gerid#' . (int)$id . ' -> user#' . $assignTo);
+                            // Notifica o comercial responsavel na hora
+                            if (function_exists('notify')) {
+                                @notify($assignTo, $tituloUrg,
+                                    'GERID positivo pra ' . $row['parte_nome'] . ' — tarefa urgente aberta na pasta.',
+                                    'urgente',
+                                    url('modules/operacional/caso_ver.php?id=' . (int)$row['case_id']),
+                                    '🎯');
+                            }
+                        }
+                    }
                 } catch (Throwable $e) { /* nao bloqueia fluxo */ }
                 // Amanda 09/07/2026 (revisao): oficio de desconto folha e MANUAL
                 // agora (botao no card). Automatico gera custo desnecessario em
