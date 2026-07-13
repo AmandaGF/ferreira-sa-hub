@@ -71,7 +71,7 @@ $isComercial = has_role('comercial') || has_role('cx') || has_role('admin') || h
 $stageLabels = array(
     'cadastro_preenchido'=>'📋 Cadastro','elaboracao_docs'=>'📝 Elaboração','link_enviados'=>'📨 Link Enviado',
     'contrato_assinado'=>'✅ Contrato','agendado_docs'=>'📅 Agendado','reuniao_cobranca'=>'🤝 Reunião',
-    'doc_faltante'=>'⚠️ Doc Faltante','pasta_apta'=>'✔️ Pasta Apta','cancelado'=>'❌ Cancelado',
+    'doc_faltante'=>'⚠️ Doc Faltante','pasta_apta'=>'✔️ Pasta Apta','pasta_apta_prev'=>'🏛️ Pasta Apta / PREV','cancelado'=>'❌ Cancelado',
     'suspenso'=>'⏸️ Suspenso','finalizado'=>'🏁 Finalizado','perdido'=>'❌ Perdido',
     'para_arquivar'=>'📦 Para Arquivar','arquivado'=>'📦 Arquivado',
 );

@@ -13,7 +13,7 @@ $pdo = db();
 $pageTitle = 'Revisar Financeiro dos Leads';
 
 // Estágios que DEVERIAM ter dados financeiros preenchidos
-$stagesPost = array('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','finalizado');
+$stagesPost = array('contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','pasta_apta_prev','finalizado');
 $inClause = "'" . implode("','", $stagesPost) . "'";
 
 // Filtros
@@ -80,6 +80,7 @@ $stagesLabel = array(
     'reuniao_cobranca'  => 'Reunião/Cobrança',
     'doc_faltante'      => 'Doc Faltante',
     'pasta_apta'        => 'Pasta Apta',
+    'pasta_apta_prev'   => 'Pasta Apta / PREV',
     'finalizado'        => 'Finalizado',
 );
 $stagesColor = array(

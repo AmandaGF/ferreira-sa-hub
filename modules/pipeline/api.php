@@ -116,7 +116,7 @@ switch ($action) {
         $notes = clean_str($_POST['notes'] ?? '', 500);
         $folderName = isset($_POST['folder_name']) ? clean_str($_POST['folder_name'], 200) : '';
 
-        $validStages = array('cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','cancelado','suspenso','finalizado','perdido','para_arquivar');
+        $validStages = array('cadastro_preenchido','elaboracao_docs','link_enviados','contrato_assinado','agendado_docs','reuniao_cobranca','doc_faltante','pasta_apta','pasta_apta_prev','cancelado','suspenso','finalizado','perdido','para_arquivar');
         if (!$leadId || !in_array($toStage, $validStages)) {
             flash_set('error', 'Dados inválidos.');
             redirect(module_url('pipeline'));
@@ -292,6 +292,37 @@ switch ($action) {
                 if ($clientId) {
                     notificar_cliente('docs_recebidos', $clientId, array('[tipo_acao]' => $lead['case_type'] ?: ''), $linkedCaseId, $leadId);
                 }
+            }
+        }
+
+        // ── PASTA APTA / PREV: espelhar no Kanban PREV (Amanda 13/07/2026) ──
+        // Quando CX/comercial move lead pra "Pasta Apta / PREV", o case vinculado
+        // ganha kanban_prev=1 + prev_status='pasta_apta' e aparece na coluna
+        // "Pasta Apta" do Kanban PREV. O status do case tambem vai pra em_elaboracao
+        // (mesmo padrao do pasta_apta comum) pra manter consistencia com Operacional.
+        if ($toStage === 'pasta_apta_prev') {
+            $linkedCaseId = isset($lead['linked_case_id']) ? (int)$lead['linked_case_id'] : 0;
+            if ($linkedCaseId) {
+                $pdo->prepare("UPDATE cases
+                               SET kanban_prev = 1,
+                                   prev_status = 'pasta_apta',
+                                   status = CASE WHEN status = 'aguardando_docs' THEN 'em_elaboracao' ELSE status END,
+                                   updated_at = NOW()
+                               WHERE id = ?")
+                    ->execute(array($linkedCaseId));
+                audit_log('lead_pasta_apta_prev', 'case', $linkedCaseId, "lead #{$leadId} -> case entrou no Kanban PREV");
+                notify_gestao('Pasta apta previdenciária!', $lead['name'] . ' está com pasta apta pra ação PREV. Espelhada no Kanban PREV.', 'sucesso', url('modules/prev/'), '🏛️');
+
+                // Notificar cliente igual pasta_apta comum
+                $clientId = isset($lead['client_id']) ? (int)$lead['client_id'] : 0;
+                if ($clientId) {
+                    notificar_cliente('docs_recebidos', $clientId, array('[tipo_acao]' => $lead['case_type'] ?: ''), $linkedCaseId, $leadId);
+                }
+            } else {
+                // Sem linked_case_id (caso raro — lead nunca virou case). Notificar
+                // gestao sem espelhar (audit registra pra debug).
+                audit_log('lead_pasta_apta_prev_sem_case', 'pipeline_leads', $leadId, 'lead sem linked_case_id — impossivel espelhar no PREV');
+                notify_gestao('Pasta apta PREV (sem case)', $lead['name'] . ' foi movido pra Pasta Apta/PREV mas nao tem caso vinculado. Revisar manualmente.', 'aviso', url('modules/pipeline/lead_ver.php?id=' . $leadId), '⚠️');
             }
         }
 
@@ -504,7 +535,7 @@ switch ($action) {
         }
 
         // Labels para flash
-        $stageLabels = array('cadastro_preenchido'=>'Cadastro Preenchido','elaboracao_docs'=>'Elaboração Docs','link_enviados'=>'Link Enviados','contrato_assinado'=>'Contrato Assinado','agendado_docs'=>'Agendado + Docs','reuniao_cobranca'=>'Reunião/Cobrança','doc_faltante'=>'Doc Faltante','pasta_apta'=>'Pasta Apta','cancelado'=>'Cancelado','suspenso'=>'Suspenso','perdido'=>'Perdido');
+        $stageLabels = array('cadastro_preenchido'=>'Cadastro Preenchido','elaboracao_docs'=>'Elaboração Docs','link_enviados'=>'Link Enviados','contrato_assinado'=>'Contrato Assinado','agendado_docs'=>'Agendado + Docs','reuniao_cobranca'=>'Reunião/Cobrança','doc_faltante'=>'Doc Faltante','pasta_apta'=>'Pasta Apta','pasta_apta_prev'=>'Pasta Apta / PREV','cancelado'=>'Cancelado','suspenso'=>'Suspenso','perdido'=>'Perdido');
         flash_set('success', 'Lead movido para "' . (isset($stageLabels[$toStage]) ? $stageLabels[$toStage] : $toStage) . '".');
         redirect(module_url('pipeline'));
         break;

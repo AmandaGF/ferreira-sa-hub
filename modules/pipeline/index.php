@@ -28,6 +28,8 @@ $stages = array(
     'reuniao_cobranca'    => array('label' => 'Reunião / Cobrando Docs',    'color' => '#d97706', 'icon' => '🤝', 'resp' => 'CX'),
     'doc_faltante'        => array('label' => 'Documento Faltante',         'color' => '#dc2626', 'icon' => '⚠️', 'resp' => 'Auto'),
     'pasta_apta'          => array('label' => 'Pasta Apta',                 'color' => '#15803d', 'icon' => '✔️', 'resp' => 'CX'),
+    // Amanda 13/07/2026: pasta apta previdenciária — quando move pra ca, espelha no Kanban PREV
+    'pasta_apta_prev'     => array('label' => 'Pasta Apta / PREV',          'color' => '#0f766e', 'icon' => '🏛️', 'resp' => 'CX'),
     'cancelado'           => array('label' => 'Cancelado',                  'color' => '#6b7280', 'icon' => '❌', 'resp' => 'Admin'),
     'suspenso'            => array('label' => 'Suspenso',                   'color' => '#9ca3af', 'icon' => '⏸️', 'resp' => 'Admin'),
     'para_arquivar'       => array('label' => 'Para Arquivar',              'color' => '#374151', 'icon' => '📦', 'resp' => 'Admin'),
@@ -205,7 +207,7 @@ if ($filterResp > 0 && has_min_role('admin')) {
         SUM(COALESCE(pl.honorarios_cents, 0)) AS honor_cents,
         AVG(NULLIF(pl.exito_percentual, 0)) AS exito_medio,
         SUM(CASE WHEN pl.exito_percentual > 0 THEN 1 ELSE 0 END) AS com_exito,
-        SUM(CASE WHEN pl.stage = 'pasta_apta' THEN 1 ELSE 0 END) AS pastas_aptas,
+        SUM(CASE WHEN pl.stage IN ('pasta_apta','pasta_apta_prev') THEN 1 ELSE 0 END) AS pastas_aptas,
         SUM(CASE WHEN pl.stage = 'cancelado' THEN 1 ELSE 0 END) AS cancelados,
         SUM(CASE WHEN pl.forma_pagamento LIKE '%RISCO%' THEN 1 ELSE 0 END) AS risco
         FROM pipeline_leads pl WHERE $planilhaWhere";
@@ -217,8 +219,8 @@ if ($filterResp > 0 && has_min_role('admin')) {
 
 // KPIs (baseados no Kanban — leads ativos do ciclo atual)
 $totalAtivos = count($leads);
-$contratosAssinados = count($byStage['contrato_assinado']) + count($byStage['agendado_docs']) + count($byStage['reuniao_cobranca']) + count($byStage['pasta_apta']);
-$pastasAptas = count($byStage['pasta_apta']);
+$contratosAssinados = count($byStage['contrato_assinado']) + count($byStage['agendado_docs']) + count($byStage['reuniao_cobranca']) + count($byStage['pasta_apta']) + count($byStage['pasta_apta_prev'] ?? array());
+$pastasAptas = count($byStage['pasta_apta']) + count($byStage['pasta_apta_prev'] ?? array());
 $docsFaltantes = count($byStage['doc_faltante']);
 
 // Documentos pendentes (para banner)
