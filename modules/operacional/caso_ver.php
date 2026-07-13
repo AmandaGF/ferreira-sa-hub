@@ -799,6 +799,8 @@ $_ehCancelado = ($case['status'] ?? '') === 'cancelado' || !empty($case['cancela
 <div class="caso-header cv-header-collapsivel<?= $_ehCancelado ? ' cancelado' : '' ?>" style="border-left:6px solid <?= $_ehCancelado ? '#7f1d1d' : $corStatus ?>;"><?php /* cor lateral pelo status */ ?>
     <?php if ($_ehCancelado): ?>
     <span class="etiqueta-cancelado">❌ CANCELADO</span>
+    <?php elseif (!empty($_renuTipoMaisRecente)): ?>
+    <span class="etiqueta-renunciamos">📤 RENUNCIAMOS</span>
     <?php endif; ?>
     <h2 style="display:flex;align-items:center;gap:.5rem;">
         <span id="casoTitulo" onclick="editarTitulo()" style="cursor:pointer;" title="Clique para editar o nome da pasta"><?= e($case['title']) ?></span>
@@ -1560,12 +1562,14 @@ body.cv-polo-reu .cv-painel { background:#fff5f6; border-color:#fecdd3; }
 body.cv-polo-autor .cv-painel { background:#f7fef8; border-color:#bbf7d0; }
 body.cv-polo-reu .cv-tabs-wrap { background:#fff5f6; border-color:#fecdd3; }
 body.cv-polo-autor .cv-tabs-wrap { background:#f7fef8; border-color:#bbf7d0; }
-/* 10/07/2026 Amanda: case com renuncia/desistencia registrada ganha fundo
-   vermelho claro (mesmo que ja tenha sido cumprida) — sinal visual persistente,
-   igual ao card vermelho no Kanban. Prevalece sobre a cor do polo. */
-body.cv-renunciado { background:#fef2f2 !important; }
-body.cv-renunciado .cv-painel { background:#fef5f5; border-color:#fecaca; }
-body.cv-renunciado .cv-tabs-wrap { background:#fef5f5; border-color:#fecaca; }
+/* Amanda 13/07/2026: case com renuncia/desistencia registrada ganha fundo
+   AMARELO claro (antes era vermelho) + etiqueta grande RENUNCIAMOS no
+   header, mesmo padrao visual do CANCELADO. Prevalece sobre a cor do polo. */
+body.cv-renunciado { background:#fef9c3 !important; }
+body.cv-renunciado .cv-painel { background:#fefce8; border-color:#fde68a; }
+body.cv-renunciado .cv-tabs-wrap { background:#fefce8; border-color:#fde68a; }
+.caso-header .etiqueta-renunciamos { position:absolute; top:-14px; right:20px; background:#fff; color:#78350f; font-size:.72rem; font-weight:900; padding:6px 14px; border-radius:6px; letter-spacing:.15em; box-shadow:0 4px 12px rgba(217,119,6,.35); border:2px solid #b45309; transform:rotate(-3deg); animation:pulseRenu 2s ease-in-out infinite; }
+@keyframes pulseRenu { 0%,100%{transform:rotate(-3deg) scale(1);} 50%{transform:rotate(-3deg) scale(1.05);} }
 </style>
 <?php
 // Amanda 10/07/2026: pre-carrega chamados vinculados ao case ou cliente.
