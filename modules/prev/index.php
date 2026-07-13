@@ -76,7 +76,14 @@ try {
 } catch (Exception $e) {}
 
 // Tipos de benefício
-$tiposBeneficio = array('INSS','BPC','LOAS','Aposentadoria por Idade','Aposentadoria por Tempo de Contribuição','Aposentadoria por Invalidez','Auxílio-Doença','Auxílio-Acidente','Pensão por Morte','Salário-Maternidade');
+<?php
+// Amanda 13/07/2026: helper centralizado com lista ampliada de tipos previdenciários
+require_once APP_ROOT . '/core/functions_prev.php';
+$tiposBeneficio = prev_tipos_beneficio();
+// Self-heal: campo pra numero do procedimento administrativo (protocolo INSS,
+// diferente do NB — Numero do Beneficio ja existente)
+try { $pdo->exec("ALTER TABLE cases ADD COLUMN prev_numero_procedimento VARCHAR(50) DEFAULT NULL"); } catch (Exception $e) {}
+?>
 
 // Cores dos badges
 $tipoBadgeColors = array(
@@ -269,16 +276,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
 <div class="pv-topbar">
     <div style="display:flex;align-items:center;gap:1rem;">
         <h3 style="margin:0;">🏛️ Kanban PREV</h3>
+        <!-- Amanda 13/07: toggle Kanban / Tabela -->
+        <div style="display:inline-flex;background:#f1f5f9;border-radius:8px;overflow:hidden;">
+            <button type="button" onclick="pvToggleView('kanban')" id="pvBtnKanban" class="pv-view-btn on" style="padding:5px 14px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;background:#0f172a;color:#fff;">📋 Kanban</button>
+            <button type="button" onclick="pvToggleView('tabela')" id="pvBtnTabela" class="pv-view-btn" style="padding:5px 14px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;background:transparent;color:#0f172a;">📊 Tabela</button>
+        </div>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;">
         <a href="<?= module_url('prev', 'caso_novo.php') ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#3B4FA0;">+ Novo Processo PREV</a>
         <form method="GET" class="pv-filters">
             <input type="text" name="q" value="<?= e($filterSearch) ?>" placeholder="Buscar nome, nº, tipo..." class="pv-filter-select" style="min-width:160px;" onkeydown="if(event.key==='Enter')this.form.submit()">
-            <select name="tipo" class="pv-filter-select" onchange="this.form.submit()">
+            <select name="tipo" class="pv-filter-select" onchange="this.form.submit()" style="min-width:200px;">
                 <option value="">Tipo de Benefício</option>
-                <?php foreach ($tiposBeneficio as $tb): ?>
-                    <option value="<?= e($tb) ?>" <?= $filterTipo === $tb ? 'selected' : '' ?>><?= e($tb) ?></option>
-                <?php endforeach; ?>
+                <?= prev_render_optgroups($filterTipo) ?>
             </select>
             <?php if (!$isColaborador && !$forcarSoMeus): ?>
             <select name="user" class="pv-filter-select" onchange="this.form.submit()">
@@ -452,6 +462,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php if (!empty($cs['prev_numero_beneficio'])): ?>
                         <div class="pv-card-process" style="display:block;text-decoration:none;">📋 NB: <?= e($cs['prev_numero_beneficio']) ?></div>
                     <?php endif; ?>
+                    <?php if (!empty($cs['prev_numero_procedimento'])): ?>
+                        <div class="pv-card-process" style="display:block;text-decoration:none;color:#D35400;">📄 PROC: <?= e($cs['prev_numero_procedimento']) ?></div>
+                    <?php endif; ?>
                     <?php if (!empty($cs['client_senha_gov'])):
                         $sgUid = 'sg' . (int)$cs['id'];
                     ?>
@@ -569,6 +582,85 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
     </div>
 </div>
+
+<!-- Amanda 13/07/2026: Visão Tabela do PREV -->
+<div id="viewPrevTabela" style="display:none;background:#fff;border:1px solid var(--border);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.05);">
+    <div style="max-height:75vh;overflow:auto;">
+    <table style="width:100%;border-collapse:collapse;font-size:.78rem;">
+        <thead style="background:#0f172a;color:#fff;position:sticky;top:0;z-index:2;">
+            <tr>
+                <th style="padding:8px 10px;text-align:left;font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;">#</th>
+                <th style="padding:8px 10px;text-align:left;font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;">Cliente / Título</th>
+                <th style="padding:8px 10px;text-align:left;font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;">Fase</th>
+                <th style="padding:8px 10px;text-align:left;font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;">Tipo de Benefício</th>
+                <th style="padding:8px 10px;text-align:left;font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;">Nº Procedimento</th>
+                <th style="padding:8px 10px;text-align:left;font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;">Nº Benefício</th>
+                <th style="padding:8px 10px;text-align:left;font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;">CNJ</th>
+                <th style="padding:8px 10px;text-align:left;font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;">Responsável</th>
+                <th style="padding:8px 10px;text-align:left;font-size:.65rem;text-transform:uppercase;letter-spacing:.05em;">Atualizado</th>
+            </tr>
+        </thead>
+        <tbody>
+            <?php
+            // Lista chapada pra tabela
+            $_prevRows = array();
+            foreach ($byStatus as $sk => $arr) foreach ($arr as $r) $_prevRows[] = $r + array('_status' => $sk);
+            usort($_prevRows, function($a,$b){ return strcmp($b['updated_at'] ?? '', $a['updated_at'] ?? ''); });
+            $_n = 1;
+            foreach ($_prevRows as $r):
+                $st = $r['_status'];
+                $stLbl = isset($columns[$st]) ? $columns[$st]['icon'] . ' ' . $columns[$st]['label'] : $st;
+                $stColor = isset($columns[$st]) ? $columns[$st]['color'] : '#6b7280';
+                $atu = time() - strtotime($r['updated_at'] ?? 'now');
+                if     ($atu < 3600)   $atuLbl = floor($atu/60) . 'min';
+                elseif ($atu < 86400)  $atuLbl = floor($atu/3600) . 'h';
+                elseif ($atu < 604800) $atuLbl = floor($atu/86400) . 'd';
+                else                    $atuLbl = date('d/m/y', strtotime($r['updated_at']));
+            ?>
+                <tr onclick="window.location='<?= module_url('operacional','caso_ver.php?id='.(int)$r['id']) ?>'" style="cursor:pointer;border-bottom:1px solid #f1f5f9;transition:background .1s;" onmouseover="this.style.background='#f8fafc'" onmouseout="this.style.background=''">
+                    <td style="padding:8px 10px;color:#94a3b8;font-family:monospace;"><?= $_n++ ?></td>
+                    <td style="padding:8px 10px;font-weight:600;color:var(--petrol-900);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="<?= e($r['title']) ?>">
+                        <?= e($r['title'] ?: 'Caso #' . $r['id']) ?>
+                        <div style="font-weight:400;color:#64748b;font-size:.72rem;"><?= e($r['client_name'] ?: '—') ?></div>
+                    </td>
+                    <td style="padding:8px 10px;"><span style="background:<?= $stColor ?>;color:#fff;padding:2px 8px;border-radius:8px;font-size:.65rem;font-weight:700;white-space:nowrap;"><?= e($stLbl) ?></span></td>
+                    <td style="padding:8px 10px;color:#334155;font-size:.72rem;"><?= e($r['prev_tipo_beneficio'] ?: '—') ?></td>
+                    <td style="padding:8px 10px;font-family:monospace;color:#D35400;font-weight:600;"><?= e($r['prev_numero_procedimento'] ?: '—') ?></td>
+                    <td style="padding:8px 10px;font-family:monospace;color:#0f766e;font-weight:600;"><?= e($r['prev_numero_beneficio'] ?: '—') ?></td>
+                    <td style="padding:8px 10px;font-family:monospace;color:#15803d;font-size:.7rem;"><?= e($r['case_number'] ?: '—') ?></td>
+                    <td style="padding:8px 10px;color:#334155;"><?= $r['responsible_name'] ? e(explode(' ', $r['responsible_name'])[0]) : '<span style="color:#cbd5e1;">—</span>' ?></td>
+                    <td style="padding:8px 10px;color:#64748b;font-size:.72rem;white-space:nowrap;"><?= $atuLbl ?></td>
+                </tr>
+            <?php endforeach; ?>
+            <?php if (empty($_prevRows)): ?>
+                <tr><td colspan="9" style="padding:2rem;text-align:center;color:#94a3b8;">Nenhum caso previdenciário encontrado.</td></tr>
+            <?php endif; ?>
+        </tbody>
+    </table>
+    </div>
+</div>
+
+<script>
+// Toggle Kanban/Tabela do PREV — Amanda 13/07/2026
+function pvToggleView(v) {
+    var k = document.getElementById('viewPrevKanban');
+    var t = document.getElementById('viewPrevTabela');
+    var bk = document.getElementById('pvBtnKanban');
+    var bt = document.getElementById('pvBtnTabela');
+    if (v === 'tabela') {
+        k.style.display = 'none'; t.style.display = 'block';
+        bk.style.background = 'transparent'; bk.style.color = '#0f172a';
+        bt.style.background = '#0f172a'; bt.style.color = '#fff';
+        try { localStorage.setItem('pv_view', 'tabela'); } catch(e) {}
+    } else {
+        k.style.display = ''; t.style.display = 'none';
+        bt.style.background = 'transparent'; bt.style.color = '#0f172a';
+        bk.style.background = '#0f172a'; bk.style.color = '#fff';
+        try { localStorage.setItem('pv_view', 'kanban'); } catch(e) {}
+    }
+}
+(function(){ try { var v = localStorage.getItem('pv_view'); if (v === 'tabela') pvToggleView('tabela'); } catch(e) {} })();
+</script>
 
 <?php require_once APP_ROOT . '/modules/shared/card_drawer.php'; ?>
 

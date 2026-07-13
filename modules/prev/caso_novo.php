@@ -22,7 +22,8 @@ if (isset($_GET['ajax_busca_cliente'])) {
 
 $users = $pdo->query("SELECT id, name FROM users WHERE is_active = 1 ORDER BY name")->fetchAll();
 
-$tiposBeneficio = array('INSS','BPC','LOAS','Aposentadoria por Idade','Aposentadoria por Tempo de Contribuição','Aposentadoria por Invalidez','Auxílio-Doença','Auxílio-Acidente','Pensão por Morte','Salário-Maternidade');
+require_once APP_ROOT . '/core/functions_prev.php';
+$tiposBeneficio = prev_tipos_beneficio();
 
 // Pré-carregar cliente se vier via ?client_id=
 $preClient = null;
@@ -74,9 +75,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <label>Tipo de Benefício *</label>
             <select name="prev_tipo_beneficio" class="form-select" required>
                 <option value="">Selecione...</option>
-                <?php foreach ($tiposBeneficio as $tb): ?>
-                    <option value="<?= e($tb) ?>"><?= e($tb) ?></option>
-                <?php endforeach; ?>
+                <?= prev_render_optgroups() ?>
             </select>
         </div>
 
@@ -87,10 +86,15 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </div>
 
         <div class="form-grid">
+            <!-- Amanda 13/07/2026: Número do Procedimento Administrativo (protocolo INSS) -->
+            <div class="form-group">
+                <label>Nº do Procedimento Administrativo</label>
+                <input type="text" name="prev_numero_procedimento" class="form-input" placeholder="Protocolo INSS — opcional">
+            </div>
             <!-- Número do Benefício -->
             <div class="form-group">
                 <label>Número do Benefício (NB)</label>
-                <input type="text" name="prev_numero_beneficio" class="form-input" placeholder="Opcional">
+                <input type="text" name="prev_numero_beneficio" class="form-input" placeholder="Após concessão — opcional">
             </div>
             <!-- Número do Processo -->
             <div class="form-group">

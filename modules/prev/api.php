@@ -259,6 +259,7 @@ switch ($action) {
         $comarca = trim($_POST['comarca'] ?? '');
         $comarca_uf = trim($_POST['comarca_uf'] ?? '');
         $prev_numero_beneficio = trim($_POST['prev_numero_beneficio'] ?? '');
+        $prev_numero_procedimento = trim($_POST['prev_numero_procedimento'] ?? ''); // Amanda 13/07/2026
 
         $errors = array();
         if ($title === '') $errors[] = 'O título é obrigatório.';
@@ -271,12 +272,15 @@ switch ($action) {
             break;
         }
 
+        // Amanda 13/07: self-heal do prev_numero_procedimento (idempotente)
+        try { $pdo->exec("ALTER TABLE cases ADD COLUMN prev_numero_procedimento VARCHAR(50) DEFAULT NULL"); } catch (Exception $e) {}
+
         $sql = "INSERT INTO cases
             (client_id, title, case_type, case_number, court, comarca, comarca_uf, status, priority, responsible_user_id, drive_folder_url, notes,
-             kanban_prev, prev_status, prev_enviado_em, prev_mes_envio, prev_ano_envio, prev_tipo_beneficio, prev_numero_beneficio, departamento, created_at, updated_at)
+             kanban_prev, prev_status, prev_enviado_em, prev_mes_envio, prev_ano_envio, prev_tipo_beneficio, prev_numero_beneficio, prev_numero_procedimento, departamento, created_at, updated_at)
             VALUES
             (?, ?, ?, ?, ?, ?, ?, 'em_andamento', ?, ?, ?, ?,
-             1, 'aguardando_docs', NOW(), MONTH(NOW()), YEAR(NOW()), ?, ?, 'operacional', NOW(), NOW())";
+             1, 'aguardando_docs', NOW(), MONTH(NOW()), YEAR(NOW()), ?, ?, ?, 'operacional', NOW(), NOW())";
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute(array(
@@ -284,7 +288,7 @@ switch ($action) {
             $comarca ?: null, $comarca_uf ?: null, $priority,
             $responsible_user_id > 0 ? $responsible_user_id : null,
             $drive_folder_url ?: null, $notes ?: null,
-            $prev_tipo_beneficio, $prev_numero_beneficio ?: null
+            $prev_tipo_beneficio, $prev_numero_beneficio ?: null, $prev_numero_procedimento ?: null
         ));
 
         $newId = (int)$pdo->lastInsertId();
