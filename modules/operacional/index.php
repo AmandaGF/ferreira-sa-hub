@@ -117,7 +117,18 @@ $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as r
          WHERE a.case_id = cs.id AND a.data_andamento > cs.distribution_date) as andamento_pos_distrib,
         -- 10/07/2026 Amanda: destaca cases com renuncia/desistencia registrada
         -- (cor puxada pro vermelho). Pega o tipo do registro mais recente.
-        (SELECT r.tipo FROM renuncias r WHERE r.case_id = cs.id ORDER BY r.created_at DESC LIMIT 1) as renuncia_tipo
+        (SELECT r.tipo FROM renuncias r WHERE r.case_id = cs.id ORDER BY r.created_at DESC LIMIT 1) as renuncia_tipo,
+        -- 14/07/2026 Amanda: card mostra TODOS os nossos clientes do caso,
+        -- nao so o principal. Ex: Thiago Cassiano + Larissa (Dissolucao UE consensual).
+        (SELECT GROUP_CONCAT(
+            CASE WHEN cp.tipo_pessoa='juridica'
+                 THEN COALESCE(NULLIF(cp.razao_social,''), cp.nome_fantasia)
+                 ELSE cp.nome END
+            ORDER BY cp.id SEPARATOR ' e ')
+         FROM case_partes cp
+         WHERE cp.case_id = cs.id
+           AND cp.eh_nosso_cliente = 1
+           AND (cp.client_id IS NULL OR cp.client_id <> cs.client_id)) AS coautores_nossos
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
@@ -528,7 +539,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <button type="button" onclick="event.stopPropagation();event.preventDefault();arquivarCard(<?= $cs['id'] ?>)" title="Arquivar" style="background:none;border:none;cursor:pointer;font-size:.75rem;padding:0;opacity:.5;line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">📦</button>
                         </div>
                     </div>
-                    <div class="op-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?></div>
+                    <div class="op-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?><?php if (!empty($cs['coautores_nossos'])): ?> <span style="opacity:.75;font-weight:400;">e</span> <?= e($cs['coautores_nossos']) ?><?php endif; ?></div>
                     <?php if (!empty($cs['case_number'])): ?>
                         <div title="Clique pra copiar" onclick="copiarCNJ(event,'<?= e($cs['case_number']) ?>',this)" style="font-size:.62rem;color:#15803d;font-weight:600;margin:.15rem 0;font-family:'Courier New',monospace;letter-spacing:.02em;cursor:pointer;user-select:none;">⚖️ <?= e($cs['case_number']) ?></div>
                     <?php endif; ?>
@@ -825,7 +836,9 @@ sort($opTipos);
         <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cid) ?>" style="color:#999;text-decoration:none;" title="Abrir pasta"><?= $n++ ?></a>
     </td>
     <td class="sticky-col-2 editable" style="font-weight:700;color:var(--petrol-900);min-width:160px;" title="<?= e($cs['title'] ?: '') ?>"><input value="<?= e($cs['title'] ?: '') ?>" data-id="<?= $cid ?>" data-field="title" onchange="saveCaseCell(this)" title="<?= e($cs['title'] ?: '') ?>"></td>
-    <td style="font-size:.78rem;" title="<?= e($cs['client_name'] ?: '') ?>"><?= e($cs['client_name'] ?: '—') ?></td>
+    <?php $_cliTabela = $cs['client_name'] ?: '—';
+    if (!empty($cs['coautores_nossos'])) $_cliTabela = ($cs['client_name'] ?: '') . ' e ' . $cs['coautores_nossos']; ?>
+    <td style="font-size:.78rem;" title="<?= e($_cliTabela) ?>"><?= e($_cliTabela) ?></td>
     <td class="editable" style="min-width:100px;" title="<?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?>"><input value="<?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?>" data-id="<?= $cid ?>" data-field="case_type" onchange="saveCaseCell(this)" title="<?= e($cs['case_type'] !== 'outro' ? ($cs['case_type'] ?? '') : '') ?>"></td>
     <td class="editable" style="min-width:90px;">
         <select data-id="<?= $cid ?>" data-field="responsible_user_id" onchange="saveCaseCell(this)">

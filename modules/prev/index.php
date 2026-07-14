@@ -123,7 +123,16 @@ try { $pdo->exec("ALTER TABLE clients ADD COLUMN senha_gov VARCHAR(100) NULL"); 
 
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, c.senha_gov as client_senha_gov, u.name as responsible_name,
         (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status NOT IN ('concluido','feito')) as pending_tasks,
-        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks
+        (SELECT COUNT(*) FROM case_tasks WHERE case_id = cs.id AND status IN ('concluido','feito')) as done_tasks,
+        (SELECT GROUP_CONCAT(
+            CASE WHEN cp.tipo_pessoa='juridica'
+                 THEN COALESCE(NULLIF(cp.razao_social,''), cp.nome_fantasia)
+                 ELSE cp.nome END
+            ORDER BY cp.id SEPARATOR ' e ')
+         FROM case_partes cp
+         WHERE cp.case_id = cs.id
+           AND cp.eh_nosso_cliente = 1
+           AND (cp.client_id IS NULL OR cp.client_id <> cs.client_id)) AS coautores_nossos
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         LEFT JOIN users u ON u.id = cs.responsible_user_id
@@ -437,7 +446,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
                             <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" title="Abrir pasta" style="font-size:.85rem;text-decoration:none;">📂</a>
                         </div>
                     </div>
-                    <div class="pv-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?></div>
+                    <div class="pv-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?><?php if (!empty($cs['coautores_nossos'])): ?> <span style="opacity:.75;font-weight:400;">e</span> <?= e($cs['coautores_nossos']) ?><?php endif; ?></div>
                     <div class="pv-card-badges">
                         <?php if ($tipoBen): ?>
                             <span class="pv-card-badge" style="background:<?= $tipoBenColor ?>;"><?= e($tipoBen) ?></span>
