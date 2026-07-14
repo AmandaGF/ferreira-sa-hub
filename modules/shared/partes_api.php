@@ -282,6 +282,12 @@ if ($action === 'salvar') {
         audit_log('PARTE_CRIADA', 'case_parte', $id, $papel . ': ' . $nomeExibir);
     }
 
+    // Amanda 14/07/2026: sincroniza dados da parte com a Agenda de Contatos.
+    // Só preenche campos VAZIOS em clients — nunca sobrescreve dados já cadastrados.
+    if (!empty($campos['client_id']) && function_exists('sincronizar_parte_com_cliente')) {
+        sincronizar_parte_com_cliente($pdo, $campos, (int)$campos['client_id']);
+    }
+
     // Se é representante legal, vincular às partes selecionadas
     if ($papel === 'representante_legal' && $id) {
         $representaIds = isset($_POST['representa_ids']) ? trim($_POST['representa_ids']) : '';

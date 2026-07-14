@@ -321,3 +321,70 @@ function generate_case_checklist(int $caseId, string $caseType): int
 
     return $count;
 }
+
+/**
+ * Amanda 14/07/2026: sincroniza dados da parte (case_partes) com o cliente
+ * vinculado (clients). SÓ preenche campos VAZIOS em clients — nunca sobrescreve
+ * dados existentes. Assim, se a parte tem CPF novo e clients.cpf está NULL,
+ * o CPF é adicionado. Mas se clients.name = "Maria Silva" e a parte tem
+ * nome = "Maria", o nome do cliente permanece intacto.
+ *
+ * $parte = array com chaves: nome, cpf, rg, nascimento, profissao, estado_civil,
+ *          email, telefone, endereco, cidade, uf, cep, razao_social, cnpj
+ * $clientId = ID do registro em clients pra atualizar. Se 0 ou vazio, no-op.
+ *
+ * Retorna número de campos preenchidos (0 se não teve nada pra atualizar).
+ */
+function sincronizar_parte_com_cliente(PDO $pdo, array $parte, int $clientId): int {
+    if ($clientId <= 0) return 0;
+
+    // Busca o cliente atual pra saber o que está vazio
+    $st = $pdo->prepare("SELECT name, cpf, rg, birth_date, profession, marital_status,
+                                email, phone, address_street, address_city, address_state, address_zip
+                         FROM clients WHERE id = ?");
+    $st->execute(array($clientId));
+    $cliAtual = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$cliAtual) return 0;
+
+    // Mapa parte -> cliente. Se PJ, prefere razao_social pra name.
+    $tipoJur = !empty($parte['cnpj']) || !empty($parte['razao_social']);
+    $nomeParte = $tipoJur ? ($parte['razao_social'] ?? '') : ($parte['nome'] ?? '');
+    $docParte  = $tipoJur ? ($parte['cnpj'] ?? '')         : ($parte['cpf']  ?? '');
+
+    $mapa = array(
+        'name'           => $nomeParte,
+        'cpf'            => $docParte,
+        'rg'             => $parte['rg'] ?? '',
+        'birth_date'     => $parte['nascimento'] ?? '',
+        'profession'     => $parte['profissao'] ?? '',
+        'marital_status' => $parte['estado_civil'] ?? '',
+        'email'          => $parte['email'] ?? '',
+        'phone'          => $parte['telefone'] ?? '',
+        'address_street' => $parte['endereco'] ?? '',
+        'address_city'   => $parte['cidade'] ?? '',
+        'address_state'  => $parte['uf'] ?? '',
+        'address_zip'    => $parte['cep'] ?? '',
+    );
+
+    $updates = array(); $params = array();
+    foreach ($mapa as $colCli => $valParte) {
+        $valParte = trim((string)$valParte);
+        if ($valParte === '') continue;                    // parte sem valor: pula
+        $valCli = trim((string)($cliAtual[$colCli] ?? ''));
+        if ($valCli !== '') continue;                       // cliente ja tem: preserva
+        $updates[] = "$colCli = ?";
+        $params[] = $valParte;
+    }
+
+    if (empty($updates)) return 0;
+
+    $params[] = $clientId;
+    $sql = "UPDATE clients SET " . implode(', ', $updates) . ", updated_at = NOW() WHERE id = ?";
+    $pdo->prepare($sql)->execute($params);
+
+    // audit_log opcional (se a funcao existir)
+    if (function_exists('audit_log')) {
+        try { audit_log('cliente_dados_sync_parte', 'clients', $clientId, count($updates) . ' campo(s): ' . implode(',', array_keys(array_filter($mapa, function($v){return trim((string)$v)!=='';})))); } catch (Exception $e) {}
+    }
+    return count($updates);
+}
