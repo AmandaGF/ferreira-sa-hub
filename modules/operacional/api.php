@@ -1377,18 +1377,30 @@ switch ($action) {
                 if ($procCategory !== 'extrajudicial') {
                     try {
                         require_once APP_ROOT . '/core/functions_jorjao.php';
+                        // Self-heal: coluna que registra quando tocou pela ultima vez
+                        try { $pdo->exec("ALTER TABLE cases ADD COLUMN jorjao_distribuicao_tocado_em DATETIME NULL"); } catch (Exception $e) {}
+
                         if (jorjao_tocada_ativa('peticao_distribuida')) {
+                            // Amanda 14/07: THROTTLE — se tocou nos ultimos 10min pro mesmo case,
+                            // pula. Evita duplicado quando cron cPanel roda logo antes/depois do
+                            // save do modal (caso Alane hoje: cron tocou 13:00, modal tocou 13:05).
                             $stCase = $pdo->prepare("SELECT cs.id, cs.title, cs.status, cs.case_number, cs.case_type,
                                 cs.client_id, cs.responsible_user_id, cs.created_at, cs.updated_at,
+                                cs.jorjao_distribuicao_tocado_em,
                                 c.name AS client_name FROM cases cs LEFT JOIN clients c ON c.id = cs.client_id WHERE cs.id = ?");
                             $stCase->execute(array($caseId));
                             $caseData = $stCase->fetch(PDO::FETCH_ASSOC);
-                            if ($caseData) {
+                            $tocadoEm = $caseData['jorjao_distribuicao_tocado_em'] ?? null;
+                            $tocouRecente = ($tocadoEm && strtotime($tocadoEm) > (time() - 10 * 60));
+
+                            if ($caseData && !$tocouRecente) {
                                 $r = jorjao_peticao_distribuida($caseData);
-                                $pdo->prepare("UPDATE cases SET jorjao_distribuicao_tocado = 1 WHERE id = ?")->execute(array($caseId));
+                                $pdo->prepare("UPDATE cases SET jorjao_distribuicao_tocado = 1, jorjao_distribuicao_tocado_em = NOW() WHERE id = ?")->execute(array($caseId));
                                 if (empty($r['ok'])) {
                                     audit_log('jorjao_sino_falhou', 'case', $caseId, 'inline: ' . ($r['erro'] ?? '?'));
                                 }
+                            } elseif ($tocouRecente) {
+                                audit_log('jorjao_sino_throttle', 'case', $caseId, 'ja tocou em ' . $tocadoEm . ' (< 10min)');
                             }
                         }
                     } catch (Exception $e) {

@@ -74,7 +74,11 @@ try {
 
         $r = jorjao_peticao_distribuida($case);
 
-        $pdo->prepare("UPDATE cases SET jorjao_distribuicao_tocado = 1 WHERE id = ?")
+        // Amanda 14/07: registra data/hora do disparo pro throttle do hook inline
+        // (evita cron + hook inline tocarem em duplicado quando Amanda distribui
+        // logo apos o cron rodar).
+        try { $pdo->exec("ALTER TABLE cases ADD COLUMN jorjao_distribuicao_tocado_em DATETIME NULL"); } catch (Exception $e) {}
+        $pdo->prepare("UPDATE cases SET jorjao_distribuicao_tocado = 1, jorjao_distribuicao_tocado_em = NOW() WHERE id = ?")
             ->execute(array($id));
 
         if (!empty($r['ok'])) {
