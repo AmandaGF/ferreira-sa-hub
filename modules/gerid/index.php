@@ -638,6 +638,52 @@ $_stC = $pdo->prepare(
 );
 $_stC->execute($_paramsBusca);
 $concluidas = $_stC->fetchAll();
+
+// Amanda 14/07/2026: Estatísticas com/sem vínculo por período (ano/mês/semana).
+// Só considera pesquisas concluídas (tem_vinculo IS NOT NULL).
+$_geridStatsAno = array();
+$_geridStatsMes = array();
+$_geridStatsSem = array();
+try {
+    // Por ANO
+    $q = $pdo->query("SELECT YEAR(pesquisado_em) AS periodo,
+                             COUNT(*) AS total,
+                             SUM(CASE WHEN tem_vinculo = 1 THEN 1 ELSE 0 END) AS com,
+                             SUM(CASE WHEN tem_vinculo = 0 THEN 1 ELSE 0 END) AS sem
+                      FROM gerid_pesquisas
+                      WHERE status = 'concluida' AND pesquisado_em IS NOT NULL
+                      GROUP BY YEAR(pesquisado_em)
+                      ORDER BY periodo DESC");
+    $_geridStatsAno = $q->fetchAll(PDO::FETCH_ASSOC);
+
+    // Por MÊS (últimos 12)
+    $q = $pdo->query("SELECT DATE_FORMAT(pesquisado_em, '%Y-%m') AS periodo,
+                             COUNT(*) AS total,
+                             SUM(CASE WHEN tem_vinculo = 1 THEN 1 ELSE 0 END) AS com,
+                             SUM(CASE WHEN tem_vinculo = 0 THEN 1 ELSE 0 END) AS sem
+                      FROM gerid_pesquisas
+                      WHERE status = 'concluida' AND pesquisado_em IS NOT NULL
+                        AND pesquisado_em >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+                      GROUP BY DATE_FORMAT(pesquisado_em, '%Y-%m')
+                      ORDER BY periodo DESC");
+    $_geridStatsMes = $q->fetchAll(PDO::FETCH_ASSOC);
+
+    // Por SEMANA (últimas 12) — usa YEARWEEK modo 3 (ISO: começa segunda)
+    $q = $pdo->query("SELECT YEARWEEK(pesquisado_em, 3) AS yw,
+                             DATE_FORMAT(MIN(pesquisado_em), '%Y-%m-%d') AS inicio,
+                             COUNT(*) AS total,
+                             SUM(CASE WHEN tem_vinculo = 1 THEN 1 ELSE 0 END) AS com,
+                             SUM(CASE WHEN tem_vinculo = 0 THEN 1 ELSE 0 END) AS sem
+                      FROM gerid_pesquisas
+                      WHERE status = 'concluida' AND pesquisado_em IS NOT NULL
+                        AND pesquisado_em >= DATE_SUB(NOW(), INTERVAL 12 WEEK)
+                      GROUP BY YEARWEEK(pesquisado_em, 3)
+                      ORDER BY yw DESC");
+    $_geridStatsSem = $q->fetchAll(PDO::FETCH_ASSOC);
+} catch (Exception $e) {}
+
+$_mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06'=>'Jun','07'=>'Jul','08'=>'Ago','09'=>'Set','10'=>'Out','11'=>'Nov','12'=>'Dez');
+
 $csrf = generate_csrf_token();
 require_once APP_ROOT . '/templates/layout_start.php';
 ?>
@@ -662,6 +708,102 @@ require_once APP_ROOT . '/templates/layout_start.php';
   <h1 style="margin:0;">🔎 Pesquisa GERID — Vínculo Empregatício</h1>
   <p style="color:#777;margin:4px 0 0;">Peça pra descobrir, via GERID/INSS Digital, se a parte (pai/mãe) tem vínculo de emprego. O Luiz Eduardo é avisado e a pesquisa é registrada aqui.</p>
 </div>
+
+<!-- Amanda 14/07/2026: Estatísticas com/sem vínculo por período -->
+<style>
+.gd-stats-wrap { background:#fff;border-radius:12px;padding:14px 16px;box-shadow:0 1px 3px rgba(0,0,0,.06);margin-bottom:14px; }
+.gd-stats-head { display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px; }
+.gd-stats-head h3 { margin:0;font-size:.95rem;color:#0e2e36; }
+.gd-stats-toggle { display:inline-flex;background:#f1f5f9;border-radius:8px;overflow:hidden; }
+.gd-stats-toggle button { padding:5px 14px;font-size:.72rem;font-weight:700;border:none;cursor:pointer;background:transparent;color:#0f172a;font-family:inherit; }
+.gd-stats-toggle button.on { background:#0e7490;color:#fff; }
+.gd-stats-tabela { width:100%;border-collapse:collapse;font-size:.82rem; }
+.gd-stats-tabela th { background:#0e2e36;color:#fff;padding:7px 10px;text-align:left;font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;font-weight:700; }
+.gd-stats-tabela td { padding:7px 10px;border-bottom:1px solid #f1f5f9; }
+.gd-stats-tabela tbody tr:hover { background:#f8fafc; }
+.gd-stats-bar { display:flex;height:12px;border-radius:6px;overflow:hidden;background:#e5e7eb;min-width:120px; }
+.gd-stats-bar-com { background:#15803d; }
+.gd-stats-bar-sem { background:#b91c1c; }
+.gd-stats-pct { font-family:'Outfit',monospace;font-weight:700;white-space:nowrap; }
+.gd-stats-pct-com { color:#15803d; }
+.gd-stats-pct-sem { color:#b91c1c; }
+.gd-stats-view { display:none; }
+.gd-stats-view.on { display:block; }
+.gd-stats-empty { padding:20px;text-align:center;color:#94a3b8;font-size:.82rem; }
+</style>
+<div class="gd-stats-wrap">
+    <div class="gd-stats-head">
+        <h3>📊 Estatísticas de pesquisas concluídas — % com/sem vínculo</h3>
+        <div class="gd-stats-toggle" role="tablist">
+            <button type="button" class="on" onclick="gdStatsView('mes')" id="gdStatsBtnMes">📅 Mês</button>
+            <button type="button" onclick="gdStatsView('sem')" id="gdStatsBtnSem">📆 Semana</button>
+            <button type="button" onclick="gdStatsView('ano')" id="gdStatsBtnAno">🗓️ Ano</button>
+        </div>
+    </div>
+
+    <?php
+    // Helper local — renderiza uma tabela de stats
+    $_gdRender = function($rows, $labelCol, $labelPeriodo) use ($_mesesBR) {
+        if (empty($rows)) {
+            echo '<div class="gd-stats-empty">Nenhuma pesquisa concluída no período.</div>';
+            return;
+        }
+        echo '<div style="overflow-x:auto;"><table class="gd-stats-tabela">';
+        echo '<thead><tr>'
+            . '<th style="width:120px;">' . htmlspecialchars($labelCol, ENT_QUOTES, 'UTF-8') . '</th>'
+            . '<th style="width:60px;text-align:center;">Total</th>'
+            . '<th style="width:100px;">✓ Com vínculo</th>'
+            . '<th style="width:100px;">✗ Sem vínculo</th>'
+            . '<th>Distribuição</th>'
+            . '</tr></thead><tbody>';
+        foreach ($rows as $r) {
+            $tot = (int)$r['total']; $com = (int)$r['com']; $sem = (int)$r['sem'];
+            $pctCom = $tot > 0 ? round($com / $tot * 100, 1) : 0;
+            $pctSem = $tot > 0 ? round($sem / $tot * 100, 1) : 0;
+            $label = $r['periodo'] ?? '';
+            if ($labelCol === 'Mês') {
+                $yy = substr($label, 0, 4); $mm = substr($label, 5, 2);
+                $label = ($_mesesBR[$mm] ?? $mm) . '/' . $yy;
+            } elseif ($labelCol === 'Semana') {
+                $label = 'Sem. início ' . date('d/m/Y', strtotime($r['inicio']));
+            }
+            echo '<tr>';
+            echo '<td style="font-weight:700;color:#0e2e36;">' . htmlspecialchars($label, ENT_QUOTES, 'UTF-8') . '</td>';
+            echo '<td style="text-align:center;font-weight:700;">' . $tot . '</td>';
+            echo '<td class="gd-stats-pct gd-stats-pct-com">' . $com . ' <span style="opacity:.7;font-weight:400;">(' . $pctCom . '%)</span></td>';
+            echo '<td class="gd-stats-pct gd-stats-pct-sem">' . $sem . ' <span style="opacity:.7;font-weight:400;">(' . $pctSem . '%)</span></td>';
+            echo '<td><div class="gd-stats-bar" title="' . $pctCom . '% com · ' . $pctSem . '% sem">';
+            if ($com > 0) echo '<div class="gd-stats-bar-com" style="width:' . $pctCom . '%;"></div>';
+            if ($sem > 0) echo '<div class="gd-stats-bar-sem" style="width:' . $pctSem . '%;"></div>';
+            echo '</div></td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table></div>';
+    };
+    ?>
+
+    <div class="gd-stats-view on" id="gdStatsMes"><?php $_gdRender($_geridStatsMes, 'Mês', 'últimos 12 meses'); ?></div>
+    <div class="gd-stats-view"     id="gdStatsSem"><?php $_gdRender($_geridStatsSem, 'Semana', 'últimas 12 semanas'); ?></div>
+    <div class="gd-stats-view"     id="gdStatsAno"><?php $_gdRender($_geridStatsAno, 'Ano', 'histórico'); ?></div>
+
+    <div style="font-size:.7rem;color:#94a3b8;margin-top:8px;font-style:italic;">
+        Considera apenas pesquisas com status = concluída (com resultado registrado). Pendentes não entram na conta.
+    </div>
+</div>
+
+<script>
+function gdStatsView(v) {
+    var views = ['mes','sem','ano'];
+    views.forEach(function(k){
+        var el = document.getElementById('gdStats' + k.charAt(0).toUpperCase() + k.slice(1));
+        var btn = document.getElementById('gdStatsBtn' + k.charAt(0).toUpperCase() + k.slice(1));
+        if (el) el.classList.toggle('on', k === v);
+        if (btn) btn.classList.toggle('on', k === v);
+    });
+    try { localStorage.setItem('gerid_stats_view', v); } catch(e) {}
+}
+(function(){ try { var v = localStorage.getItem('gerid_stats_view'); if (v && v !== 'mes') gdStatsView(v); } catch(e) {} })();
+</script>
 
 <!-- Amanda 09/07/2026: busca por parte, nosso cliente, CPF ou numero de processo -->
 <form method="get" action="<?= module_url('gerid') ?>" style="margin:.5rem 0 1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;max-width:760px;">
