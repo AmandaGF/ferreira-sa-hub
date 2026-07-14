@@ -18,3 +18,10 @@ foreach ($st as $c) {
             $p['nome']?:'', $p['razao_social']?:'', $p['cpf']?:'-', $p['client_id']?:'-', $p['eh_nosso_cliente']);
     }
 }
+
+echo "\n\n=== TESTANDO buscar_partes_caso(1203) ===\n";
+require_once __DIR__ . '/core/functions_cases.php';
+$hp = buscar_partes_caso(1203);
+echo "Autores: " . count($hp['autores']) . "\n";
+foreach ($hp['autores'] as $a) echo "  - " . ($a['nome']?:$a['razao_social']) . "\n";
+echo "Reus: " . count($hp['reus']) . "\n";
