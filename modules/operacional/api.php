@@ -1366,14 +1366,18 @@ switch ($action) {
                 audit_log($procCategory === 'extrajudicial' ? 'extrajudicial' : 'processo_distribuido', 'case', $caseId, ($procCategory === 'extrajudicial' ? 'Extrajudicial: ' : 'Processo: ') . ($procNumero ?: $procVara));
                 notify_gestao('Processo distribuído!', ($currentCase ? $currentCase['title'] : 'Caso') . ' — ' . $procNumero . ' (' . $procVara . ')', 'sucesso', url('modules/operacional/caso_ver.php?id=' . $caseId), '🏛️');
 
-                // Amanda 11/07: dispara o sino do Jorjao IMEDIATAMENTE (sem esperar cron de 10min)
-                // se for status distribuido (nao extrajudicial) e ainda nao tocou.
+                // Amanda 11/07 + 13/07: dispara sino do Jorjao IMEDIATAMENTE (sem esperar
+                // cron 10min). Fix 13/07: removida verificacao tocado=0. Motivo — o
+                // migrar_jorjao.php marcou TODOS os cases historicos como tocado=1
+                // (pra nao spammar ao ligar a feature). Como quase todo case tem tocado=1,
+                // o hook antigo pulava silenciosamente ao mover case ja existente pra
+                // "distribuido" (caso do Marcelo Cosme #954 hoje). Agora dispara sempre
+                // que o handler processo_distribuido roda — que so acontece quando o
+                // usuario salva o modal "processo distribuido" no Kanban Op.
                 if ($procCategory !== 'extrajudicial') {
                     try {
                         require_once APP_ROOT . '/core/functions_jorjao.php';
-                        $stTocado = $pdo->prepare("SELECT jorjao_distribuicao_tocado FROM cases WHERE id = ?");
-                        $stTocado->execute(array($caseId));
-                        if ((int)$stTocado->fetchColumn() === 0 && jorjao_tocada_ativa('peticao_distribuida')) {
+                        if (jorjao_tocada_ativa('peticao_distribuida')) {
                             $stCase = $pdo->prepare("SELECT cs.id, cs.title, cs.status, cs.case_number, cs.case_type,
                                 cs.client_id, cs.responsible_user_id, cs.created_at, cs.updated_at,
                                 c.name AS client_name FROM cases cs LEFT JOIN clients c ON c.id = cs.client_id WHERE cs.id = ?");
