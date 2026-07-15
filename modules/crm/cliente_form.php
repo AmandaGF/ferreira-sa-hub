@@ -589,14 +589,50 @@ function consultarCPFInterno(cpf) {
             var d = JSON.parse(xhr.responseText);
             if (!d || d.status === 'ERROR') return;
 
-            // Helper: preenche campo se estiver vazio
+            // Helper: preenche campo se estiver vazio (comportamento padrao)
             function fill(sel, val) {
                 if (!val) return;
                 var el = document.querySelector(sel);
                 if (el && !el.value) el.value = val;
             }
+            // Amanda 15/07/2026: NOME e NASCIMENTO SOBRESCREVEM (fonte oficial
+            // manda mais que digitacao anterior — pega erros de acento, ordem
+            // de nome, apelidos digitados no lugar do nome legal, etc).
+            // Marca o campo em VERMELHO + CAIXA ALTA pra chamar atencao.
+            function overrideNome(val) {
+                if (!val) return;
+                var el = document.querySelector('[name=name]');
+                if (!el) return;
+                el.value = String(val).toUpperCase();
+                el.style.background = '#fff1f1';
+                el.style.color = '#b91c1c';
+                el.style.border = '2px solid #b91c1c';
+                el.style.fontWeight = '700';
+                el.style.textTransform = 'uppercase';
+                // Aviso abaixo pra usuario conferir
+                if (el.parentElement) {
+                    var old = el.parentElement.querySelector('.fsa-cpf-conferir');
+                    if (old) old.remove();
+                    var av = document.createElement('div');
+                    av.className = 'fsa-cpf-conferir';
+                    av.style.cssText = 'margin-top:4px;font-size:12px;font-weight:700;color:#b91c1c;background:#fff1f1;border-left:3px solid #b91c1c;padding:6px 10px;border-radius:4px;';
+                    av.textContent = '✓ Nome puxado da base oficial (sobrescreveu o anterior). Confira.';
+                    el.insertAdjacentElement('afterend', av);
+                }
+                // Se editar depois, tira o estilo
+                var off = function () {
+                    el.style.background = ''; el.style.color = '';
+                    el.style.border = ''; el.style.fontWeight = ''; el.style.textTransform = '';
+                    if (el.parentElement) {
+                        var a = el.parentElement.querySelector('.fsa-cpf-conferir');
+                        if (a) a.remove();
+                    }
+                    el.removeEventListener('input', off);
+                };
+                el.addEventListener('input', off);
+            }
+            overrideNome(d.nome);
 
-            fill('[name=name]', d.nome);
             fill('[name=rg]', d.rg);
             fill('[name=email]', d.email);
             fill('[name=phone]', d.telefone);
@@ -609,16 +645,20 @@ function consultarCPFInterno(cpf) {
             fill('[name=pix_key]', d.pix);
             fill('[name=children_names]', d.filhos);
 
-            // Nascimento: converter dd/mm/yyyy ou yyyy-mm-dd
+            // Nascimento: SOBRESCREVE (Amanda 15/07/2026)
             if (d.nascimento) {
                 var b = document.querySelector('[name=birth_date]');
-                if (b && !b.value) {
+                if (b) {
                     var p = d.nascimento.split('/');
                     if (p.length === 3) {
                         b.value = p[2] + '-' + p[1] + '-' + p[0];
                     } else if (d.nascimento.indexOf('-') !== -1) {
                         b.value = d.nascimento;
                     }
+                    // Feedback visual leve (sem overwrite drama)
+                    b.style.background = '#fff1f1';
+                    b.style.borderColor = '#b91c1c';
+                    setTimeout(function(){ b.style.background = ''; b.style.borderColor = ''; }, 4000);
                 }
             }
 
