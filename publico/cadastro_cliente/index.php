@@ -197,14 +197,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="section-title">Dados Pessoais</div>
 
             <label>CPF <span class="obrigat">*</span></label>
-            <div style="position:relative;">
-                <input type="text" name="cpf" id="cpfInput" placeholder="000.000.000-00" required value="<?= e($_POST['cpf'] ?? '') ?>" maxlength="14" autocomplete="off">
-                <span id="cpfLoading" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:var(--cobre);">Consultando...</span>
-                <span id="cpfOk" style="display:none;position:absolute;right:12px;top:50%;transform:translateY(-50%);font-size:12px;color:#2D7A4F;font-weight:600;">✓ Dados preenchidos</span>
+            <div>
+                <input type="text" name="cpf" id="cpfInput" data-cpf-autocomplete data-cpf-target="#nomeInput" placeholder="000.000.000-00" required value="<?= e($_POST['cpf'] ?? '') ?>" maxlength="14" autocomplete="off">
             </div>
 
             <label>Nome Completo <span class="obrigat">*</span></label>
-            <input type="text" name="nome" id="nomeInput" required value="<?= e($_POST['nome'] ?? '') ?>">
+            <input type="text" name="nome" id="nomeInput" required value="<?= e($_POST['nome'] ?? '') ?>" style="text-transform:uppercase;">
 
             <label>Data de Nascimento <span class="obrigat">*</span></label>
             <input type="date" name="nascimento" id="nascimentoInput" value="<?= e($_POST['nascimento'] ?? '') ?>" required>
@@ -445,95 +443,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
     </div>
 
+<script src="/conecta/publico/assets/cpf_autocomplete.js"></script>
 <script>
-// Máscara de CPF
-var cpfInput = document.getElementById('cpfInput');
-if (cpfInput) {
-    cpfInput.addEventListener('input', function() {
-        var v = this.value.replace(/\D/g, '');
-        if (v.length > 11) v = v.substr(0, 11);
-        if (v.length > 9) v = v.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
-        else if (v.length > 6) v = v.replace(/(\d{3})(\d{3})(\d{1,3})/, '$1.$2.$3');
-        else if (v.length > 3) v = v.replace(/(\d{3})(\d{1,3})/, '$1.$2');
-        this.value = v;
-
-        // Consultar quando completar 14 chars (000.000.000-00)
-        if (v.length === 14) consultarCPF(v);
-    });
-
-    cpfInput.addEventListener('blur', function() {
-        if (this.value.length === 14) consultarCPF(this.value);
-    });
-}
-
-function consultarCPF(cpfFormatado) {
-    var cpfLimpo = cpfFormatado.replace(/\D/g, '');
-    if (cpfLimpo.length !== 11) return;
-
-    var loading = document.getElementById('cpfLoading');
-    var ok = document.getElementById('cpfOk');
-    loading.style.display = 'inline'; ok.style.display = 'none';
-
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/conecta/api/buscar_documento.php?doc=' + cpfLimpo, true);
-    xhr.timeout = 12000;
-    xhr.onload = function() {
-        loading.style.display = 'none';
-        try {
-            var r = JSON.parse(xhr.responseText);
-            if (r.erro) {
-                ok.textContent = '✗ ' + r.erro;
-                ok.style.color = '#CC0000';
-                ok.style.display = 'inline';
-                return;
-            }
-            var d = r.dados;
-            if (d) {
-                // Preencher campos pelo name
-                function fill(name, val) { var el = document.querySelector('[name="'+name+'"]'); if (el && !el.value && val) el.value = val; }
-                fill('nome', d.nome);
-                fill('nascimento', d.nascimento);
-                fill('profissao', d.profissao);
-                fill('rg', d.rg);
-                fill('celular', d.telefone);
-                fill('email', d.email);
-                fill('cep', d.cep);
-                fill('rua', d.endereco);
-                fill('cidade', d.cidade);
-                // UF
-                if (d.uf) { var ufSel = document.querySelector('[name="uf"]'); if (ufSel) ufSel.value = d.uf; }
-                // Estado civil
-                if (d.estado_civil) {
-                    var ecSel = document.querySelector('[name="estado_civil"]');
-                    if (ecSel) {
-                        for (var i = 0; i < ecSel.options.length; i++) {
-                            if (ecSel.options[i].value.toLowerCase() === d.estado_civil.toLowerCase()) { ecSel.selectedIndex = i; break; }
-                        }
-                    }
+// Callback chamado pela lib quando a API voltar com dados. Preenche os demais
+// campos do form (nome ja e preenchido automaticamente em vermelho+CAIXA ALTA).
+window.fsaCpfExtraFill = function(d) {
+    function fill(name, val) {
+        var el = document.querySelector('[name="' + name + '"]');
+        if (el && !el.value && val) el.value = val;
+    }
+    fill('nascimento', d.nascimento);
+    fill('profissao',  d.profissao);
+    fill('rg',         d.rg);
+    fill('celular',    d.telefone);
+    fill('email',      d.email);
+    fill('cep',        d.cep);
+    fill('rua',        d.endereco);
+    fill('cidade',     d.cidade);
+    if (d.uf) {
+        var ufSel = document.querySelector('[name="uf"]');
+        if (ufSel && !ufSel.value) ufSel.value = d.uf;
+    }
+    if (d.estado_civil) {
+        var ecSel = document.querySelector('[name="estado_civil"]');
+        if (ecSel && !ecSel.value) {
+            for (var i = 0; i < ecSel.options.length; i++) {
+                if (ecSel.options[i].value.toLowerCase() === d.estado_civil.toLowerCase()) {
+                    ecSel.selectedIndex = i; break;
                 }
-                // Aviso se já cadastrado
-                if (r.fonte === 'portal') {
-                    ok.textContent = '⚠ CPF já cadastrado (' + d.nome + '). Verifique se é a mesma pessoa.';
-                    ok.style.color = '#d97706';
-                    ok.style.display = 'inline';
-                } else {
-                    ok.textContent = '✓ Dados encontrados! Confira abaixo.';
-                    ok.style.color = '#2D7A4F';
-                    ok.style.display = 'inline';
-                    setTimeout(function() { ok.style.display = 'none'; }, 4000);
-                }
-            } else {
-                ok.textContent = '✓ CPF válido';
-                ok.style.color = '#2D7A4F';
-                ok.style.display = 'inline';
-                setTimeout(function() { ok.style.display = 'none'; }, 3000);
             }
-        } catch(e) { }
-    };
-    xhr.onerror = function() { loading.style.display = 'none'; };
-    xhr.ontimeout = function() { loading.style.display = 'none'; };
-    xhr.send();
-}
+        }
+    }
+};
 </script>
 <script src="/conecta/assets/js/ibge_cidades.js"></script>
 <script>ibgeCidades('uf', 'cidade', 'pubListaCidades');</script>

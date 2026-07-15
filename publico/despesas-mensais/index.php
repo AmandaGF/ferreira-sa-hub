@@ -251,12 +251,12 @@ textarea{resize:vertical;min-height:70px}
 
   <div class="row">
     <div class="col-6">
-      <label>Seu nome completo <span class="requiredMark">*</span></label>
-      <input type="text" name="nome_completo" class="requiredField" placeholder="Ex.: Maria Fernanda da Silva" data-store required aria-required="true">
+      <label>CPF <span class="requiredMark">*</span></label>
+      <input type="text" name="cpf" data-cpf-autocomplete data-cpf-target="[name='nome_completo']" placeholder="000.000.000-00" data-store required aria-required="true">
     </div>
     <div class="col-6">
-      <label>CPF</label>
-      <input type="text" name="cpf" placeholder="000.000.000-00" data-mask="cpf" data-store>
+      <label>Seu nome completo <span class="requiredMark">*</span></label>
+      <input type="text" name="nome_completo" class="requiredField" placeholder="Preencha o CPF acima" data-store required aria-required="true" style="text-transform:uppercase;">
     </div>
   </div>
 
@@ -1414,5 +1414,6 @@ function voltarParaRevisao(){
   toast('Altere os valores e envie novamente. Os dados serão atualizados.','ok');
 }
 </script>
+<script src="/conecta/publico/assets/cpf_autocomplete.js"></script>
 </body>
 </html>
