@@ -66,7 +66,7 @@ function _permission_defaults()
         'formularios'         => $todos,
         'relatorios'          => $todos,
         'executivo'           => array('admin','gestao'),
-        'ranking_clientes'    => array('admin','gestao'),
+        'ranking_clientes'    => $todos, // Amanda 15/07/2026: liberado pra todos
         'presenca'            => array('admin','gestao','comercial','cx'), // Amanda 11/07: modulo Relacionamento & Retencao
         'usuarios'            => array('admin'), // manter só admin
         'financeiro'          => $todos,

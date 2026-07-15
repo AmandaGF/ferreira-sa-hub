@@ -7,12 +7,12 @@
  * + compareceu em balcao virtual). Score = soma cruda de todas essas
  * interacoes no periodo escolhido.
  *
- * Nao eh publico — so admin/gestao ve (require_min_role).
+ * Amanda 15/07/2026: liberado pra toda a equipe (usa require_access).
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
-require_min_role('gestao');
+require_access('ranking_clientes');
 
 $pdo = db();
 $pageTitle = '🏆 Ranking de Clientes Engajados';
