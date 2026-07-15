@@ -336,7 +336,7 @@ if ($isGestao) {
 // Conta por $viewUserId no dia de hoje: tarefas concluídas, prazos cumpridos,
 // compromissos da agenda dados baixa (realizado) e chamados resolvidos.
 // ══════════════════════════════════════════════════════════════════════
-$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0, 'entregas_puxadas' => 0);
+$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'gerid_rev_cv' => 0, 'gerid_rev_sv' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0, 'entregas_puxadas' => 0);
 try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE status='concluido' AND assigned_to=? AND DATE(completed_at)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['tarefas'] = (int)$q->fetchColumn();
@@ -425,6 +425,15 @@ try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND DATE(pesquisado_em)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['gerid'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
+// Amanda 15/07/2026: revisao/tratamento pos-pesquisa GERID tambem pontua.
+// Peso 1 pra COM VINCULO (abre trabalho — verificar processo, alertar), 0.5
+// pra SEM VINCULO (so o "ok, vi"). Quem clica o botao "tratado" leva o ponto.
+try {
+    $q = $pdo->prepare("SELECT COUNT(*) FROM gerid_pesquisas WHERE tratado_por=? AND DATE(tratado_em)=? AND tem_vinculo=1");
+    $q->execute(array($viewUserId, $hoje)); $dopa['gerid_rev_cv'] = (int)$q->fetchColumn();
+    $q = $pdo->prepare("SELECT COUNT(*) FROM gerid_pesquisas WHERE tratado_por=? AND DATE(tratado_em)=? AND (tem_vinculo=0 OR tem_vinculo IS NULL)");
+    $q->execute(array($viewUserId, $hoje)); $dopa['gerid_rev_sv'] = (int)$q->fetchColumn();
+} catch (Exception $e) {}
 // Amanda 10/07/2026: renuncias/desistencias marcadas como CUMPRIDAS pelo usuario.
 // Ao clicar "V Cumprida" no banner roxo da ficha OU no botao verde da tabela
 // de historico em /processos/renuncias, o handler grava audit_log
@@ -439,12 +448,19 @@ try {
 // Amanda 11/07: peso duplo em distribuicoes (trabalhosas). Central em 1 lugar
 // pra facilitar mudanca futura de pesos por categoria.
 $dopaPesos = array(
-    'distribuicoes' => 2, // peticao distribuida vale 2 pontos
+    'distribuicoes' => 2,   // peticao distribuida vale 2 pontos
+    'gerid_rev_cv'  => 1,   // revisao GERID com vinculo — trabalho subsequente
+    'gerid_rev_sv'  => 0.5, // revisao GERID sem vinculo — so o "ok, vi"
 );
 function dopa_pontos_da_categoria($catCounts, $pesos) {
     $total = 0;
     foreach ($catCounts as $cat => $qtd) $total += ((int)$qtd) * (isset($pesos[$cat]) ? $pesos[$cat] : 1);
-    return $total;
+    return $total; // pode ser float (peso 0.5 nas revisoes GERID SV)
+}
+// Formata pontuacao: inteiro sem casa, float com 1 casa e virgula (ex: 3 · 3,5).
+function dopa_fmt($n) {
+    if ((float)$n === (float)(int)$n) return (string)(int)$n;
+    return number_format((float)$n, 1, ',', '');
 }
 $dopaTotal = dopa_pontos_da_categoria($dopa, $dopaPesos);
 
@@ -463,7 +479,7 @@ $dias7 = array(); $dias7det = array();
 for ($i = 6; $i >= 0; $i--) {
     $d = date('Y-m-d', strtotime("-$i day"));
     $dias7[$d] = 0;
-    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0, 'entregas_puxadas' => 0);
+    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'gerid_rev_cv' => 0, 'gerid_rev_sv' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0, 'entregas_puxadas' => 0);
 }
 $desde7 = date('Y-m-d', strtotime('-6 day')) . ' 00:00:00';
 $histQ = array(
@@ -476,6 +492,8 @@ $histQ = array(
     'leads21'       => array("SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='21' GROUP BY DATE(m.created_at)", array($viewUserId, $desde7)),
     'clientes24'    => array("SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='24' GROUP BY DATE(m.created_at)", array($viewUserId, $desde7)),
     'gerid'         => array("SELECT DATE(pesquisado_em) d, COUNT(*) c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND pesquisado_em>=? GROUP BY DATE(pesquisado_em)", array($viewUserId, $desde7)),
+    'gerid_rev_cv'  => array("SELECT DATE(tratado_em) d, COUNT(*) c FROM gerid_pesquisas WHERE tratado_por=? AND tratado_em>=? AND tem_vinculo=1 GROUP BY DATE(tratado_em)", array($viewUserId, $desde7)),
+    'gerid_rev_sv'  => array("SELECT DATE(tratado_em) d, COUNT(*) c FROM gerid_pesquisas WHERE tratado_por=? AND tratado_em>=? AND (tem_vinculo=0 OR tem_vinculo IS NULL) GROUP BY DATE(tratado_em)", array($viewUserId, $desde7)),
     'renuncias'     => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
     'pasta_apta'    => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND created_at>=? AND details LIKE '% -> pasta_apta' GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
     'onboarding'    => array("SELECT DATE(al.created_at) d, COUNT(*) c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? AND al.created_at>=? GROUP BY DATE(al.created_at)", array($viewUserId, $desde7)),
@@ -497,24 +515,28 @@ $dopaMax = max(1, max($dias7));
 // Recorde HISTÓRICO (all-time) — fallback pro recorde da semana se a query falhar
 $dopaRecorde = max($dias7);
 try {
-    $q = $pdo->prepare("SELECT SUM(c) tot FROM (
-        SELECT DATE(completed_at) d, COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? GROUP BY DATE(completed_at)
-        UNION ALL SELECT DATE(concluido_em) d, COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? GROUP BY DATE(concluido_em)
-        UNION ALL SELECT DATE(al.created_at) d, COUNT(*) c FROM audit_log al LEFT JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.entity_type='agenda' AND al.user_id=? AND al.action='AGENDA_STATUS' AND al.details LIKE 'Status: realizado%' AND COALESCE(ae.tipo,'') NOT IN ('onboarding','balcao_virtual') GROUP BY DATE(al.created_at)
-        UNION ALL SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND t.status='resolvido' GROUP BY DATE(a.created_at)
-        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
-        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
-        UNION ALL SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND co.canal='21' GROUP BY DATE(m.created_at)
-        UNION ALL SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND co.canal='24' GROUP BY DATE(m.created_at)
-        UNION ALL SELECT DATE(pesquisado_em) d, COUNT(*) c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? GROUP BY DATE(pesquisado_em)
-        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? GROUP BY DATE(created_at)
-        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND details LIKE '% -> pasta_apta' GROUP BY DATE(created_at)
-        UNION ALL SELECT DATE(al.created_at) d, COUNT(*) c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? GROUP BY DATE(al.created_at)
-        UNION ALL SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? GROUP BY DATE(created_at)
-        UNION ALL SELECT DATE(created_at) d, COUNT(DISTINCT entity_id) c FROM audit_log WHERE action='entrega_puxada' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
+    // Recorde all-time — mesma tecnica x2 do dopaSomaDesde (SUM/2 no final)
+    // pra suportar peso 0.5 (revisao GERID sem vinculo).
+    $q = $pdo->prepare("SELECT SUM(c)/2 tot FROM (
+        SELECT DATE(completed_at) d, COUNT(*)*2 c FROM case_tasks WHERE status='concluido' AND assigned_to=? GROUP BY DATE(completed_at)
+        UNION ALL SELECT DATE(concluido_em) d, COUNT(*)*2 c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? GROUP BY DATE(concluido_em)
+        UNION ALL SELECT DATE(al.created_at) d, COUNT(*)*2 c FROM audit_log al LEFT JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.entity_type='agenda' AND al.user_id=? AND al.action='AGENDA_STATUS' AND al.details LIKE 'Status: realizado%' AND COALESCE(ae.tipo,'') NOT IN ('onboarding','balcao_virtual') GROUP BY DATE(al.created_at)
+        UNION ALL SELECT DATE(a.created_at) d, COUNT(DISTINCT a.entity_id)*2 c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND t.status='resolvido' GROUP BY DATE(a.created_at)
+        UNION ALL SELECT DATE(created_at) d, COUNT(*)*4 c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
+        UNION ALL SELECT DATE(created_at) d, COUNT(*)*2 c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
+        UNION ALL SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id)*2 c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND co.canal='21' GROUP BY DATE(m.created_at)
+        UNION ALL SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id)*2 c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND co.canal='24' GROUP BY DATE(m.created_at)
+        UNION ALL SELECT DATE(pesquisado_em) d, COUNT(*)*2 c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? GROUP BY DATE(pesquisado_em)
+        UNION ALL SELECT DATE(tratado_em) d, COUNT(*)*2 c FROM gerid_pesquisas WHERE tratado_por=? AND tem_vinculo=1 GROUP BY DATE(tratado_em)
+        UNION ALL SELECT DATE(tratado_em) d, COUNT(*)*1 c FROM gerid_pesquisas WHERE tratado_por=? AND (tem_vinculo=0 OR tem_vinculo IS NULL) GROUP BY DATE(tratado_em)
+        UNION ALL SELECT DATE(created_at) d, COUNT(*)*2 c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? GROUP BY DATE(created_at)
+        UNION ALL SELECT DATE(created_at) d, COUNT(*)*2 c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND details LIKE '% -> pasta_apta' GROUP BY DATE(created_at)
+        UNION ALL SELECT DATE(al.created_at) d, COUNT(*)*2 c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? GROUP BY DATE(al.created_at)
+        UNION ALL SELECT DATE(created_at) d, COUNT(*)*2 c FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? GROUP BY DATE(created_at)
+        UNION ALL SELECT DATE(created_at) d, COUNT(DISTINCT entity_id)*2 c FROM audit_log WHERE action='entrega_puxada' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
     ) u GROUP BY d ORDER BY tot DESC LIMIT 1");
-    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
-    $rt = (int)$q->fetchColumn();
+    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
+    $rt = (float)$q->fetchColumn();
     if ($rt > $dopaRecorde) $dopaRecorde = $rt;
 } catch (Exception $e) {}
 $recordeNovo = ($dopaTotal > 0 && $dopaTotal >= $dopaRecorde); // hoje é (ou empata) o recorde
@@ -526,27 +548,33 @@ while ($i7 >= 0 && $vals7[$i7] === 0) $i7--;
 while ($i7 >= 0 && $vals7[$i7] > 0) { $streak++; $i7--; }
 
 // ── Totais consolidados: semana (segunda→hoje) e mês (dia 1→hoje) ──
+// Todos os COUNT sao multiplicados por 2 e o SUM final e dividido por 2 —
+// truque pra suportar peso 0.5 (revisao GERID sem vinculo) sem precisar
+// de DECIMAL. Peso real: distribuicoes=2 → x4, gerid_rev_cv=1 → x2,
+// gerid_rev_sv=0.5 → x1, demais peso 1 → x2. SUM(c)/2 devolve o valor real.
 $dopaSomaDesde = function($pdo, $uid, $desde) {
-    $sql = "SELECT COALESCE(SUM(c),0) FROM (
-        SELECT COUNT(*) c FROM case_tasks WHERE status='concluido' AND assigned_to=? AND completed_at>=?
-        UNION ALL SELECT COUNT(*) c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND concluido_em>=?
-        UNION ALL SELECT COUNT(*) c FROM audit_log al LEFT JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.entity_type='agenda' AND al.user_id=? AND al.created_at>=? AND al.action='AGENDA_STATUS' AND al.details LIKE 'Status: realizado%' AND COALESCE(ae.tipo,'') NOT IN ('onboarding','balcao_virtual')
-        UNION ALL SELECT COUNT(DISTINCT a.entity_id) c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido'
-        UNION ALL SELECT COUNT(*)*2 c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=?
-        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? AND created_at>=?
-        UNION ALL SELECT COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='21'
-        UNION ALL SELECT COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='24'
-        UNION ALL SELECT COUNT(*) c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND pesquisado_em>=?
-        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND created_at>=?
-        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND created_at>=? AND details LIKE '% -> pasta_apta'
-        UNION ALL SELECT COUNT(*) c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? AND al.created_at>=?
-        UNION ALL SELECT COUNT(*) c FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? AND created_at>=?
-        UNION ALL SELECT COUNT(DISTINCT entity_id) c FROM audit_log WHERE action='entrega_puxada' AND entity_type='case' AND user_id=? AND created_at>=?
+    $sql = "SELECT COALESCE(SUM(c),0)/2 FROM (
+        SELECT COUNT(*)*2 c FROM case_tasks WHERE status='concluido' AND assigned_to=? AND completed_at>=?
+        UNION ALL SELECT COUNT(*)*2 c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? AND concluido_em>=?
+        UNION ALL SELECT COUNT(*)*2 c FROM audit_log al LEFT JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.entity_type='agenda' AND al.user_id=? AND al.created_at>=? AND al.action='AGENDA_STATUS' AND al.details LIKE 'Status: realizado%' AND COALESCE(ae.tipo,'') NOT IN ('onboarding','balcao_virtual')
+        UNION ALL SELECT COUNT(DISTINCT a.entity_id)*2 c FROM audit_log a JOIN tickets t ON t.id=a.entity_id WHERE a.action='ticket_updated' AND a.entity_type='ticket' AND a.user_id=? AND a.created_at>=? AND t.status='resolvido'
+        UNION ALL SELECT COUNT(*)*4 c FROM audit_log WHERE action='processo_distribuido' AND entity_type='case' AND user_id=? AND created_at>=?
+        UNION ALL SELECT COUNT(*)*2 c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? AND created_at>=?
+        UNION ALL SELECT COUNT(DISTINCT m.conversa_id)*2 c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='21'
+        UNION ALL SELECT COUNT(DISTINCT m.conversa_id)*2 c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='24'
+        UNION ALL SELECT COUNT(*)*2 c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND pesquisado_em>=?
+        UNION ALL SELECT COUNT(*)*2 c FROM gerid_pesquisas WHERE tratado_por=? AND tratado_em>=? AND tem_vinculo=1
+        UNION ALL SELECT COUNT(*)*1 c FROM gerid_pesquisas WHERE tratado_por=? AND tratado_em>=? AND (tem_vinculo=0 OR tem_vinculo IS NULL)
+        UNION ALL SELECT COUNT(*)*2 c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND created_at>=?
+        UNION ALL SELECT COUNT(*)*2 c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND created_at>=? AND details LIKE '% -> pasta_apta'
+        UNION ALL SELECT COUNT(*)*2 c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? AND al.created_at>=?
+        UNION ALL SELECT COUNT(*)*2 c FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? AND created_at>=?
+        UNION ALL SELECT COUNT(DISTINCT entity_id)*2 c FROM audit_log WHERE action='entrega_puxada' AND entity_type='case' AND user_id=? AND created_at>=?
     ) u";
     try {
         $q = $pdo->prepare($sql);
-        $q->execute(array($uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde));
-        return (int)$q->fetchColumn();
+        $q->execute(array($uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde));
+        return (float)$q->fetchColumn();
     } catch (Exception $e) { return 0; }
 };
 $inicioSemana = date('Y-m-d', strtotime('monday this week')) . ' 00:00:00';
@@ -589,16 +617,16 @@ if (!$dopaSelf) { foreach ($users as $u) { if ((int)$u['id'] === $viewUserId) { 
 
 if ($dopaSelf) {
     $dopaTitulo = $dopaTotal > 0
-        ? ('🎉 Você já cumpriu ' . $dopaTotal . ($dopaTotal == 1 ? ' coisa' : ' coisas') . ' hoje!')
+        ? ('🎉 Você já somou ' . dopa_fmt($dopaTotal) . ($dopaTotal == 1 ? ' ponto' : ' pontos') . ' hoje!')
         : '☕ Bora começar o dia!';
-    if ($dopaTotal === 0)      $dopaFrase = 'A primeira baixa do dia é a mais gostosa. Você consegue! 💪';
+    if ($dopaTotal <= 0)       $dopaFrase = 'A primeira baixa do dia é a mais gostosa. Você consegue! 💪';
     elseif ($dopaTotal <= 2)   $dopaFrase = 'Já saiu do zero — continua nesse ritmo! ✨';
     elseif ($dopaTotal <= 5)   $dopaFrase = 'Tá voando hoje! 🚀';
     elseif ($dopaTotal <= 9)   $dopaFrase = 'Que produtividade — tá pegando fogo! 🔥';
     else                        $dopaFrase = 'Você é uma máquina hoje! Orgulho. 🏆';
 } else {
     $dopaTitulo = $dopaTotal > 0
-        ? ('👏 ' . e($dopaNome) . ' já cumpriu ' . $dopaTotal . ($dopaTotal == 1 ? ' coisa' : ' coisas') . ' hoje')
+        ? ('👏 ' . e($dopaNome) . ' já somou ' . dopa_fmt($dopaTotal) . ($dopaTotal == 1 ? ' ponto' : ' pontos') . ' hoje')
         : ('🕊️ ' . e($dopaNome) . ' ainda não deu baixas hoje');
     $dopaFrase = $dopaTotal > 0 ? 'Produzindo bem.' : 'O dia ainda tá começando.';
 }
@@ -1061,7 +1089,7 @@ function confirmarCancelamento(caseId, btn) {
 <div class="pd-dopa <?= $dopaTotal > 0 ? 'tem' : 'zero' ?>" id="pdDopa">
     <div class="pd-dopa-top">
         <div class="pd-dopa-head">
-            <div class="pd-dopa-total" id="pdDopaTotal" data-n="<?= (int)$dopaTotal ?>"><?= (int)$dopaTotal ?></div>
+            <div class="pd-dopa-total" id="pdDopaTotal" data-n="<?= (float)$dopaTotal ?>"><?= dopa_fmt($dopaTotal) ?></div>
             <div>
                 <div class="pd-dopa-titulo"><?= $dopaTitulo ?></div>
                 <div class="pd-dopa-frase"><?= $dopaFrase ?></div>
@@ -1094,7 +1122,7 @@ function confirmarCancelamento(caseId, btn) {
                     <?php endif; ?>
                 </div>
                 <div class="pd-meta-numeros">
-                    <span class="pd-meta-atual"><?= $metaPontosTime ?></span>
+                    <span class="pd-meta-atual"><?= dopa_fmt($metaPontosTime) ?></span>
                     <span class="pd-meta-sep">/</span>
                     <span class="pd-meta-alvo"><?= $metaAlvo ?></span>
                     <span class="pd-meta-pct"><?= $metaPct ?>%</span>
@@ -1106,7 +1134,7 @@ function confirmarCancelamento(caseId, btn) {
                     </div>
                 <?php endif; ?>
                 <?php if (!$metaBatida): ?>
-                    <div class="pd-meta-faltam">Faltam <strong><?= max(0, $metaAlvo - $metaPontosTime) ?></strong> pontos — todo mundo somando junto!</div>
+                    <div class="pd-meta-faltam">Faltam <strong><?= dopa_fmt(max(0, $metaAlvo - $metaPontosTime)) ?></strong> pontos — todo mundo somando junto!</div>
                 <?php endif; ?>
             </div>
             <div class="pd-meta-garrafa" title="Meta coletiva do time — balança da Justiça equilibra ao bater a meta">
@@ -1355,7 +1383,7 @@ function confirmarCancelamento(caseId, btn) {
                         <input type="text" name="premio" value="<?= e($metaPremio) ?>" maxlength="200" placeholder="Ex: Almoço em restaurante japonês por conta da casa" style="width:100%;padding:8px 10px;border:1.5px solid #d1d5db;border-radius:6px;font-size:.9rem;font-family:inherit;">
                     </div>
                     <div style="background:#f0fdf4;border-left:3px solid #16a34a;border-radius:6px;padding:8px 12px;font-size:.72rem;color:#065f46;margin-bottom:1rem;line-height:1.4;">
-                        📊 <strong>Time hoje:</strong> <?= $metaPontosTime ?> pontos <?= $metaLabelPeriodo ?>. Meta atual <?= $metaAlvo ?> — <?= $metaBatida ? 'JÁ bateu!' : ('faltam ' . max(0, $metaAlvo - $metaPontosTime)) ?>.
+                        📊 <strong>Time hoje:</strong> <?= dopa_fmt($metaPontosTime) ?> pontos <?= $metaLabelPeriodo ?>. Meta atual <?= $metaAlvo ?> — <?= $metaBatida ? 'JÁ bateu!' : ('faltam ' . dopa_fmt(max(0, $metaAlvo - $metaPontosTime))) ?>.
                     </div>
                     <div style="display:flex;gap:.5rem;justify-content:flex-end;">
                         <button type="button" onclick="pdFecharModalMeta()" style="background:#fff;border:1.5px solid #d1d5db;color:#374151;border-radius:8px;padding:8px 18px;font-weight:700;cursor:pointer;font-size:.85rem;font-family:inherit;">Cancelar</button>
@@ -1418,6 +1446,12 @@ function confirmarCancelamento(caseId, btn) {
             <div class="pd-dopa-stat <?= $dopa['clientes24'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['clientes24'] ?></span><span class="l">💬 Clientes (24)</span></div>
             <div class="pd-dopa-stat <?= $dopa['helpdesk'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['helpdesk'] ?></span><span class="l">🎫 Chamados</span></div>
             <div class="pd-dopa-stat <?= $dopa['gerid'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['gerid'] ?></span><span class="l">🔎 GERID</span></div>
+            <div class="pd-dopa-stat <?= $dopa['gerid_rev_cv'] ? '' : 'z' ?>" title="Você revisou/tratou uma pesquisa GERID que deu POSSUI VÍNCULO — vale 1 ponto (dá trabalho depois)."><span class="n"><?= (int)$dopa['gerid_rev_cv'] ?></span><span class="l">✅ GERID rev+</span></div>
+            <div class="pd-dopa-stat pd-dopa-stat-half <?= $dopa['gerid_rev_sv'] ? '' : 'z' ?>" title="Você tratou uma pesquisa GERID SEM VÍNCULO — vale meio ponto (só o &quot;OK, vi&quot;).">
+                <span class="pd-x2-badge" style="background:#94a3b8;">½</span>
+                <span class="n"><?= (int)$dopa['gerid_rev_sv'] ?></span>
+                <span class="l">☑️ GERID rev</span>
+            </div>
             <div class="pd-dopa-stat <?= $dopa['renuncias'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['renuncias'] ?></span><span class="l">📤 Renúncias</span></div>
             <div class="pd-dopa-stat <?= $dopa['pasta_apta'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['pasta_apta'] ?></span><span class="l">📂 Pasta Apta</span></div>
             <div class="pd-dopa-stat <?= $dopa['onboarding'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['onboarding'] ?></span><span class="l">🎯 Onboard</span></div>
@@ -1429,15 +1463,15 @@ function confirmarCancelamento(caseId, btn) {
             <div class="pd-dopa-total-card">
                 <div class="pd-dopa-total-ico">📅</div>
                 <div class="pd-dopa-total-info">
-                    <div class="pd-dopa-total-num" data-n="<?= (int)$semanaTotal ?>"><?= (int)$semanaTotal ?></div>
-                    <div class="pd-dopa-total-lbl">baixas nesta semana</div>
+                    <div class="pd-dopa-total-num" data-n="<?= (float)$semanaTotal ?>"><?= dopa_fmt($semanaTotal) ?></div>
+                    <div class="pd-dopa-total-lbl">pontos nesta semana</div>
                 </div>
             </div>
             <div class="pd-dopa-total-card">
                 <div class="pd-dopa-total-ico">🗓️</div>
                 <div class="pd-dopa-total-info">
-                    <div class="pd-dopa-total-num" data-n="<?= (int)$mesTotal ?>"><?= (int)$mesTotal ?></div>
-                    <div class="pd-dopa-total-lbl">baixas em <?= $mesNome ?>.</div>
+                    <div class="pd-dopa-total-num" data-n="<?= (float)$mesTotal ?>"><?= dopa_fmt($mesTotal) ?></div>
+                    <div class="pd-dopa-total-lbl">pontos em <?= $mesNome ?>.</div>
                 </div>
             </div>
         </div>
@@ -1448,9 +1482,9 @@ function confirmarCancelamento(caseId, btn) {
                 <span class="pd-dopa-badges">
                     <?php if ($streak >= 2): ?><span class="pd-badge fire">🔥 <?= $streak ?> dias seguidos</span><?php endif; ?>
                     <?php if ($recordeNovo && ($viewUserId === $userId)): ?>
-                        <span class="pd-badge novo">🏆 NOVO RECORDE: <?= (int)$dopaTotal ?>!</span>
+                        <span class="pd-badge novo">🏆 NOVO RECORDE: <?= dopa_fmt($dopaTotal) ?>!</span>
                     <?php elseif ($dopaRecorde > 0): ?>
-                        <span class="pd-badge rec">🏆 recorde <?= (int)$dopaRecorde ?></span>
+                        <span class="pd-badge rec">🏆 recorde <?= dopa_fmt($dopaRecorde) ?></span>
                     <?php endif; ?>
                 </span>
             </div>
@@ -1474,17 +1508,19 @@ function confirmarCancelamento(caseId, btn) {
 </div>
 <script>
 (function(){
+    // Formata pontuacao (int → "3", float → "3,5") — mesmo dopa_fmt() do PHP
+    function pdFmt(n){ return (n === Math.floor(n)) ? String(n) : n.toFixed(1).replace('.', ','); }
     var el = document.getElementById('pdDopaTotal');
     if (el) {
-        var n = parseInt(el.dataset.n || '0', 10);
-        if (n > 0) { var c = 0, step = Math.max(1, Math.round(n / 18)); el.textContent = '0';
-            var t = setInterval(function(){ c += step; if (c >= n) { c = n; clearInterval(t); } el.textContent = c; }, 45); }
+        var n = parseFloat(el.dataset.n || '0');
+        if (n > 0) { var c = 0, step = Math.max(0.5, n / 18); el.textContent = '0';
+            var t = setInterval(function(){ c += step; if (c >= n) { c = n; clearInterval(t); } el.textContent = pdFmt(Math.round(c*2)/2); }, 45); }
     }
     // Animar totais de semana/mês
     document.querySelectorAll('.pd-dopa-total-num').forEach(function(tn){
-        var nn = parseInt(tn.dataset.n || '0', 10);
-        if (nn > 0) { var cc = 0, st = Math.max(1, Math.round(nn / 20)); tn.textContent = '0';
-            var tt = setInterval(function(){ cc += st; if (cc >= nn) { cc = nn; clearInterval(tt); } tn.textContent = cc; }, 45); }
+        var nn = parseFloat(tn.dataset.n || '0');
+        if (nn > 0) { var cc = 0, st = Math.max(0.5, nn / 20); tn.textContent = '0';
+            var tt = setInterval(function(){ cc += st; if (cc >= nn) { cc = nn; clearInterval(tt); } tn.textContent = pdFmt(Math.round(cc*2)/2); }, 45); }
     });
     // Animar barras crescendo (após o paint)
     setTimeout(function(){
@@ -1529,7 +1565,7 @@ function pdConfete(){
 
 // Detalhe do dia ao clicar numa barra
 var PD_DIAS = <?= json_encode($dias7det, JSON_UNESCAPED_UNICODE) ?>;
-var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', movimentacoes:'🔄 Movimentações', leads21:'👋 Leads (21)', clientes24:'💬 Clientes (24)', helpdesk:'🎫 Chamados', gerid:'🔎 GERID', renuncias:'📤 Renúncias', pasta_apta:'📂 Pasta Apta', onboarding:'🎯 Onboard', balcao:'🏛️ Balcão', entregas_puxadas:'⏳ Puxadas' };
+var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', movimentacoes:'🔄 Movimentações', leads21:'👋 Leads (21)', clientes24:'💬 Clientes (24)', helpdesk:'🎫 Chamados', gerid:'🔎 GERID', gerid_rev_cv:'✅ GERID rev+', gerid_rev_sv:'☑️ GERID rev ½', renuncias:'📤 Renúncias', pasta_apta:'📂 Pasta Apta', onboarding:'🎯 Onboard', balcao:'🏛️ Balcão', entregas_puxadas:'⏳ Puxadas' };
 function pdDopaDia(date, el){
     var ex = document.getElementById('pdDopaPop');
     if (ex){ var was = ex.dataset.date; ex.remove(); document.removeEventListener('click', pdPopClose); if (was === date) return; }
