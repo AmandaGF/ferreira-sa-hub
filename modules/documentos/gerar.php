@@ -1533,7 +1533,7 @@ if (!$showEditor) {
         'nome' => $nome, 'cpf' => $cpf, 'rg' => $rg, 'email' => $email, 'phone' => $phone,
         'profissao' => $profissao, 'estado_civil' => $estadoCivil, 'endereco' => $enderecoCompleto,
         'cidade' => $cidade, 'uf' => $uf, 'outorgante' => $outorgante,
-        'child_names' => $childNames, 'acao_texto' => $acaoTexto, 'cidade_data' => $cidadeData,
+        'child_names' => $childNames, 'acao_texto' => $acaoTexto, 'tipo_acao' => $tipoAcao, 'cidade_data' => $cidadeData,
         'valor_honorarios' => $valorHonorarios, 'valor_extenso' => $valorExtenso,
         'valor_parcela' => $valorParcela, 'num_parcelas' => $numParcelas,
         'forma_pagamento' => $formaPagamento, 'dia_vencimento' => $diaVencimento,

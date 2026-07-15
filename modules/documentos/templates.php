@@ -257,6 +257,18 @@ function template_contrato($d) {
     $html .= '<p style="font-size:11.5px;"><strong>- Se o processo já tiver sido iniciado, mas sem decisão deferindo eventual tutela, a multa será de 50% do valor total contratado;</strong></p>';
     $html .= '<p style="font-size:11.5px;"><strong>- Se o processo já estiver em fase final, antes da sentença, com realização de audiência ou etapa equivalente, o valor integral do contrato será devido.</strong></p></div>';
 
+    // 8.5 ESTUDOS PSICOSSOCIAIS — so aparece em acoes de guarda/convivencia,
+    // onde ha comumente designacao de estudo com psicologo/assistente social.
+    // Amanda 15/07/2026: adv nao pode entrar na entrevista (norma CFP/CFESS);
+    // se cliente quer acompanhamento presencial (esperando fora), cobra R$500/h.
+    $_tipoAcaoPsi = isset($d['tipo_acao']) ? (string)$d['tipo_acao'] : '';
+    $_ehGuardaConv = in_array($_tipoAcaoPsi, array('guarda', 'guarda_compartilhada', 'convivencia', 'guarda_convivencia'), true);
+    if ($_ehGuardaConv) {
+        $html .= '<div style="margin-top:1rem;"><div style="background:#052228;color:#fff;display:inline-block;padding:.2rem .7rem;border-radius:6px;font-size:10px;font-weight:700;margin-bottom:.5rem;">ESTUDOS PSICOSSOCIAIS</div>';
+        $html .= '<p style="font-size:11.5px;">8.5 Nos processos que envolvam <strong>estudo psicossocial</strong> designado pelo juízo (perícia com psicólogo e/ou assistente social), a <strong>CONTRATADA NÃO comparecerá presencialmente ao ato</strong>, uma vez que, por norma técnica dos Conselhos Federais de Psicologia (CFP) e de Serviço Social (CFESS), o(a) advogado(a) <strong>não pode participar da entrevista</strong> com as partes, menores ou familiares avaliados.</p>';
+        $html .= '<p style="font-size:11.5px;">Caso a parte <strong>CONTRATANTE</strong> deseje contar com o acompanhamento presencial de advogado(a) do escritório para permanência do lado de fora do local durante a realização do estudo, tal serviço será cobrado à parte, mediante <strong>solicitação prévia e por escrito com no mínimo 7 (sete) dias de antecedência</strong>, no valor de <strong>R$ 500,00 (quinhentos reais) por hora ou fração superior a 30 minutos</strong>, computados desde a <strong>saída do escritório até o retorno</strong> (deslocamento + permanência). O pagamento deverá ser realizado <strong>antecipadamente</strong>, mediante estimativa de horas, com eventual complemento ou devolução ao final.</p></div>';
+    }
+
     // 9. SEGURANÇA CONTRA GOLPES (texto direto, sem caixa pontilhada exagerada)
     $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">9. SEGURANÇA CONTRA GOLPES</p>';
     $html .= '<p style="font-size:11.5px;">Para sua segurança, qualquer pagamento, depósito, transferência ou PIX deverá ser realizado <strong>exclusivamente para a chave oficial do escritório</strong> (CNPJ ' . $esc['cnpj'] . '). Qualquer solicitação de valores para contas, chaves PIX ou destinatários diferentes <strong>deve ser desconsiderada</strong> e imediatamente comunicada ao escritório pelos contatos oficiais: WhatsApp ' . $esc['whatsapp'] . ' e e-mail ' . $esc['email'] . '.</p>';
@@ -421,6 +433,14 @@ function template_contrato_prevjud_beneficio($d, $beneficio = 'sm') {
     $html .= '<p style="font-size:12px;margin-left:1rem;">a) Empregar técnica e diligência na defesa dos interesses da CONTRATANTE;<br>';
     $html .= 'b) Fornecer informações atualizadas sobre o processo (atualizações relevantes via WhatsApp; movimentações detalhadas no Portal do Cliente; esclarecimentos pelos canais oficiais);<br>';
     $html .= 'c) Prestar contas sempre que houver recebimento de valores, com repasses devidos e demonstrativo discriminado.</p>';
+
+    // 4.3 PERICIA MEDICA — Amanda 15/07/2026: mesma logica do estudo psicossocial
+    // (guarda/convivencia), mas adaptada pra pericia INSS/judicial. Adv nao
+    // entra na sala do exame com o perito medico; se cliente quer companhia
+    // fora do consultorio, cobra R$500/h.
+    $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">4.3. PERÍCIA MÉDICA</p>';
+    $html .= '<p style="font-size:12px;">Nas <strong>perícias médicas</strong> designadas pelo INSS ou pelo Juízo (auxílio-doença, aposentadoria por invalidez, BPC/LOAS, isenção de imposto de renda e demais benefícios que exijam exame médico-pericial), a <strong>CONTRATADA NÃO comparecerá presencialmente ao ato</strong>, uma vez que, por norma técnica dos Conselhos de Medicina, o(a) advogado(a) <strong>não pode participar do exame médico-pericial</strong> realizado com o(a) periciando(a).</p>';
+    $html .= '<p style="font-size:12px;">Caso a parte <strong>CONTRATANTE</strong> deseje contar com o acompanhamento presencial de advogado(a) do escritório para permanência do lado de fora do local durante a realização da perícia, tal serviço será cobrado à parte, mediante <strong>solicitação prévia e por escrito com no mínimo 7 (sete) dias de antecedência</strong>, no valor de <strong>R$ 500,00 (quinhentos reais) por hora ou fração superior a 30 minutos</strong>, computados desde a <strong>saída do escritório até o retorno</strong> (deslocamento + permanência). O pagamento deverá ser realizado <strong>antecipadamente</strong>, mediante estimativa de horas, com eventual complemento ou devolução ao final.</p>';
 
     // 5. RESPONSABILIDADE
     $html .= '<p class="no-indent" style="font-size:14px;font-weight:700;color:#052228;border-left:3px solid #d7ab90;padding-left:.6rem;margin-top:1.5rem;">5. RESPONSABILIDADE PROFISSIONAL</p>';
