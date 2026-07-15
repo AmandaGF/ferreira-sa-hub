@@ -185,6 +185,13 @@ function _jorjao_gerar_via_ia($tocada, $vars) {
     if (!defined('ANTHROPIC_API_KEY') || !ANTHROPIC_API_KEY) return null;
 
     $system = <<<PROMPT
+⚠️ CONTEXTO CRÍTICO: esta é uma mensagem FIRE-AND-FORGET que será postada DIRETO
+no grupo do WhatsApp do escritório, sem revisão humana. NÃO É UMA CONVERSA. Você
+NÃO ESTÁ FALANDO COM O USUÁRIO. Você não pode pedir informação, não pode fazer
+pergunta, não pode dizer "me manda X pra eu gerar" — se você fizer isso, a
+mensagem CONSTRANGE o time inteiro no grupo. Gere a mensagem final AGORA com o
+que você tem. Se faltar rastro, celebre o time (é sempre seguro).
+
 Você é o mascote do escritório Ferreira & Sá Advocacia — um senhor simpático,
 brincalhão, que celebra vitórias do time no grupo do WhatsApp.
 
@@ -222,6 +229,19 @@ REGRAS:
 - Termine com uma frase animada e VARIE o apelido a cada mensagem.
 - Formato WhatsApp: use *negrito* pra destaque, quebras de linha simples.
 - Sem hashtags. Sem "clique aqui". Sem enrolação.
+
+⛔ PROIBIDO ABSOLUTO:
+- NÃO comece com "Opa" e diga "vou gerar a mensagem pra vocês" (a mensagem
+  final é ISSO — não anuncie que vai fazer, FAÇA).
+- NÃO peça informação ("você tem X?", "me manda Y", "preciso de Z").
+- NÃO diga "sem isso vou celebrar o time" (é uma resposta interna sua ao
+  prompt — o grupo NÃO precisa saber do seu processo de decisão).
+- NÃO diga "consigo citar a pessoa se me disser quem foi".
+- NÃO se refira aos "rastros de trabalho" ou "atividades recentes" (isso é
+  dado interno do prompt — o grupo NÃO precisa saber que você olhou isso).
+
+RESUMO: sua saída é UMA mensagem de celebração pronta pra copiar/colar no
+WhatsApp — nada mais. Se estiver na dúvida se cita nome, celebre o TIME.
 PROMPT;
 
     // Coleta rastros do case (se contexto tem case_id) — pra IA deduzir quem trabalhou
@@ -290,6 +310,35 @@ PROMPT;
 
     if (empty($resp['ok']) || empty($resp['texto'])) return null;
     $txt = trim($resp['texto']);
+
+    // Amanda 15/07/2026: guard-rail — se a IA voltou pedindo dado em vez de
+    // celebrar (frases como "vou gerar a mensagem", "me manda", "você tem os
+    // rastros", "preciso de X"), descarta e cai no template. Prefere mensagem
+    // padrao (segura) a mensagem esquisita/constrangedora no grupo.
+    $ruinPatterns = array(
+        '/vou gerar a mensagem/i',
+        '/gerar a mensagem pra voc/i',
+        '/preciso de (um |mais |o )?detalhe/i',
+        '/preciso saber/i',
+        '/preciso do?s? (rastro|dado|nome|info)/i',
+        '/voc[eê] tem os? rastros/i',
+        '/voc[eê] pode me (dizer|mandar|passar)/i',
+        '/me (manda|passa|diz|fala)/i',
+        '/rastros? de trabalho/i',
+        '/atividades? recentes/i',
+        '/sem isso,? vou/i',
+        '/consigo citar/i',
+        '/se voc[eê] (tiver|puder|souber)/i',
+        '/quem peticionou/i',
+        '/lan[çc]o o gol/i',
+    );
+    foreach ($ruinPatterns as $rx) {
+        if (preg_match($rx, $txt)) {
+            error_log("[jorjao] IA saiu do personagem (padrao=$rx). Descartando e caindo no template. Resposta: " . mb_substr($txt, 0, 200));
+            return null;
+        }
+    }
+
     // Guarda contra IA devolver algo grande demais (não deveria com max_tokens=300)
     return mb_strlen($txt) > 800 ? mb_substr($txt, 0, 800) : $txt;
 }
