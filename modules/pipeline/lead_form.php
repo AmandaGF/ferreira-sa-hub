@@ -71,6 +71,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         'name'      => clean_str($_POST['name'] ?? '', 150),
         'phone'     => clean_str($_POST['phone'] ?? '', 40),
         'email'     => trim($_POST['email'] ?? ''),
+        'cpf'       => trim($_POST['cpf'] ?? ''),
         'source'    => $_POST['source'] ?? 'outro',
         'case_type' => clean_str($_POST['case_type'] ?? '', 60),
         'estimated_value' => parse_valor_reais($_POST['estimated_value'] ?? ''),
@@ -111,8 +112,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newId = (int)$pdo->lastInsertId();
 
             // Vincular ao contato existente ou criar novo (anti-duplicação)
+            // Amanda 15/07/2026: CPF entra no find_or_create pra dedup mais
+            // preciso (por CPF ao inves de email/nome).
             if (!$clientIdFromPost && $f['name']) {
-                $clientIdFromPost = find_or_create_client(array('name' => $f['name'], 'phone' => $f['phone'], 'email' => $f['email']));
+                $clientIdFromPost = find_or_create_client(array('name' => $f['name'], 'phone' => $f['phone'], 'email' => $f['email'], 'cpf' => $f['cpf']));
                 $pdo->prepare("UPDATE pipeline_leads SET client_id = ? WHERE id = ?")->execute(array($clientIdFromPost, $newId));
             }
 
@@ -127,16 +130,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         redirect(module_url('pipeline'));
     }
 } else {
+    // Se lead ja tem client_id, puxar CPF do cliente vinculado (pra exibir no edit)
+    $_cpfDoClient = '';
+    if ($lead && !empty($lead['client_id'])) {
+        $stC = $pdo->prepare("SELECT cpf FROM clients WHERE id = ?");
+        $stC->execute(array((int)$lead['client_id']));
+        $_cpfDoClient = (string)$stC->fetchColumn();
+    }
     if ($preClient) {
         $f = [
             'name' => $preClient['name'] ?? '', 'phone' => $preClient['phone'] ?? '',
-            'email' => $preClient['email'] ?? '', 'source' => 'outro', 'case_type' => '',
+            'email' => $preClient['email'] ?? '', 'cpf' => $preClient['cpf'] ?? '',
+            'source' => 'outro', 'case_type' => '',
             'estimated_value' => '', 'exito_percentual' => '', 'assigned_to' => '', 'notes' => '',
         ];
     } elseif ($preDuplicate) {
         $f = [
             'name' => $preDuplicate['name'] ?? '', 'phone' => $preDuplicate['phone'] ?? '',
-            'email' => $preDuplicate['email'] ?? '', 'source' => $preDuplicate['source'] ?? 'outro',
+            'email' => $preDuplicate['email'] ?? '', 'cpf' => '',
+            'source' => $preDuplicate['source'] ?? 'outro',
             'case_type' => '', 'estimated_value' => '', 'exito_percentual' => '',
             'assigned_to' => $preDuplicate['assigned_to'] ?? '',
             'notes' => 'Nova ação (duplicado de lead #' . $duplicateId . ')',
@@ -144,7 +156,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $f = [
             'name' => $lead['name'] ?? '', 'phone' => $lead['phone'] ?? '',
-            'email' => $lead['email'] ?? '', 'source' => $lead['source'] ?? 'outro',
+            'email' => $lead['email'] ?? '', 'cpf' => $_cpfDoClient,
+            'source' => $lead['source'] ?? 'outro',
             'case_type' => $lead['case_type'] ?? '',
             'estimated_value' => ($lead['honorarios_cents'] ? number_format($lead['honorarios_cents'] / 100, 2, ',', '.') : ($lead['estimated_value_cents'] ? number_format($lead['estimated_value_cents'] / 100, 2, ',', '.') : '')),
             'exito_percentual' => $lead['exito_percentual'] ?? '',
@@ -186,9 +199,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
             <?= csrf_input() ?>
             <input type="hidden" name="client_id" id="hiddenClientId" value="<?= $fromClient ?: ($preClient['id'] ?? ($preDuplicate['client_id'] ?? '')) ?>">
 
-            <div class="form-group">
-                <label class="form-label">Nome do lead *</label>
-                <input type="text" name="name" id="fieldName" class="form-input" value="<?= e($f['name']) ?>" required>
+            <div class="form-row">
+                <div class="form-group" style="flex:2;">
+                    <label class="form-label">Nome do lead *</label>
+                    <input type="text" name="name" id="fieldName" class="form-input" value="<?= e($f['name']) ?>" required>
+                </div>
+                <div class="form-group" style="flex:1;position:relative;">
+                    <label class="form-label">CPF <span id="cpfHint" style="font-weight:400;font-size:.7rem;color:var(--text-muted);">(digite pra puxar dados)</span></label>
+                    <input type="text" name="cpf" id="fieldCpf" class="form-input" value="<?= e($f['cpf'] ?? '') ?>" placeholder="000.000.000-00" maxlength="14">
+                    <div id="cpfStatus" style="position:absolute;right:10px;top:34px;font-size:.75rem;pointer-events:none;"></div>
+                </div>
             </div>
 
             <div class="form-row">
@@ -249,6 +269,74 @@ require_once APP_ROOT . '/templates/layout_start.php';
         </form>
     </div></div>
 </div>
+
+<script>
+// ══ CPF: mascara + puxar dados da API (Amanda 15/07/2026) ══
+(function(){
+    var cpfEl = document.getElementById('fieldCpf');
+    if (!cpfEl) return;
+    var statusEl = document.getElementById('cpfStatus');
+    var hintEl = document.getElementById('cpfHint');
+    var timer = null;
+
+    function setStatus(txt, cor) {
+        if (!statusEl) return;
+        statusEl.textContent = txt;
+        statusEl.style.color = cor || '';
+    }
+
+    cpfEl.addEventListener('input', function(){
+        var raw = this.value.replace(/\D/g, '').slice(0, 11);
+        // mascara
+        var masked = raw;
+        if (raw.length > 9) masked = raw.replace(/(\d{3})(\d{3})(\d{3})(\d{1,2})/, '$1.$2.$3-$4');
+        else if (raw.length > 6) masked = raw.replace(/(\d{3})(\d{3})(\d{0,3})/, '$1.$2.$3');
+        else if (raw.length > 3) masked = raw.replace(/(\d{3})(\d{0,3})/, '$1.$2');
+        this.value = masked;
+
+        clearTimeout(timer);
+        if (raw.length !== 11) { setStatus(''); return; }
+        setStatus('buscando…', '#6b7280');
+        timer = setTimeout(function(){ puxarCpfLead(raw); }, 400);
+    });
+
+    window.puxarCpfLead = function(cpf) {
+        var xhr = new XMLHttpRequest();
+        xhr.open('GET', '<?= url("publico/api_cpf.php") ?>?cpf=' + cpf, true);
+        xhr.timeout = 8000;
+        xhr.onload = function(){
+            try {
+                var d = JSON.parse(xhr.responseText);
+                if (!d || d.status === 'ERROR' || !d.nome) {
+                    setStatus('CPF sem dados', '#b45309');
+                    return;
+                }
+                // Se veio client_id, vincula direto (evita duplicar cliente)
+                if (d.client_id) {
+                    var hid = document.getElementById('hiddenClientId');
+                    if (hid) hid.value = d.client_id;
+                    setStatus('✓ cliente #' + d.client_id, '#059669');
+                    if (hintEl) hintEl.textContent = '(cliente já cadastrado — vai vincular)';
+                } else {
+                    setStatus('✓ preenchido', '#059669');
+                }
+                function fill(id, val){
+                    if (!val) return;
+                    var el = document.getElementById(id);
+                    if (el && !el.value) el.value = val;
+                }
+                fill('fieldName', d.nome);
+                fill('fieldPhone', d.telefone);
+                fill('fieldEmail', d.email);
+                setTimeout(function(){ setStatus(''); }, 3000);
+            } catch(e) { setStatus('erro', '#b91c1c'); }
+        };
+        xhr.ontimeout = function(){ setStatus('timeout', '#b91c1c'); };
+        xhr.onerror   = function(){ setStatus('erro rede', '#b91c1c'); };
+        xhr.send();
+    };
+})();
+</script>
 
 <?php if (!$editId): ?>
 <script>
