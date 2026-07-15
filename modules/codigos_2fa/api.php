@@ -64,6 +64,26 @@ if ($action === 'gerar_codigo') {
     exit;
 }
 
+// ─── Revelar senha (leitura — toda a equipe pode) ─────────────────────
+// Amanda 15/07/2026: movido pra ANTES do bloqueio admin. Estava DEPOIS
+// dele, entao qualquer nao-admin (Naiara/Carina/Sandra/etc) que clicasse
+// no botao "Senha copiar" recebia "Apenas Amanda e Luiz Eduardo podem
+// gerenciar sistemas" e nao copiava. Audit log continua registrando.
+if ($action === 'revelar_senha') {
+    $sistemaId = (int)($_POST['sistema_id'] ?? 0);
+    if (!$sistemaId) { echo json_encode(array('ok' => false, 'erro' => 'sistema_id obrigatório', 'csrf' => $newCsrf)); exit; }
+    $stmt = $pdo->prepare("SELECT id, nome, senha_encrypted FROM sistemas_2fa WHERE id = ?");
+    $stmt->execute(array($sistemaId));
+    $sis = $stmt->fetch();
+    if (!$sis) { echo json_encode(array('ok' => false, 'erro' => 'Sistema não encontrado', 'csrf' => $newCsrf)); exit; }
+    if (empty($sis['senha_encrypted'])) { echo json_encode(array('ok' => false, 'erro' => 'Sem senha cadastrada', 'csrf' => $newCsrf)); exit; }
+    $senha = totp_decrypt($sis['senha_encrypted']);
+    if ($senha === false || $senha === '') { echo json_encode(array('ok' => false, 'erro' => 'Falha ao decifrar senha', 'csrf' => $newCsrf)); exit; }
+    try { audit_log('senha_sistema_revelada', 'sistemas_2fa', $sistemaId, 'sistema=' . $sis['nome']); } catch (Exception $e) {}
+    echo json_encode(array('ok' => true, 'senha' => $senha, 'csrf' => $newCsrf));
+    exit;
+}
+
 // ─── Testar chave (admin) — gera código sem salvar nada ───────────────
 if ($action === 'testar_chave') {
     if (!can_admin_codigos_2fa()) { echo json_encode(array('ok' => false, 'erro' => 'Apenas admin', 'csrf' => $newCsrf)); exit; }
@@ -156,23 +176,6 @@ if ($action === 'salvar_sistema') {
     } catch (Exception $e) {
         echo json_encode(array('ok' => false, 'erro' => 'Erro ao salvar: ' . $e->getMessage(), 'csrf' => $newCsrf));
     }
-    exit;
-}
-
-// Novo endpoint Amanda 03/06/2026: revela senha decifrada pra copiar
-// (com audit log igual ao gerar_codigo - acessivel a todos com permissao).
-if ($action === 'revelar_senha') {
-    $sistemaId = (int)($_POST['sistema_id'] ?? 0);
-    if (!$sistemaId) { echo json_encode(array('ok' => false, 'erro' => 'sistema_id obrigatório', 'csrf' => $newCsrf)); exit; }
-    $stmt = $pdo->prepare("SELECT id, nome, senha_encrypted FROM sistemas_2fa WHERE id = ?");
-    $stmt->execute(array($sistemaId));
-    $sis = $stmt->fetch();
-    if (!$sis) { echo json_encode(array('ok' => false, 'erro' => 'Sistema não encontrado', 'csrf' => $newCsrf)); exit; }
-    if (empty($sis['senha_encrypted'])) { echo json_encode(array('ok' => false, 'erro' => 'Sem senha cadastrada', 'csrf' => $newCsrf)); exit; }
-    $senha = totp_decrypt($sis['senha_encrypted']);
-    if ($senha === false || $senha === '') { echo json_encode(array('ok' => false, 'erro' => 'Falha ao decifrar senha', 'csrf' => $newCsrf)); exit; }
-    try { audit_log('senha_sistema_revelada', 'sistemas_2fa', $sistemaId, 'sistema=' . $sis['nome']); } catch (Exception $e) {}
-    echo json_encode(array('ok' => true, 'senha' => $senha, 'csrf' => $newCsrf));
     exit;
 }
 
