@@ -424,6 +424,14 @@ function mostrarResultado(r) {
     if (r.id && r.case_id_salvo) {
         btnDrive = '<button id="pdBtnDrive" onclick="pdSalvarNoDrive(' + r.id + ')" class="btn btn-sm" style="background:#4285f4;color:#fff;border:none;" title="Sobe o XLSX pra subpasta Cálculos do Drive E cria um andamento no caso com o link">💾 Salvar no caso (Drive + Andamento)</button>';
     }
+    // Amanda 16/07/2026: se calculo saiu sem vinculo, oferece botao "Vincular
+    // agora" que pega o processo/cliente que a Amanda selecionou APOS o
+    // processamento e atualiza o registro (sem refazer IA).
+    var semVinculo = (r.vinculo_txt || '').indexOf('Sem vínculo') !== -1 || (r.vinculo_txt || '').indexOf('Sem vinculo') !== -1;
+    var btnVincular = '';
+    if (semVinculo && r.id) {
+        btnVincular = '<button type="button" onclick="pdVincularAgora(' + r.id + ', this)" class="btn btn-sm" style="background:#0f766e;color:#fff;border:none;margin-left:.5rem;">🔗 Vincular ao processo/cliente selecionado</button>';
+    }
     var html = '<div class="card"><div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;">'
         + '<h3>Cálculo Gerado</h3>'
         + '<div style="display:flex;gap:.5rem;flex-wrap:wrap;">'
@@ -433,8 +441,9 @@ function mostrarResultado(r) {
         + '<button onclick="location.reload()" class="btn btn-outline btn-sm">Novo cálculo</button>'
         + '</div></div>'
         + '<div class="card-body">'
-        + '<div style="' + vincStyle + 'padding:.5rem .8rem;border-radius:6px;margin-bottom:.6rem;font-size:.8rem;font-weight:600;">'
-        + (r.vinculo_txt || '—')
+        + '<div id="pdVincWarn" data-planilha-id="' + (r.id || '') + '" style="' + vincStyle + 'padding:.5rem .8rem;border-radius:6px;margin-bottom:.6rem;font-size:.8rem;font-weight:600;display:flex;align-items:center;flex-wrap:wrap;gap:.4rem;">'
+        + '<span id="pdVincTxt">' + (r.vinculo_txt || '—') + '</span>'
+        + btnVincular
         + '</div>'
         + '<div id="pdDriveStatus" style="display:none;font-size:.78rem;padding:.5rem .8rem;border-radius:6px;margin-bottom:.6rem;"></div>'
         + '<p style="font-size:.82rem;color:var(--text-muted);">Total: <strong style="color:var(--petrol-900);font-size:1rem;">R$ ' + (r.total || '—') + '</strong></p>'
@@ -443,6 +452,71 @@ function mostrarResultado(r) {
     document.getElementById('pdResultado').innerHTML = html;
     document.getElementById('pdResultado').style.display = '';
 }
+
+// Amanda 16/07/2026: vincula calculo ja gerado a processo/cliente selecionados
+// APOS o processamento (sem refazer IA). Usa mesma logica de fallback do submit
+// (case por label / cliente por nome parcial) que o backend ja tem.
+window.pdVincularAgora = function(planilhaId, btn) {
+    var caseSel   = document.getElementById('pdCaseId');
+    var caseId    = caseSel ? (caseSel.value || '') : '';
+    var caseLabel = '';
+    if (caseSel && caseSel.selectedIndex > 0) {
+        caseLabel = (caseSel.options[caseSel.selectedIndex].textContent || '').trim();
+    }
+    var clientBuscaVal = (document.getElementById('pdClientBusca').value || '').trim();
+    var clientId = document.getElementById('pdClientId').value || '';
+    // Match datalist parcial
+    if (!clientId && clientBuscaVal) {
+        var opts = document.querySelectorAll('#pdClientList option');
+        for (var i = 0; i < opts.length; i++) {
+            if ((opts[i].value || '').toLowerCase() === clientBuscaVal.toLowerCase()) {
+                clientId = opts[i].dataset.id || '';
+                document.getElementById('pdClientId').value = clientId;
+                break;
+            }
+        }
+    }
+    if (!caseId && !clientId) {
+        alert('Escolha um processo OU cliente antes de vincular.');
+        return;
+    }
+    var orig = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '⏳ vinculando...';
+    var fd = new FormData();
+    fd.append('action', 'atualizar_vinculo');
+    fd.append('planilha_id', planilhaId);
+    fd.append('case_id', caseId);
+    fd.append('client_id', clientId || '0');
+    fd.append('case_label', caseLabel);
+    fd.append('client_nome', clientBuscaVal);
+    fd.append('csrf_token', CSRF);
+    fetch(API, { method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'} })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.csrf) CSRF = d.csrf;
+            if (d.error) {
+                btn.disabled = false;
+                btn.innerHTML = orig;
+                alert(d.error);
+                return;
+            }
+            var warn = document.getElementById('pdVincWarn');
+            var txt = document.getElementById('pdVincTxt');
+            if (txt) txt.textContent = d.vinculo_txt || '—';
+            if (warn) {
+                warn.style.background = '#dcfce7';
+                warn.style.borderLeft = '3px solid #10b981';
+                warn.style.color = '#14532d';
+            }
+            btn.remove();
+        })
+        .catch(function(){
+            btn.disabled = false;
+            btn.innerHTML = orig;
+            alert('Falha de rede — tenta de novo.');
+        });
+};
 
 // Amanda 15/06/2026: upload do XLSX pra pasta do Drive do caso.
 // Pode ser chamado do card resultado (sem btn) OU dos botoes da lista

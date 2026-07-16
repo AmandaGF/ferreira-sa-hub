@@ -18,6 +18,59 @@ if (!validate_csrf()) { echo json_encode(array('error' => 'Token inválido', 'cs
 $newCsrf = generate_csrf_token();
 $action = $_POST['action'] ?? '';
 
+// ── Amanda 16/07/2026: vincular calculo ja gerado a um processo/cliente ──
+// Bug: quando a Amanda arrastava o PDF ANTES de escolher o processo no
+// dropdown, o calculo era salvo sem vinculo. Depois, mesmo escolhendo o
+// processo, nao dava pra vincular sem refazer o calculo (que consome IA).
+// Esse endpoint atualiza o case_id/client_id de um calculo existente
+// e devolve o vinculo_txt novo pra atualizar a UI.
+if ($action === 'atualizar_vinculo') {
+    $planilhaId = (int)($_POST['planilha_id'] ?? 0);
+    if ($planilhaId <= 0) { echo json_encode(array('error' => 'planilha_id obrigatório', 'csrf' => $newCsrf)); exit; }
+    $caseId    = (int)($_POST['case_id'] ?? 0);
+    $clientId  = (int)($_POST['client_id'] ?? 0);
+    // Se veio case, cliente vira o do case (fonte da verdade)
+    if ($caseId) {
+        $stC = $pdo->prepare("SELECT client_id FROM cases WHERE id = ?");
+        $stC->execute(array($caseId));
+        $c = (int)$stC->fetchColumn();
+        if ($c) $clientId = $c;
+    }
+    if (!$caseId && !$clientId) {
+        echo json_encode(array('error' => 'Escolha ao menos um processo ou cliente antes de vincular.', 'csrf' => $newCsrf));
+        exit;
+    }
+    try {
+        $pdo->prepare("UPDATE planilha_debito SET case_id = ?, client_id = ? WHERE id = ?")
+            ->execute(array($caseId ?: null, $clientId ?: null, $planilhaId));
+        audit_log('planilha_calculo_vinculo', 'planilha_debito', $planilhaId, "case=$caseId client=$clientId");
+    } catch (Throwable $e) {
+        echo json_encode(array('error' => 'Falha ao vincular: ' . $e->getMessage(), 'csrf' => $newCsrf));
+        exit;
+    }
+    // Monta vinculo_txt igual ao processar_*
+    $vincTxt = '';
+    if ($caseId) {
+        $stVT = $pdo->prepare("SELECT cs.title, cl.name FROM cases cs LEFT JOIN clients cl ON cl.id = cs.client_id WHERE cs.id = ?");
+        $stVT->execute(array($caseId));
+        $vt = $stVT->fetch();
+        if ($vt) $vincTxt = '⚖️ ' . $vt['title'] . ($vt['name'] ? ' · 👤 ' . $vt['name'] : '');
+    } elseif ($clientId) {
+        $stCV = $pdo->prepare("SELECT name FROM clients WHERE id = ?");
+        $stCV->execute(array($clientId));
+        $cnm = $stCV->fetchColumn();
+        if ($cnm) $vincTxt = '👤 ' . $cnm;
+    }
+    echo json_encode(array(
+        'ok' => true,
+        'case_id_salvo' => $caseId ?: null,
+        'client_id_salvo' => $clientId ?: null,
+        'vinculo_txt' => $vincTxt ?: '—',
+        'csrf' => $newCsrf,
+    ));
+    exit;
+}
+
 // ── Amanda 15/06/2026: salvar XLSX do calculo na pasta do Drive do processo ──
 if ($action === 'salvar_drive') {
     @set_time_limit(180);
