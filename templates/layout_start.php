@@ -597,7 +597,27 @@ require_once APP_ROOT . '/templates/sidebar.php';
                                     <span class="notif-time"><?= $ago ?></span>
                                 </a>
                                 <?php else: ?>
-                                <a href="<?= $n['link'] ? e($n['link']) . (strpos($n['link'],'?') !== false ? '&' : '?') . 'notif_id=' . $n['id'] : url('modules/notificacoes/?read=' . $n['id']) ?>" class="<?= $nClass ?>" data-notif-id="<?= (int)$n['id'] ?>">
+                                <?php
+                                // Amanda 16/07/2026: notif_id anexado depois de #ancora
+                                // corrompia URL (tudo depois de # vira fragment). Solucao:
+                                // notif_id ANTES da ancora + click marcar como lida via
+                                // beacon (ja funciona via footer.php). Se nao tem link, cai
+                                // no /modules/notificacoes/?read=X.
+                                $_hrefNotif = url('modules/notificacoes/?read=' . $n['id']);
+                                if ($n['link']) {
+                                    $hashPos = strpos($n['link'], '#');
+                                    if ($hashPos !== false) {
+                                        $base = substr($n['link'], 0, $hashPos);
+                                        $frag = substr($n['link'], $hashPos);
+                                    } else {
+                                        $base = $n['link'];
+                                        $frag = '';
+                                    }
+                                    $sep = strpos($base, '?') !== false ? '&' : '?';
+                                    $_hrefNotif = $base . $sep . 'notif_id=' . (int)$n['id'] . $frag;
+                                }
+                                ?>
+                                <a href="<?= e($_hrefNotif) ?>" class="<?= $nClass ?>" data-notif-id="<?= (int)$n['id'] ?>">
                                     <span class="notif-icon"><?= $nIcon ?></span>
                                     <div class="notif-content">
                                         <div class="notif-title"><?= e($n['title']) ?></div>
