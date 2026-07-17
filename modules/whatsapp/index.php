@@ -3340,22 +3340,31 @@ require_once APP_ROOT . '/templates/layout_start.php';
         html += '</div>';
         html += '<div style="padding:1.25rem;">';
 
+        // Amanda 17/07/2026: aviso de custo em TODOS os estados pra ninguem
+        // clicar regerar sem cerimonia (cada geracao consome IA).
+        var avisoCusto = '<div style="background:#fef9c3;border-left:3px solid #f59e0b;color:#78350f;padding:.55rem .8rem;border-radius:6px;font-size:.72rem;margin-bottom:.85rem;line-height:1.4;">'
+                       + '💰 <strong>Cada geração custa ~R$ 0,05 em IA</strong> (Claude Haiku). '
+                       + 'Use com moderação — clicar em 🔄 <strong>Regerar</strong> gera uma nova cobrança.'
+                       + '</div>';
+
         if (estado === 'carregando') {
+            html += avisoCusto;
             html += '<div style="text-align:center;padding:2rem 1rem;color:#6b7280;font-size:.9rem;">⏳ Gerando prévia com IA (Claude Haiku)...<br><small style="font-size:.72rem;">~5-15 segundos</small></div>';
         } else if (estado === 'erro') {
             html += '<div style="background:#fef2f2;color:#991b1b;padding:.8rem 1rem;border-radius:8px;font-size:.85rem;border-left:3px solid #dc2626;"><strong>Não deu:</strong> ' + escapeHtml(data || 'erro') + '</div>';
             html += '<div style="text-align:right;margin-top:1rem;"><button onclick="waAlfredoFechar()" class="btn btn-outline btn-sm">Fechar</button></div>';
         } else if (estado === 'previa') {
+            html += avisoCusto;
             var meta = '';
             if (data.andamento_data) meta += '<span style="color:#6b7280;">📅 Andamento de ' + escapeHtml(data.andamento_data) + '</span>';
             if (data.case_title) meta += (meta ? ' · ' : '') + '<span style="color:#6b7280;">⚖️ ' + escapeHtml(data.case_title) + '</span>';
             if (meta) html += '<div style="font-size:.75rem;margin-bottom:.6rem;">' + meta + '</div>';
             html += '<label style="display:block;font-size:.72rem;font-weight:700;color:#6b7280;margin-bottom:.35rem;letter-spacing:.03em;">MENSAGEM QUE VAI SER ENVIADA:</label>';
             html += '<textarea id="waAlfredoTexto" style="width:100%;min-height:220px;padding:.75rem;border:2px solid #d7ab90;border-radius:8px;font-size:.85rem;font-family:inherit;line-height:1.45;resize:vertical;background:#fefefe;">' + escapeHtml(data.mensagem || '') + '</textarea>';
-            html += '<div style="font-size:.7rem;color:#6b7280;margin-top:.35rem;">💡 Você pode editar o texto acima antes de enviar.</div>';
+            html += '<div style="font-size:.7rem;color:#6b7280;margin-top:.35rem;">💡 Você pode editar o texto acima antes de enviar (não custa nada — só regerar consome IA).</div>';
             html += '<div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end;margin-top:1rem;">';
             html += '<button onclick="waAlfredoFechar()" class="btn btn-outline btn-sm">Cancelar</button>';
-            html += '<button onclick="waAlfredoAbrir()" class="btn btn-outline btn-sm" style="border-color:#0d9488;color:#0d9488;">🔄 Regerar</button>';
+            html += '<button onclick="if (confirm(\'Regerar consome IA de novo (~R$ 0,05). Tem certeza?\')) waAlfredoAbrir()" class="btn btn-outline btn-sm" style="border-color:#0d9488;color:#0d9488;">🔄 Regerar (~R$ 0,05)</button>';
             html += '<button onclick="waAlfredoEnviar()" class="btn btn-primary btn-sm" style="background:#059669;color:#fff;">✅ Enviar pro cliente</button>';
             html += '</div>';
         }
