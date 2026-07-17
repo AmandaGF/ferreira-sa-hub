@@ -359,6 +359,15 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     $modo = is_array($modoInfo) ? ($modoInfo['modo'] ?? 'NOVIDADE') : 'NOVIDADE';
     $diasSem = is_array($modoInfo) ? (int)($modoInfo['dias'] ?? 0) : 0;
 
+    // Amanda 17/07/2026: detecta "concluso ao juiz" ou "aguardando movimentacao
+    // cartorio" nos andamentos. Nesses casos SEMPRE mencionar ordem cronologica.
+    $textoAndamentos = '';
+    foreach ($ands as $__a) $textoAndamentos .= ' ' . (string)$__a['descricao'];
+    $ehConclusoOuCartorio = (bool)preg_match(
+        '/conclus[oa]s?|faço conclus|vista para julgamento|aguardando decis[ãa]o|aguardando julgam/iu',
+        $textoAndamentos
+    );
+
     if ($modo === 'LONGA_ESPERA') {
         $blocoModo = "🚨 MODO **LONGA_ESPERA** ({$diasSem} dias sem movimento — cliente cansado, provavelmente perguntou várias vezes).\n\n"
                    . "❌ PROIBIDO: 'ótima notícia', 'boa notícia', emojis 🎉🎊🥳🙌✨🚀, tom celebrativo.\n\n"
@@ -393,6 +402,15 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     } else {
         $blocoModo = "🎯 MODO **NOVIDADE** — andamento recente e cliente ainda não perguntou.\n"
                    . "Pode celebrar quando for boa notícia ('Ótima notícia!'). Tom natural, alegre quando couber.\n";
+    }
+
+    // Regra adicional (Amanda 17/07/2026): se o andamento indica "concluso ao
+    // juiz" OU "aguardando julgamento", SEMPRE explicar que o processo segue
+    // ordem cronologica de julgamento (prazo interno do cartorio, sem
+    // controle nosso). Vale em qualquer modo.
+    if ($ehConclusoOuCartorio) {
+        $blocoModo .= "\n📌 CONTEXTO ADICIONAL: o andamento indica que o processo está *concluso ao juiz* ou aguardando cartório.\n"
+                    . "OBRIGATÓRIO incluir na mensagem uma frase explicando: 'os processos seguem uma ordem cronológica de julgamento — é um prazo interno do cartório, não temos controle sobre ele. Assim que houver decisão, avisamos.' Adapte a frase mas mantenha o sentido.\n";
     }
 
     $system = $blocoModo . "\n\n"
@@ -463,6 +481,7 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     $tentativas = 0;
     $temp = 0.5;
     $txt = null;
+    $ultimoCandidato = null; // fallback se todas as tentativas cairem em algum guard
     while ($tentativas < 5) {
         $tentativas++;
         $resp = ia_chamar(
@@ -500,10 +519,12 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
         }
         // Guard: modo LONGA_ESPERA precisa conter palavras-chave da estrutura
         // exigida (cartorio / ordem cronologica / espera / aguardar). Se nao
-        // menciona nenhuma, a msg nao segue o roteiro — retry.
+        // menciona nenhuma, a msg nao segue o roteiro — retry. Guarda como
+        // ultimo candidato pra fallback.
         if ($modo === 'LONGA_ESPERA') {
             $obrigatoriasLonga = '/cart[oó]rio|ordem cronol[oó]gica|espera|aguardar|acompanhando de perto|monitorando/iu';
             if (!preg_match($obrigatoriasLonga, $candidato)) {
+                $ultimoCandidato = $candidato;
                 $temp = max(0.1, $temp - 0.2);
                 continue;
             }
@@ -512,6 +533,7 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
         if ($modo === 'RELEMBRAR') {
             $obrigatoriasRelembrar = '/(?:n[ãa]o|sem)\s+(?:tivemos|teve|houve|houve[uv])?\s*(?:nova|nenhuma|atualiza[çc][ãa]o|novidade)|relembrando|reforçando|continuamos acompanhando/iu';
             if (!preg_match($obrigatoriasRelembrar, $candidato)) {
+                $ultimoCandidato = $candidato;
                 $temp = max(0.1, $temp - 0.2);
                 continue;
             }
@@ -533,6 +555,12 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
 
         $txt = $candidato;
         break;
+    }
+
+    // Fallback: se todas as 5 tentativas falharam nos guards de estrutura,
+    // usa a ultima. Melhor mensagem "quase certa" do que erro sem contexto.
+    if (!$txt && $ultimoCandidato) {
+        $txt = $ultimoCandidato;
     }
 
     if (!$txt) return null;
