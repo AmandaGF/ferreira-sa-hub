@@ -3683,6 +3683,23 @@ switch ($action) {
         redirect_caso($caseId);
         break;
 
+    case 'toggle_aviso_cliente_silenciado':
+        // Amanda 16/07/2026: silencia (ou reativa) o aviso automatico ao cliente
+        // por andamento. Case-a-case, sem depender do killswitch global.
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($caseId) {
+            try { $pdo->exec("ALTER TABLE cases ADD COLUMN aviso_cliente_silenciado TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+            $st = $pdo->prepare("SELECT aviso_cliente_silenciado FROM cases WHERE id = ?");
+            $st->execute([$caseId]);
+            $cur = (int)$st->fetchColumn();
+            $new = $cur ? 0 : 1;
+            $pdo->prepare("UPDATE cases SET aviso_cliente_silenciado = ? WHERE id = ?")->execute([$new, $caseId]);
+            audit_log('toggle_aviso_cliente_silenciado', 'case', $caseId, $new ? 'silenciado' : 'reativado');
+            flash_set('success', $new ? '🔕 Avisos ao cliente SILENCIADOS neste caso.' : '🔔 Avisos ao cliente REATIVADOS neste caso.');
+        }
+        redirect_caso($caseId);
+        break;
+
     case 'toggle_elaborado_ia':
         // Marca/desmarca o caso como "Elaborado por IA". Auto-marcado pela Minerva
         // (Fábrica de Petições); aqui é o override manual da equipe.

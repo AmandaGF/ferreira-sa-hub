@@ -15,6 +15,7 @@ $pageTitle = 'Central Admin';
 
 $grupos = array(
     '🔔 WhatsApp & Comunicação' => array(
+        array('aviso_cliente.php',       '📣', 'Aviso Automático ao Cliente',   'IA resume o andamento em linguagem de leigo e manda WhatsApp automático pro cliente. Reduz o assédio de "houve movimentação?".'),
         array('jorjao.php',              '🐻', 'Jorjão — Sinos WhatsApp',       'Configurar tocadas automáticas no grupo (petição distribuída, prazo cumprido, novidade no Hub, resumo diário)'),
         array('shortlinks.php',          '🔗', 'Rastreio de Cliques',           'Ver quem clicou nos links enviados via WhatsApp (últimos 200 links + estatísticas)'),
         array('comemorar_contrato.php',  '🔔', 'Comemorar Contrato',            'Configuração original do sino de contrato assinado'),

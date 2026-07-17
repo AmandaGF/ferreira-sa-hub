@@ -624,6 +624,14 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
             👁️ <?= !empty($case['acompanhamento_externo']) ? 'Acompanhamento externo' : 'Marcar acompanhamento' ?>
         </button>
     </form>
+    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('<?= !empty($case['aviso_cliente_silenciado']) ? 'Reativar avisos automáticos ao cliente nesse caso?' : 'Silenciar os avisos automáticos ao cliente NESSE caso?\\n\\nA cada andamento novo o sistema NÃO vai mandar WhatsApp automático pro cliente. Útil pra caso sensível ou cliente que pediu pra parar de receber avisos.' ?>');">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="toggle_aviso_cliente_silenciado">
+        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+        <button type="submit" class="btn btn-sm" style="background:<?= !empty($case['aviso_cliente_silenciado']) ? '#9a3412' : '#fff' ?>;color:<?= !empty($case['aviso_cliente_silenciado']) ? '#fff' : '#9a3412' ?>;border:1px solid #9a3412;" title="<?= !empty($case['aviso_cliente_silenciado']) ? 'Avisos automáticos ao cliente SILENCIADOS nesse caso. Clique para reativar.' : 'Avisos automáticos ao cliente ATIVOS nesse caso (respeitando killswitch global). Clique para silenciar só esse caso.' ?>">
+            <?= !empty($case['aviso_cliente_silenciado']) ? '🔕 Cliente silenciado' : '🔔 Cliente avisado' ?>
+        </button>
+    </form>
     <?php endif; ?>
     <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') . '&case_id=' . $caseId ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
     <button type="button" onclick="copiarResumoPasta()" class="btn btn-outline btn-sm" title="Copia um resumo Markdown da pasta (CNJ, partes, vara, status) pra colar em e-mail/Slack/WhatsApp interno">📋 Copiar resumo</button>
