@@ -389,15 +389,16 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
             . "e deve gerar UMA mensagem CURTA de WhatsApp explicando o que aconteceu, em "
             . "linguagem que qualquer pessoa entende, sem jargão jurídico.\n\n"
             . "MOMENTO ATUAL: {$periodoDia}\n\n"
-            . "FORMATO OBRIGATÓRIO DA MENSAGEM (não fuja disso):\n"
-            . "- COMECE EXATAMENTE com: '*{$assinante}*:' (nome em negrito, dois-pontos, espaço, depois a saudação e o resto).\n"
-            . "- Depois do '*{$assinante}*: ' vem a saudação. VARIE a saudação a cada mensagem, combinando com o momento do dia informado acima. Exemplos:\n"
-            . "  * '*{$assinante}*: Bom dia, {$primNome}!'\n"
-            . "  * '*{$assinante}*: Boa tarde, {$primNome}!'\n"
-            . "  * '*{$assinante}*: Boa noite, {$primNome}!'\n"
-            . "  * '*{$assinante}*: Oi, {$primNome}!' (informal)\n"
-            . "  * '*{$assinante}*: {$primNome}, tudo bem?'\n"
-            . "  NÃO comece sempre igual — varie.\n"
+            . "FORMATO OBRIGATÓRIO DA MENSAGEM (padrão de assinatura do escritório — não fuja disso):\n"
+            . "- Linha 1: EXATAMENTE '*_{$assinante}_*:' (nome em NEGRITO + ITÁLICO com underline, dois-pontos, NADA depois).\n"
+            . "- Linha 2 em diante: QUEBRA DE LINHA e aí começa a saudação + o corpo da mensagem.\n"
+            . "- VARIE a saudação a cada mensagem, combinando com o momento do dia informado acima. Exemplos válidos (repare na quebra de linha entre o cabeçalho e a saudação):\n"
+            . "  * '*_{$assinante}_*:\nBom dia, {$primNome}!'\n"
+            . "  * '*_{$assinante}_*:\nBoa tarde, {$primNome}!'\n"
+            . "  * '*_{$assinante}_*:\nBoa noite, {$primNome}!'\n"
+            . "  * '*_{$assinante}_*:\nOi, {$primNome}!' (informal)\n"
+            . "  * '*_{$assinante}_*:\n{$primNome}, tudo bem?'\n"
+            . "  NÃO comece sempre igual — varie a saudação. Mas a estrutura do cabeçalho é fixa.\n"
             . "- Depois da saudação, explique CADA andamento em 1 frase simples.\n"
             . "- Se for boa notícia (depósito em juízo, sentença favorável, acordo homologado), pode comemorar em tom leve — SEM afirmar o que ainda não aconteceu.\n"
             . "- Se for prazo/pendência do CLIENTE, deixe CLARO o que ele precisa fazer (e ate quando).\n"
@@ -487,6 +488,15 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     }
 
     if (!$txt) return null;
+
+    // Post-processing: forca formato exato do cabecalho (padrao FeS):
+    // '*_Nome_*:\n' — negrito+italico com quebra de linha depois do dois-pontos.
+    // Amanda 17/07/2026: prompt as vezes vinha 'Nome*:' ou sem quebra de linha.
+    $assinantePreg = preg_quote($assinante, '/');
+    // 1) Remove qualquer cabecalho antigo (variacoes de negrito) do inicio
+    $txt = preg_replace('/^\s*\*+_*' . $assinantePreg . '_*\*+\s*:\s*/i', '', $txt);
+    // 2) Prependa o cabecalho padrao + quebra de linha
+    $txt = '*_' . $assinante . '_*:' . "\n" . ltrim($txt);
 
     // Append fixo — bloco convite Central VIP (nao gerado pela IA pra garantir
     // uniformidade + link correto). Amanda 17/07/2026 (redacao ajustada 17/07).
