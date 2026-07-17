@@ -70,19 +70,46 @@ function alfredo_gerar_sugestao($ctx) {
         $histTxt .= "\n[{$quem}]: {$t}";
     }
 
-    // Bloco caso + andamentos
-    $caseTxt = '';
-    if (!empty($ctx['case'])) {
-        $c = $ctx['case'];
-        $caseTxt = "PROCESSO: " . ($c['title'] ?? '?') . "\n";
-        if (!empty($c['case_number'])) $caseTxt .= "CNJ: " . $c['case_number'] . "\n";
-        if (!empty($c['status'])) $caseTxt .= "Status: " . $c['status'] . "\n";
+    // Bloco de PROCESSOS ATIVOS do cliente (Amanda 17/07/2026 — antes so 1 case).
+    // Passa TODOS os cases ativos com andamentos recentes de cada um. IA le a
+    // msg do cliente e escolhe qual processo ele esta mencionando. Se nao der
+    // pra saber com certeza, gera SOS.
+    $casesTxt = '';
+    $casesList = (array)($ctx['cases'] ?? array());
+    if (empty($casesList) && !empty($ctx['case'])) {
+        $casesList = array($ctx['case']);
     }
-    $andTxt = '';
-    foreach ((array)($ctx['andamentos_recentes'] ?? array()) as $a) {
-        $d = $a['data_andamento'] ? date('d/m/Y', strtotime($a['data_andamento'])) : '';
-        $desc = mb_substr(preg_replace('/\s+/', ' ', (string)$a['descricao']), 0, 300, 'UTF-8');
-        $andTxt .= "\n- {$d}: {$desc}";
+    $qtdCases = count($casesList);
+    if ($qtdCases === 0) {
+        $casesTxt = "SEM PROCESSO ATIVO VINCULADO A ESSE CLIENTE";
+    } else {
+        $casesTxt = "PROCESSOS ATIVOS DESSE CLIENTE (" . $qtdCases . "):\n";
+        $andamentosPorCase = (array)($ctx['andamentos_por_case'] ?? array());
+        foreach ($casesList as $i => $c) {
+            $idx = $i + 1;
+            $casesTxt .= "\n─── Processo #{$idx} (case_id={$c['id']}) ───\n";
+            $casesTxt .= "Título: " . ($c['title'] ?? '?') . "\n";
+            if (!empty($c['case_type'])) $casesTxt .= "Tipo: " . $c['case_type'] . "\n";
+            if (!empty($c['case_number'])) $casesTxt .= "CNJ: " . $c['case_number'] . "\n";
+            if (!empty($c['status'])) $casesTxt .= "Status: " . $c['status'] . "\n";
+            $ands = $andamentosPorCase[$c['id']] ?? array();
+            if ($ands) {
+                $casesTxt .= "Últimos andamentos desse processo:\n";
+                foreach ($ands as $a) {
+                    $d = $a['data_andamento'] ? date('d/m/Y', strtotime($a['data_andamento'])) : '';
+                    $desc = mb_substr(preg_replace('/\s+/', ' ', (string)$a['descricao']), 0, 250, 'UTF-8');
+                    $casesTxt .= "  - {$d}: {$desc}\n";
+                }
+            }
+        }
+    }
+    // Instrucao de escolha
+    $escolhaTxt = '';
+    if ($qtdCases > 1) {
+        $escolhaTxt = "\n\n⚠️ ATENÇÃO: cliente tem {$qtdCases} processos ativos. LEIA A MENSAGEM DELE COM CUIDADO e:\n"
+                    . "  • Se ele mencionar clara ou implicitamente UM dos processos (por tipo, parte contrária, CNJ), responda no contexto DESSE processo (cite o tipo/título curto pra deixar claro).\n"
+                    . "  • Se a mensagem for AMBÍGUA (não dá pra saber sobre qual processo), NÃO CHUTE. Gere resposta SOS (o marcador [[SOS]] no fim) e diga 'Vou verificar com a equipe qual dos seus processos você está mencionando e te retorno.'\n"
+                    . "  • NUNCA fale sobre 'seu processo' sem especificar quando há mais de um. Sempre 'seu processo de [tipo]'.\n";
     }
 
     // Bloco few-shot com msgs aprovadas
@@ -122,8 +149,7 @@ function alfredo_gerar_sugestao($ctx) {
             . "CONTEXTO ATUAL:\n"
             . "═══════════════════════════════════════\n\n"
 
-            . ($caseTxt ? "{$caseTxt}\n" : "SEM PROCESSO VINCULADO\n\n")
-            . ($andTxt ? "ANDAMENTOS RECENTES DO PROCESSO:{$andTxt}\n\n" : "")
+            . $casesTxt . $escolhaTxt . "\n\n"
 
             . "HISTÓRICO DA CONVERSA (do mais antigo pro mais recente):{$histTxt}\n\n"
 
@@ -233,20 +259,24 @@ function alfredo_processar_pendentes($pdo, $limit = 5) {
             $stH->execute(array((int)$r['conversa_id']));
             $hist = array_reverse($stH->fetchAll(PDO::FETCH_ASSOC));
 
-            // Case ativo do cliente
-            $case = null; $ands = array();
+            // TODOS os cases ativos do cliente + andamentos recentes de cada.
+            // Amanda 17/07/2026: quando cliente tem 2+ processos, IA le a msg
+            // e escolhe (ou vai pra SOS se ambiguo).
+            $cases = array(); $andamentosPorCase = array();
             if (!empty($r['client_id'])) {
-                $stC = $pdo->prepare("SELECT id, title, case_number, status FROM cases
+                $stC = $pdo->prepare("SELECT id, title, case_type, case_number, status FROM cases
                                       WHERE client_id=? AND status NOT IN ('arquivado','cancelado','renunciamos','concluido','finalizado')
-                                      ORDER BY updated_at DESC LIMIT 1");
+                                      ORDER BY updated_at DESC LIMIT 5");
                 $stC->execute(array((int)$r['client_id']));
-                $case = $stC->fetch(PDO::FETCH_ASSOC) ?: null;
-                if ($case) {
+                $cases = $stC->fetchAll(PDO::FETCH_ASSOC);
+                if ($cases) {
                     $stA = $pdo->prepare("SELECT descricao, data_andamento FROM case_andamentos
                                           WHERE case_id=? AND COALESCE(visivel_cliente,0)=1
-                                          ORDER BY data_andamento DESC LIMIT 5");
-                    $stA->execute(array((int)$case['id']));
-                    $ands = $stA->fetchAll(PDO::FETCH_ASSOC);
+                                          ORDER BY data_andamento DESC LIMIT 3");
+                    foreach ($cases as $cc) {
+                        $stA->execute(array((int)$cc['id']));
+                        $andamentosPorCase[(int)$cc['id']] = $stA->fetchAll(PDO::FETCH_ASSOC);
+                    }
                 }
             }
 
@@ -256,8 +286,8 @@ function alfredo_processar_pendentes($pdo, $limit = 5) {
                 'client_name' => $r['nome_contato'],
                 'msg_cliente' => $r['msg_cliente'],
                 'historico_msgs' => $hist,
-                'case' => $case,
-                'andamentos_recentes' => $ands,
+                'cases' => $cases,
+                'andamentos_por_case' => $andamentosPorCase,
                 'exemplos_aprovados' => $exemplos,
             );
 

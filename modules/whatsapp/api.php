@@ -1053,19 +1053,22 @@ if ($action === 'alfredo_regerar') {
     $stH->execute(array($convId));
     $hist = array_reverse($stH->fetchAll(PDO::FETCH_ASSOC));
 
-    $case = null; $ands = array();
+    // TODOS os cases ativos + andamentos por case (Amanda 17/07/2026)
+    $cases = array(); $andamentosPorCase = array();
     if (!empty($r['client_id'])) {
-        $stC = $pdo->prepare("SELECT id, title, case_number, status FROM cases
+        $stC = $pdo->prepare("SELECT id, title, case_type, case_number, status FROM cases
                               WHERE client_id=? AND status NOT IN ('arquivado','cancelado','renunciamos','concluido','finalizado')
-                              ORDER BY updated_at DESC LIMIT 1");
+                              ORDER BY updated_at DESC LIMIT 5");
         $stC->execute(array((int)$r['client_id']));
-        $case = $stC->fetch(PDO::FETCH_ASSOC) ?: null;
-        if ($case) {
+        $cases = $stC->fetchAll(PDO::FETCH_ASSOC);
+        if ($cases) {
             $stA = $pdo->prepare("SELECT descricao, data_andamento FROM case_andamentos
                                   WHERE case_id=? AND COALESCE(visivel_cliente,0)=1
-                                  ORDER BY data_andamento DESC LIMIT 5");
-            $stA->execute(array((int)$case['id']));
-            $ands = $stA->fetchAll(PDO::FETCH_ASSOC);
+                                  ORDER BY data_andamento DESC LIMIT 3");
+            foreach ($cases as $cc) {
+                $stA->execute(array((int)$cc['id']));
+                $andamentosPorCase[(int)$cc['id']] = $stA->fetchAll(PDO::FETCH_ASSOC);
+            }
         }
     }
 
@@ -1075,8 +1078,8 @@ if ($action === 'alfredo_regerar') {
         'client_name' => $r['nome_contato'],
         'msg_cliente' => $r['msg_cliente'],
         'historico_msgs' => $hist,
-        'case' => $case,
-        'andamentos_recentes' => $ands,
+        'cases' => $cases,
+        'andamentos_por_case' => $andamentosPorCase,
         'exemplos_aprovados' => alfredo_buscar_exemplos($pdo, 8),
     );
     $sug = alfredo_gerar_sugestao($ctx);
