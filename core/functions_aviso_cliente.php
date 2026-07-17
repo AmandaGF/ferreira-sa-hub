@@ -241,7 +241,12 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle) {
     $cfgLocal = aviso_cliente_cfg(db());
     $assinante = trim((string)($cfgLocal['aviso_cliente_assinante'] ?? 'Alfredo Neves')) ?: 'Alfredo Neves';
 
-    $system = "Você é a comunicação do escritório Ferreira & Sá Advocacia com clientes leigos. "
+    $system = "⛔ REGRA ABSOLUTA — LEIA ANTES DE QUALQUER OUTRA COISA:\n"
+            . "Você NUNCA pode escrever que 'o juiz vai autorizar' / 'para autorizar' / 'pra autorizar' / "
+            . "'vai liberar' / 'vai deferir'. É PROIBIDO. Você não sabe o que o juiz vai fazer.\n"
+            . "Sempre substitua por: 'o juiz vai DECIDIR' ou 'o juiz vai ANALISAR' ou 'os autos foram pro juiz decidir sobre X'.\n"
+            . "Se você escrever 'autorizar' em qualquer forma (autorizar/autorização/autorizado/autorize/autoriza), sua resposta é INVÁLIDA e será DESCARTADA. Não use essa palavra.\n\n"
+            . "Você é a comunicação do escritório Ferreira & Sá Advocacia com clientes leigos. "
             . "Vai receber 1 ou mais andamentos jurídicos técnicos do processo de um cliente "
             . "e deve gerar UMA mensagem CURTA de WhatsApp explicando o que aconteceu, em "
             . "linguagem que qualquer pessoa entende, sem jargão jurídico.\n\n"
@@ -280,21 +285,37 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle) {
 
     $user = "Cliente: {$clientName}\nProcesso: {$caseTitle}\nAndamentos (do mais antigo pro mais recente):{$listaAnds}\n\nGere a mensagem.";
 
-    $resp = ia_chamar(
-        'aviso_cliente_andamento',
-        'claude-haiku-4-5-20251001',
-        $system,
-        array(array('role' => 'user', 'content' => $user)),
-        array('max_tokens' => 400, 'temperature' => 0.4, 'bypass_killswitch' => true, 'bypass_user_whitelist' => true)
-    );
-    if (empty($resp['ok']) || empty($resp['texto'])) return null;
-    $txt = trim($resp['texto']);
-    if (mb_strlen($txt) > 900) $txt = mb_substr($txt, 0, 900) . '…';
+    // Ate 2 tentativas: se sair 'autorizar' na resposta, refaz com temp mais baixa
+    $tentativas = 0;
+    $temp = 0.3;
+    $txt = null;
+    while ($tentativas < 2) {
+        $tentativas++;
+        $resp = ia_chamar(
+            'aviso_cliente_andamento',
+            'claude-haiku-4-5-20251001',
+            $system,
+            array(array('role' => 'user', 'content' => $user)),
+            array('max_tokens' => 400, 'temperature' => $temp, 'bypass_killswitch' => true, 'bypass_user_whitelist' => true)
+        );
+        if (empty($resp['ok']) || empty($resp['texto'])) return null;
+        $candidato = trim($resp['texto']);
+        if (mb_strlen($candidato) > 900) $candidato = mb_substr($candidato, 0, 900) . '…';
 
-    // Guard: se a IA saiu do personagem (pediu dado, fez pergunta), descarta
-    $ruins = array('/preciso de/i', '/voc[eê] tem/i', '/me envie/i', '/vou gerar a mensagem/i', '/como assistente/i');
-    foreach ($ruins as $rx) {
-        if (preg_match($rx, $txt)) return null;
+        // Guard: se a IA saiu do personagem (pediu dado, fez pergunta), descarta
+        $ruins = array('/preciso de/i', '/voc[eê] tem/i', '/me envie/i', '/vou gerar a mensagem/i', '/como assistente/i');
+        $descartada = false;
+        foreach ($ruins as $rx) { if (preg_match($rx, $candidato)) { $descartada = true; break; } }
+        if ($descartada) return null;
+
+        // Guard EXTRA: 'autorizar' em qualquer forma → refaz com temp mais baixa
+        if (preg_match('/autoriz/i', $candidato)) {
+            $temp = 0.1;
+            $txt = $candidato; // guarda como fallback se a 2a tambem falhar
+            continue;
+        }
+        $txt = $candidato;
+        break;
     }
     return $txt;
 }
