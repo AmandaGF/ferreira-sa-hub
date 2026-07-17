@@ -360,30 +360,45 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     $diasSem = is_array($modoInfo) ? (int)($modoInfo['dias'] ?? 0) : 0;
 
     if ($modo === 'LONGA_ESPERA') {
-        $blocoModo = "\n\n🎯 MODO DA MENSAGEM: LONGA_ESPERA\n"
-                   . "Já se passaram {$diasSem} dias desde a última movimentação. O cliente PROVAVELMENTE está impaciente. NÃO celebre, NÃO diga 'ótima notícia'.\n"
-                   . "OBRIGATÓRIO comecar por: reconhecer que a espera está longa + explicar que JÁ FIZEMOS CONTATO com o cartório + explicar que os processos seguem ORDEM CRONOLÓGICA de julgamento + reforçar que estamos MONITORANDO DE PERTO e assim que houver movimentação, avisamos. Só DEPOIS explique brevemente qual foi o último andamento (que aconteceu há {$diasSem} dias, na data dele).\n"
-                   . "Tom: empático, sem falso otimismo, mas firme e presente.";
+        $blocoModo = "🚨🚨🚨 MODO OBRIGATÓRIO: **LONGA_ESPERA** ({$diasSem} dias desde a última movimentação)\n\n"
+                   . "❌❌❌ ABSOLUTAMENTE PROIBIDO USAR:\n"
+                   . "   • 'Ótima notícia' / 'Boa notícia' / 'Excelente notícia' / 'Que notícia boa'\n"
+                   . "   • Emojis 🎉 🎊 🥳 🙌 ✨ 🚀 (nada comemorativo)\n"
+                   . "   • Verbos que indicam evento: 'aconteceu', 'saiu', 'foi liberado', 'agora sim'\n"
+                   . "   • Qualquer tom celebrativo. NÃO É NOVIDADE.\n\n"
+                   . "✅ ESTRUTURA OBRIGATÓRIA DA MENSAGEM:\n"
+                   . "   1. Reconheça a espera longa ('Sabemos que a espera está se estendendo', 'Entendemos a ansiedade', similar).\n"
+                   . "   2. Diga que JÁ FIZEMOS CONTATO COM O CARTÓRIO.\n"
+                   . "   3. Explique que os processos seguem ORDEM CRONOLÓGICA de julgamento.\n"
+                   . "   4. Reforce que estamos MONITORANDO DE PERTO — assim que houver novidade, avisamos.\n"
+                   . "   5. Só DEPOIS (opcional, curto) reexplique brevemente o último andamento (que já é antigo, de {$diasSem} dias atrás).\n\n"
+                   . "Tom: empático, honesto, firme, presente. Sem falso otimismo.\n";
     } elseif ($modo === 'RELEMBRAR') {
         $razao = is_array($modoInfo) && !empty($modoInfo['cliente_perguntou_apos'])
-            ? "o cliente JÁ PERGUNTOU sobre esse andamento no WhatsApp (não é novidade pra ele)"
+            ? "o cliente JÁ PERGUNTOU sobre esse andamento no WhatsApp — ele NÃO precisa ouvir como novidade"
             : "já se passaram {$diasSem} dias — não é notícia fresca";
-        $blocoModo = "\n\n🎯 MODO DA MENSAGEM: RELEMBRAR\n"
-                   . "ATENÇÃO: {$razao}. NÃO comece com 'Ótima notícia' — o cliente vai se sentir ignorado. \n"
-                   . "OBRIGATÓRIO começar por (adapte a frase, mantendo o sentido): 'Ainda não tivemos nenhuma atualização nova, mas continuamos acompanhando de perto.' Depois: 'Só relembrando o último andamento que aconteceu, em [DATA_DO_ANDAMENTO]:' — e ai reexplica o andamento em linguagem simples.\n"
-                   . "Tom: acolhedor, sem falso otimismo, mostrando presença.";
+        $blocoModo = "🚨🚨🚨 MODO OBRIGATÓRIO: **RELEMBRAR** ({$razao})\n\n"
+                   . "❌❌❌ ABSOLUTAMENTE PROIBIDO USAR:\n"
+                   . "   • 'Ótima notícia' / 'Boa notícia' / 'Excelente notícia'\n"
+                   . "   • Emojis comemorativos (🎉 🎊 🥳 🙌 ✨ 🚀) — nada de festa\n"
+                   . "   • Qualquer coisa que finja que ele está sabendo agora pela primeira vez\n\n"
+                   . "✅ ESTRUTURA OBRIGATÓRIA:\n"
+                   . "   1. LOGO APÓS a saudação, escreva EXATAMENTE ou muito próximo: 'Ainda não tivemos nenhuma atualização nova, mas continuamos acompanhando de perto.'\n"
+                   . "   2. Depois: 'Só relembrando: o último andamento aconteceu em [data DD/MM/YYYY]:' — e reexplique em linguagem simples.\n\n"
+                   . "Tom: acolhedor, sem falso otimismo, mostrando presença. NÃO é novidade.\n";
     } else {
-        $blocoModo = "\n\n🎯 MODO DA MENSAGEM: NOVIDADE\n"
-                   . "É um andamento recente e o cliente ainda não perguntou. Pode celebrar (se for boa notícia) e apresentar como novidade fresca. Tom natural, alegre quando couber.";
+        $blocoModo = "🎯 MODO: **NOVIDADE**\n\n"
+                   . "É um andamento recente e o cliente ainda não perguntou. Pode celebrar quando for boa notícia (ex: 'Ótima notícia!'). Tom natural, alegre quando couber.\n";
     }
 
-    $system = "⛔ PALAVRAS ABSOLUTAMENTE PROIBIDAS — se você usar alguma, sua resposta é DESCARTADA e recomeçamos:\n"
+    $system = $blocoModo . "\n\n"
+            . "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            . "⛔ PALAVRAS ABSOLUTAMENTE PROIBIDAS — se você usar alguma, sua resposta é DESCARTADA e recomeçamos:\n"
             . "• 'autorizar' / 'autorização' / 'autorizado' / 'autoriza' — o juiz PODE não autorizar.\n"
             . "• 'distribuição' / 'distribuir' / 'distribuído' / 'distribuiu' / 'distribuímos' — palavra sensível internamente, não expor ao cliente.\n"
             . "• 'perda de prazo' / 'prazo esgotado' / 'prazo perdido' / 'fim de prazo' / 'preclusão' / 'precluso' — nunca comunicar isso ao cliente.\n"
             . "• 'deferir' / 'indeferir' / 'homologar' — o juiz PODE fazer o oposto.\n"
-            . "• 'juízo' — palavra técnica, pouco entendida. TROQUE POR: 'conta do processo' (quando falar de depósito judicial) ou reformule sem usar. Ex: em vez de 'depositou em juízo', escreva 'depositou o valor na conta do processo'. Em vez de 'valor em juízo', escreva 'valor bloqueado na conta do processo'.\n"
-            . $blocoModo . "\n\n"
+            . "• 'juízo' — palavra técnica, pouco entendida. TROQUE POR: 'conta do processo' (quando falar de depósito judicial) ou reformule sem usar. Ex: em vez de 'depositou em juízo', escreva 'depositou o valor na conta do processo'. Em vez de 'valor em juízo', escreva 'valor bloqueado na conta do processo'.\n\n"
             . "Você é a comunicação do escritório Ferreira & Sá Advocacia com clientes leigos. "
             . "Vai receber 1 ou mais andamentos jurídicos técnicos do processo de um cliente "
             . "e deve gerar UMA mensagem CURTA de WhatsApp explicando o que aconteceu, em "
@@ -467,6 +482,17 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
         if (preg_match($palavrasProibidas, $candidato)) {
             $temp = max(0.1, $temp - 0.2);
             continue;
+        }
+
+        // Guard: tom de novidade quando modo != NOVIDADE — Amanda 17/07/2026.
+        // Se e RELEMBRAR ou LONGA_ESPERA, a IA nao pode escrever "otima noticia",
+        // "boa noticia", emojis comemorativos, etc. Retry com temp menor.
+        if ($modo !== 'NOVIDADE') {
+            $tomFestivo = '/[óo]tima not[íi]cia|boa not[íi]cia|excelente not[íi]cia|que not[íi]cia boa|🎉|🎊|🥳|🙌|✨|🚀/iu';
+            if (preg_match($tomFestivo, $candidato)) {
+                $temp = max(0.1, $temp - 0.2);
+                continue;
+            }
         }
 
         // Guard: similar a mensagem anterior → retry com temp maior (mais variacao)
