@@ -459,7 +459,7 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     $tentativas = 0;
     $temp = 0.5;
     $txt = null;
-    while ($tentativas < 3) {
+    while ($tentativas < 5) {
         $tentativas++;
         $resp = ia_chamar(
             'aviso_cliente_andamento',
@@ -490,6 +490,24 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
         if ($modo !== 'NOVIDADE') {
             $tomFestivo = '/[óo]tima not[íi]cia|boa not[íi]cia|excelente not[íi]cia|que not[íi]cia boa|🎉|🎊|🥳|🙌|✨|🚀/iu';
             if (preg_match($tomFestivo, $candidato)) {
+                $temp = max(0.1, $temp - 0.2);
+                continue;
+            }
+        }
+        // Guard: modo LONGA_ESPERA precisa conter palavras-chave da estrutura
+        // exigida (cartorio / ordem cronologica / espera / aguardar). Se nao
+        // menciona nenhuma, a msg nao segue o roteiro — retry.
+        if ($modo === 'LONGA_ESPERA') {
+            $obrigatoriasLonga = '/cart[oó]rio|ordem cronol[oó]gica|espera|aguardar|acompanhando de perto|monitorando/iu';
+            if (!preg_match($obrigatoriasLonga, $candidato)) {
+                $temp = max(0.1, $temp - 0.2);
+                continue;
+            }
+        }
+        // Guard: modo RELEMBRAR precisa dizer que NAO tivemos atualizacao nova.
+        if ($modo === 'RELEMBRAR') {
+            $obrigatoriasRelembrar = '/(?:n[ãa]o|sem)\s+(?:tivemos|teve|houve|houve[uv])?\s*(?:nova|nenhuma|atualiza[çc][ãa]o|novidade)|relembrando|reforçando|continuamos acompanhando/iu';
+            if (!preg_match($obrigatoriasRelembrar, $candidato)) {
                 $temp = max(0.1, $temp - 0.2);
                 continue;
             }
