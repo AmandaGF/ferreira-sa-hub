@@ -872,6 +872,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
             // o polling de 8s nem F5). Bug reportado pela Amanda 12/05: msg ficava
             // presa no filtro "Nao lidas" mesmo depois de aberta.
             carregarLista();
+            // Poll sugestao do Alfredo assistente (se ativo nessa conversa)
+            if (typeof waAlfredoPollSugestao === 'function') setTimeout(waAlfredoPollSugestao, 800);
         });
     };
 
@@ -924,6 +926,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // tem cliente vinculado. Naiara e quem mais vai usar.
         if (c.canal === '24' && c.client_id) {
             menuItems.push({ id:'alfredo', emoji:'📣', label:'Alfredo — enviar último andamento', onclick:'waAlfredoAbrir()', color:'#0d9488', bold:true, tip:'IA resume o último andamento do processo em linguagem de leigo — você revisa antes de enviar' });
+            // Alfredo assistente automatico — toggle por conversa (Amanda 17/07/2026)
+            var alfAssistLbl = +c.alfredo_ativo ? '🛑 Desativar Alfredo assistente' : '🤖 Ativar Alfredo assistente';
+            var alfAssistCor = +c.alfredo_ativo ? '#991b1b' : '#7c3aed';
+            var alfAssistTip = +c.alfredo_ativo
+                ? 'Alfredo assistente ATIVO nesta conversa. Cada msg do cliente gera sugestão de resposta (que você aprova antes de enviar). Clique pra desativar.'
+                : 'Ativar Alfredo assistente: quando o cliente mandar msg, IA gera sugestão de resposta e você aprova/edita/envia. Bom pra testar em conversa pontual.';
+            menuItems.push({ id:'alf_assist', emoji: (+c.alfredo_ativo ? '🛑' : '🤖'), label: alfAssistLbl, onclick:'waAlfredoToggleAssistente()', color: alfAssistCor, bold: true, tip: alfAssistTip });
         }
         menuItems.push({ sep:true });
         // Grupo 2: atendimento
@@ -3413,6 +3422,131 @@ require_once APP_ROOT . '/templates/layout_start.php';
             })
             .catch(function(){ alert('Falha de rede.'); btns.forEach(function(b){ b.disabled = false; }); });
     };
+
+    // ── ALFREDO ASSISTENTE AUTOMATICO (Amanda 17/07/2026) ──
+    window.waAlfredoToggleAssistente = function() {
+        var c = window._waConvAtual;
+        if (!c) return;
+        var acao = +c.alfredo_ativo ? 'desativar' : 'ativar';
+        if (acao === 'ativar' && !confirm('Ativar Alfredo assistente nesta conversa?\n\nAo receber msg do cliente, IA gera sugestão de resposta em ~1min. Você aprova, edita ou descarta antes de enviar. Nada vai automático.\n\nQuer ativar?')) return;
+        var fd = new FormData();
+        fd.append('action', 'alfredo_toggle');
+        fd.append('conversa_id', c.id);
+        fd.append('<?= CSRF_TOKEN_NAME ?>', window._FSA_CSRF || '<?= generate_csrf_token() ?>');
+        fetch(apiUrl, { method:'POST', credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.csrf) window._FSA_CSRF = d.csrf;
+                if (d.error) { alert(d.error); return; }
+                c.alfredo_ativo = d.ativo;
+                if (convAtiva) window.waAbrir(convAtiva);
+            });
+    };
+
+    // Poll sugestao pendente + renderiza balao flutuante
+    window._waAlfredoLastConv = null;
+    function waAlfredoPollSugestao() {
+        var c = window._waConvAtual;
+        if (!c || +c.alfredo_ativo !== 1 || c.canal !== '24') { waAlfredoRemoverBalao(); return; }
+        var fd = new FormData();
+        fd.append('action', 'alfredo_pendente');
+        fd.append('conversa_id', c.id);
+        fd.append('<?= CSRF_TOKEN_NAME ?>', window._FSA_CSRF || '<?= generate_csrf_token() ?>');
+        fetch(apiUrl, { method:'POST', credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.csrf) window._FSA_CSRF = d.csrf;
+                if (!d.ok || !d.sugestao) { waAlfredoRemoverBalao(); return; }
+                waAlfredoRenderBalao(d.sugestao, c.id);
+            });
+    }
+    function waAlfredoRemoverBalao() {
+        var b = document.getElementById('waAlfredoBalao');
+        if (b) b.remove();
+    }
+    function waAlfredoRenderBalao(s, convId) {
+        var b = document.getElementById('waAlfredoBalao');
+        if (b && b.dataset.sugId == s.id) return; // ja renderizado
+        if (b) b.remove();
+        var ehSos = +s.eh_sos === 1;
+        b = document.createElement('div');
+        b.id = 'waAlfredoBalao';
+        b.dataset.sugId = s.id;
+        b.style.cssText = 'position:absolute;left:12px;right:12px;bottom:82px;background:#fff;border:2px solid ' + (ehSos ? '#dc2626' : '#7c3aed') + ';border-radius:14px;padding:1rem;box-shadow:0 10px 40px rgba(0,0,0,.25);z-index:80;max-height:60vh;overflow-y:auto;';
+        var head = ehSos
+            ? '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;padding:.4rem .6rem;background:#fef2f2;border-radius:8px;color:#991b1b;font-weight:800;font-size:.85rem;">🚨 SOS: Alfredo não sabe responder, resolve manualmente</div>'
+            : '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;padding:.4rem .6rem;background:#f3e8ff;border-radius:8px;color:#6d28d9;font-weight:700;font-size:.85rem;">🤖 Sugestão do Alfredo — revise e envie</div>';
+        b.innerHTML = head
+            + '<textarea id="waAlfredoSugTexto" data-orig="' + escapeHtml(s.texto) + '" style="width:100%;min-height:150px;padding:.6rem;border:1px solid #e5e7eb;border-radius:8px;font-size:.85rem;font-family:inherit;line-height:1.45;">' + escapeHtml(s.texto) + '</textarea>'
+            + '<div style="display:flex;flex-wrap:wrap;gap:.4rem;justify-content:flex-end;margin-top:.5rem;">'
+            + '<button onclick="waAlfredoDescartar(' + s.id + ')" class="btn btn-outline btn-sm">❌ Descartar</button>'
+            + '<button onclick="waAlfredoRegerar(' + s.id + ')" class="btn btn-outline btn-sm" style="border-color:#7c3aed;color:#7c3aed;">🔄 Regerar</button>'
+            + '<button onclick="waAlfredoAprovarEnviar(' + s.id + ')" class="btn btn-primary btn-sm" style="background:#059669;">✅ Enviar</button>'
+            + '</div>';
+        var body = document.getElementById('waChatBody');
+        var pane = body ? body.parentElement : null;
+        (pane || document.body).appendChild(b);
+    }
+    window.waAlfredoDescartar = function(sugId) {
+        if (!confirm('Descartar essa sugestão?')) return;
+        var fd = new FormData();
+        fd.append('action', 'alfredo_descartar');
+        fd.append('sugestao_id', sugId);
+        fd.append('<?= CSRF_TOKEN_NAME ?>', window._FSA_CSRF || '<?= generate_csrf_token() ?>');
+        fetch(apiUrl, {method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(function(r){return r.json();}).then(function(d){
+                if (d.csrf) window._FSA_CSRF = d.csrf;
+                waAlfredoRemoverBalao();
+            });
+    };
+    window.waAlfredoRegerar = function(sugId) {
+        if (!confirm('Regerar consome IA (~R$ 0,10). Tem certeza?')) return;
+        var c = window._waConvAtual;
+        var fd = new FormData();
+        fd.append('action', 'alfredo_regerar');
+        fd.append('conversa_id', c.id);
+        fd.append('sugestao_id', sugId);
+        fd.append('<?= CSRF_TOKEN_NAME ?>', window._FSA_CSRF || '<?= generate_csrf_token() ?>');
+        var b = document.getElementById('waAlfredoBalao');
+        if (b) b.style.opacity = '.5';
+        fetch(apiUrl, {method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(function(r){return r.json();}).then(function(d){
+                if (d.csrf) window._FSA_CSRF = d.csrf;
+                if (b) b.style.opacity = '1';
+                if (d.error) { alert(d.error); return; }
+                waAlfredoRemoverBalao();
+                waAlfredoRenderBalao(d.sugestao, c.id);
+            });
+    };
+    window.waAlfredoAprovarEnviar = function(sugId) {
+        var t = document.getElementById('waAlfredoSugTexto');
+        if (!t) return;
+        var orig = t.dataset.orig || '';
+        var texto = (t.value || '').trim();
+        if (!texto) { alert('Vazio'); return; }
+        var foiEditado = (texto !== orig);
+        if (!confirm('Enviar essa mensagem pro cliente?')) return;
+        var c = window._waConvAtual;
+        var fd = new FormData();
+        fd.append('action', 'alfredo_aprovar_enviar');
+        fd.append('sugestao_id', sugId);
+        fd.append('conversa_id', c.id);
+        fd.append('texto_final', texto);
+        fd.append('foi_editado', foiEditado ? '1' : '0');
+        fd.append('<?= CSRF_TOKEN_NAME ?>', window._FSA_CSRF || '<?= generate_csrf_token() ?>');
+        var b = document.getElementById('waAlfredoBalao');
+        var btns = b ? b.querySelectorAll('button') : [];
+        btns.forEach(function(x){ x.disabled = true; });
+        fetch(apiUrl, {method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(function(r){return r.json();}).then(function(d){
+                if (d.csrf) window._FSA_CSRF = d.csrf;
+                if (d.error) { alert('Erro: ' + d.error); btns.forEach(function(x){x.disabled=false;}); return; }
+                waAlfredoRemoverBalao();
+                if (convAtiva) window.waAbrir(convAtiva);
+            });
+    };
+    // Poll periodico enquanto conversa esta aberta com Alfredo ativo
+    setInterval(waAlfredoPollSugestao, 15000);
 
     // Abrir pasta do processo vinculado ao cliente da conversa.
     // Se o cliente tem 1 processo: redireciona direto. Se tem vários: mostra picker.

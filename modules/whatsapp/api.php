@@ -797,6 +797,8 @@ if ($action === 'abrir_conversa') {
 
     // Self-heal pra coluna gender_pulado (usada quando atendente "Pular" no banner)
     try { $pdo->exec("ALTER TABLE clients ADD COLUMN gender_pulado TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
+    // Amanda 17/07/2026: Alfredo assistente por conversa
+    try { $pdo->exec("ALTER TABLE zapi_conversas ADD COLUMN alfredo_ativo TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     // Self-heal is_internacional (Amanda 08/06/2026 — suprime aviso "numero estranho" pra clientes do exterior)
     try { $pdo->exec("ALTER TABLE clients ADD COLUMN is_internacional TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
     $stmt = $pdo->prepare("SELECT co.*, cl.name AS client_name, cl.gender AS client_gender,
@@ -922,6 +924,170 @@ if ($action === 'abrir_conversa') {
     }
 
     echo json_encode(array('ok' => true, 'conversa' => $conv, 'mensagens' => $mensagens, 'fixadas' => $fixadas));
+    exit;
+}
+
+// ── ALFREDO ASSISTENTE: toggle ativa/desativa em uma conversa (Amanda 17/07/2026)
+if ($action === 'alfredo_toggle') {
+    require_once __DIR__ . '/../../core/functions_alfredo.php';
+    alfredo_self_heal($pdo);
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error' => 'conversa invalida', 'csrf' => $newCsrf)); exit; }
+    $st = $pdo->prepare("SELECT alfredo_ativo, canal FROM zapi_conversas WHERE id=?");
+    $st->execute(array($convId));
+    $c = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$c || $c['canal'] !== '24') { echo json_encode(array('error' => 'so canal 24', 'csrf' => $newCsrf)); exit; }
+    $novo = (int)$c['alfredo_ativo'] ? 0 : 1;
+    $pdo->prepare("UPDATE zapi_conversas SET alfredo_ativo=?, alfredo_ativado_em=" . ($novo ? "NOW()" : "NULL") . ", alfredo_ativado_por=? WHERE id=?")
+        ->execute(array($novo, $novo ? $userId : null, $convId));
+    audit_log('alfredo_toggle', 'zapi_conversa', $convId, $novo ? 'ativado' : 'desativado');
+    echo json_encode(array('ok' => true, 'ativo' => $novo, 'csrf' => $newCsrf));
+    exit;
+}
+
+// ── ALFREDO ASSISTENTE: retorna sugestao pendente da conversa
+if ($action === 'alfredo_pendente') {
+    require_once __DIR__ . '/../../core/functions_alfredo.php';
+    alfredo_self_heal($pdo);
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error' => 'conversa', 'csrf' => $newCsrf)); exit; }
+    $st = $pdo->prepare("SELECT id, sugestao_texto, eh_sos, created_at FROM alfredo_sugestoes
+                         WHERE conversa_id=? AND status='pendente' ORDER BY id DESC LIMIT 1");
+    $st->execute(array($convId));
+    $s = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$s) { echo json_encode(array('ok'=>true, 'sugestao'=>null, 'csrf' => $newCsrf)); exit; }
+    echo json_encode(array('ok'=>true, 'sugestao'=>array(
+        'id' => (int)$s['id'],
+        'texto' => $s['sugestao_texto'],
+        'eh_sos' => (int)$s['eh_sos'],
+        'created_at' => $s['created_at'],
+    ), 'csrf' => $newCsrf));
+    exit;
+}
+
+// ── ALFREDO ASSISTENTE: aprova sugestao + envia
+if ($action === 'alfredo_aprovar_enviar') {
+    require_once __DIR__ . '/../../core/functions_alfredo.php';
+    require_once __DIR__ . '/../../core/functions_zapi.php';
+    alfredo_self_heal($pdo);
+    $sugId = (int)($_POST['sugestao_id'] ?? 0);
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $textoFinal = trim((string)($_POST['texto_final'] ?? ''));
+    $foiEditado = !empty($_POST['foi_editado']);
+    if (!$sugId || !$convId || $textoFinal === '') { echo json_encode(array('error'=>'params', 'csrf'=>$newCsrf)); exit; }
+    $st = $pdo->prepare("SELECT alfredo_ativo, canal, telefone FROM zapi_conversas WHERE id=?");
+    $st->execute(array($convId));
+    $c = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$c || $c['canal'] !== '24') { echo json_encode(array('error'=>'conversa invalida','csrf'=>$newCsrf)); exit; }
+
+    $r = zapi_send_text('24', $c['telefone'], $textoFinal);
+    if (empty($r['ok'])) { echo json_encode(array('error' => $r['erro'] ?? 'zapi', 'csrf' => $newCsrf)); exit; }
+
+    // Marca sugestao como aprovada/editada
+    $status = $foiEditado ? 'editada' : 'aprovada';
+    $pdo->prepare("UPDATE alfredo_sugestoes SET status=?, texto_enviado=?, aprovada_por=?, aprovada_em=NOW(),
+                   sos_resolvido_em = CASE WHEN eh_sos=1 THEN NOW() ELSE sos_resolvido_em END,
+                   sos_resolvido_por = CASE WHEN eh_sos=1 THEN ? ELSE sos_resolvido_por END
+                   WHERE id=?")
+        ->execute(array($status, $textoFinal, $userId, $userId, $sugId));
+
+    // Registra a msg na conversa
+    try {
+        $mid = $r['messageId'] ?? $r['zaapId'] ?? '';
+        $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, texto, tipo, direcao, enviado_por_id, status, created_at)
+                       VALUES (?,?,?,?,?,?,?,NOW())")
+            ->execute(array($convId, $mid ?: null, $textoFinal, 'text', 'enviada', $userId, 'enviada'));
+        $pdo->prepare("UPDATE zapi_conversas SET ultima_msg_em=NOW(), ultima_mensagem=? WHERE id=?")
+            ->execute(array(mb_substr($textoFinal, 0, 200), $convId));
+    } catch (Exception $e) {}
+
+    audit_log('alfredo_aprovar', 'alfredo_sugestao', $sugId, "user=$userId conv=$convId status=$status");
+    echo json_encode(array('ok'=>true, 'csrf'=>$newCsrf));
+    exit;
+}
+
+// ── ALFREDO ASSISTENTE: descarta sugestao (marca como descartada, resolve SOS se houver)
+if ($action === 'alfredo_descartar') {
+    require_once __DIR__ . '/../../core/functions_alfredo.php';
+    alfredo_self_heal($pdo);
+    $sugId = (int)($_POST['sugestao_id'] ?? 0);
+    if (!$sugId) { echo json_encode(array('error'=>'params','csrf'=>$newCsrf)); exit; }
+    $pdo->prepare("UPDATE alfredo_sugestoes SET status='descartada',
+                   sos_resolvido_em = CASE WHEN eh_sos=1 THEN NOW() ELSE sos_resolvido_em END,
+                   sos_resolvido_por = CASE WHEN eh_sos=1 THEN ? ELSE sos_resolvido_por END
+                   WHERE id=?")
+        ->execute(array($userId, $sugId));
+    audit_log('alfredo_descartar', 'alfredo_sugestao', $sugId, "user=$userId");
+    echo json_encode(array('ok'=>true,'csrf'=>$newCsrf));
+    exit;
+}
+
+// ── ALFREDO ASSISTENTE: regera sugestao (descarta a atual, roda IA de novo)
+if ($action === 'alfredo_regerar') {
+    require_once __DIR__ . '/../../core/functions_alfredo.php';
+    alfredo_self_heal($pdo);
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $sugIdAtual = (int)($_POST['sugestao_id'] ?? 0);
+    if (!$convId) { echo json_encode(array('error'=>'params','csrf'=>$newCsrf)); exit; }
+    // Marca atual como descartada
+    if ($sugIdAtual) {
+        $pdo->prepare("UPDATE alfredo_sugestoes SET status='descartada' WHERE id=?")
+            ->execute(array($sugIdAtual));
+    }
+    // Pega a ultima msg recebida do cliente pra gerar de novo
+    $st = $pdo->prepare(
+        "SELECT m.id AS msg_id, m.texto AS msg_cliente, m.created_at,
+                co.client_id, co.nome_contato
+           FROM zapi_mensagens m
+           JOIN zapi_conversas co ON co.id = m.conversa_id
+          WHERE m.conversa_id=? AND m.direcao='recebida'
+          ORDER BY m.id DESC LIMIT 1"
+    );
+    $st->execute(array($convId));
+    $r = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$r) { echo json_encode(array('error'=>'sem msg cliente','csrf'=>$newCsrf)); exit; }
+
+    // Historico + case + andamentos + exemplos
+    $stH = $pdo->prepare("SELECT direcao, texto, created_at FROM zapi_mensagens
+                          WHERE conversa_id=? ORDER BY id DESC LIMIT 10");
+    $stH->execute(array($convId));
+    $hist = array_reverse($stH->fetchAll(PDO::FETCH_ASSOC));
+
+    $case = null; $ands = array();
+    if (!empty($r['client_id'])) {
+        $stC = $pdo->prepare("SELECT id, title, case_number, status FROM cases
+                              WHERE client_id=? AND status NOT IN ('arquivado','cancelado','renunciamos','concluido','finalizado')
+                              ORDER BY updated_at DESC LIMIT 1");
+        $stC->execute(array((int)$r['client_id']));
+        $case = $stC->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($case) {
+            $stA = $pdo->prepare("SELECT descricao, data_andamento FROM case_andamentos
+                                  WHERE case_id=? AND COALESCE(visivel_cliente,0)=1
+                                  ORDER BY data_andamento DESC LIMIT 5");
+            $stA->execute(array((int)$case['id']));
+            $ands = $stA->fetchAll(PDO::FETCH_ASSOC);
+        }
+    }
+
+    $ctx = array(
+        'conversa_id' => $convId,
+        'client_id' => (int)$r['client_id'],
+        'client_name' => $r['nome_contato'],
+        'msg_cliente' => $r['msg_cliente'],
+        'historico_msgs' => $hist,
+        'case' => $case,
+        'andamentos_recentes' => $ands,
+        'exemplos_aprovados' => alfredo_buscar_exemplos($pdo, 8),
+    );
+    $sug = alfredo_gerar_sugestao($ctx);
+    if (!$sug || empty($sug['texto'])) { echo json_encode(array('error'=>'ia falhou','csrf'=>$newCsrf)); exit; }
+    $pdo->prepare("INSERT INTO alfredo_sugestoes (conversa_id, msg_gatilho_id, sugestao_texto, status, eh_sos)
+                   VALUES (?,?,?,?,?)")
+        ->execute(array($convId, (int)$r['msg_id'], $sug['texto'], 'pendente', $sug['eh_sos'] ? 1 : 0));
+    $novoId = (int)$pdo->lastInsertId();
+    echo json_encode(array('ok'=>true, 'sugestao'=>array(
+        'id'=>$novoId, 'texto'=>$sug['texto'], 'eh_sos'=>$sug['eh_sos']?1:0
+    ), 'csrf'=>$newCsrf));
     exit;
 }
 

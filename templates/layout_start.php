@@ -15,6 +15,32 @@ require_once APP_ROOT . '/templates/sidebar.php';
 <div class="app-layout">
     <main class="main-content">
 
+    <?php
+    // Amanda 17/07/2026: banner SOS Alfredo — vermelho piscante no topo pra
+    // todos os usuarios logados quando ha SOS nao resolvido.
+    // Query esta la em cima (antes do sino).
+    if (!empty($_alfredoSos)):
+        $_sosCount = count($_alfredoSos);
+    ?>
+    <div id="fsaAlfredoSosBanner" style="position:sticky;top:0;z-index:2000;background:linear-gradient(90deg,#dc2626,#991b1b);color:#fff;padding:.6rem 1rem;font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;box-shadow:0 4px 12px rgba(220,38,38,.35);animation:fsaSosPiscar 1.2s ease-in-out infinite alternate;">
+        <span>🚨 <strong>Alfredo pediu socorro em <?= $_sosCount ?> conversa<?= $_sosCount > 1 ? 's' : '' ?>!</strong> Ele não sabe responder — a gente precisa entrar e ajudar o cliente.</span>
+        <span style="display:flex;gap:.4rem;flex-wrap:wrap;">
+        <?php foreach (array_slice($_alfredoSos, 0, 3) as $sos):
+            $nome = $sos['client_name'] ?: ($sos['nome_contato'] ?: ('conv#' . $sos['conversa_id']));
+        ?>
+            <a href="<?= url('modules/whatsapp/?abrir=' . (int)$sos['conversa_id'] . '&canal=24') ?>" style="background:rgba(255,255,255,.2);color:#fff;padding:.25rem .6rem;border-radius:6px;text-decoration:none;font-size:.75rem;font-weight:700;">🩹 <?= e(mb_substr($nome, 0, 22, 'UTF-8')) ?></a>
+        <?php endforeach; ?>
+        <?php if ($_sosCount > 3): ?>
+            <span style="font-size:.72rem;opacity:.9;">+ <?= $_sosCount - 3 ?> outra<?= $_sosCount-3>1?'s':'' ?></span>
+        <?php endif; ?>
+        </span>
+    </div>
+    <style>
+    @keyframes fsaSosPiscar { from { box-shadow:0 4px 12px rgba(220,38,38,.35); } to { box-shadow:0 4px 24px rgba(220,38,38,.75); } }
+    </style>
+    <?php endif; ?>
+
+
         <?php
         // ═══════════════════════════════════════════════════════
         // 🇧🇷 TEMA COPA — Amanda 29/06/2026 → removido em 05/07/2026 (Brasil desclassificado 😢)
@@ -525,6 +551,19 @@ require_once APP_ROOT . '/templates/sidebar.php';
                 });
                 </script>
 
+                <?php
+                // Amanda 17/07/2026: banner 🚨 SOS Alfredo — quando IA nao soube
+                // responder e pediu socorro pra equipe humana em N conversas.
+                $_alfredoSos = array();
+                try {
+                    foreach (db()->query("SELECT s.id, s.conversa_id, co.nome_contato, cl.name AS client_name
+                                          FROM alfredo_sugestoes s
+                                          JOIN zapi_conversas co ON co.id = s.conversa_id
+                                          LEFT JOIN clients cl ON cl.id = co.client_id
+                                          WHERE s.eh_sos = 1 AND s.sos_resolvido_em IS NULL
+                                          ORDER BY s.id DESC LIMIT 20") as $r) $_alfredoSos[] = $r;
+                } catch (Exception $e) {}
+                ?>
                 <?php $unreadCount = count_unread_notifications(); ?>
                 <div class="notif-wrapper" id="notifWrapper">
                     <button class="notif-bell" id="notifBell" title="Notificações">
