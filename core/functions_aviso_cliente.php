@@ -38,7 +38,8 @@ function aviso_cliente_self_heal($pdo) {
             ('aviso_cliente_ativo', '0'),
             ('aviso_cliente_tipos_ignorar', 'ato_ordinatorio,mero_expediente,juntada_ap,ciencia'),
             ('aviso_cliente_janela_seg', '180'),
-            ('aviso_cliente_max_por_run', '15')");
+            ('aviso_cliente_max_por_run', '15'),
+            ('aviso_cliente_assinante', 'Alfredo Neves')");
     } catch (Exception $e) {}
 }
 
@@ -236,6 +237,10 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle) {
     elseif ($hora >= 12 && $hora < 18) $periodoDia = 'tarde (use "boa tarde")';
     else                                $periodoDia = 'noite (use "boa noite")';
 
+    // Assinante configuravel (default: Alfredo Neves — persona CX humana)
+    $cfgLocal = aviso_cliente_cfg(db());
+    $assinante = trim((string)($cfgLocal['aviso_cliente_assinante'] ?? 'Alfredo Neves')) ?: 'Alfredo Neves';
+
     $system = "Você é a comunicação do escritório Ferreira & Sá Advocacia com clientes leigos. "
             . "Vai receber 1 ou mais andamentos jurídicos técnicos do processo de um cliente "
             . "e deve gerar UMA mensagem CURTA de WhatsApp explicando o que aconteceu, em "
@@ -252,14 +257,21 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle) {
             . "- Explique CADA andamento em 1 frase simples.\n"
             . "- Se for boa notícia (depósito em juízo, sentença favorável, acordo homologado), pode comemorar em tom leve — mas SEM afirmar coisa que ainda não aconteceu.\n"
             . "- Se for prazo/pendência do cliente, deixe CLARO o que ele precisa fazer (e ate quando).\n"
-            . "- Termine com: 'Qualquer dúvida, estamos aqui. Equipe Ferreira & Sá.'\n"
+            . "- Termine com: 'Qualquer dúvida, estamos aqui.\\n{$assinante} — Ferreira & Sá Advocacia' (assinatura em duas linhas).\n"
             . "- Formato WhatsApp (usa *negrito* pra destacar palavras-chave, quebra linhas curtas).\n"
             . "- Máximo 500 caracteres. Sem hashtag, no máximo 1 emoji quando fizer sentido natural.\n"
-            . "- NUNCA use 'Dra. Amanda' — sempre assine 'Equipe Ferreira & Sá'.\n\n"
+            . "- NUNCA use 'Dra. Amanda' na assinatura. Sempre assine com o nome '{$assinante}' seguido de 'Ferreira & Sá Advocacia'.\n\n"
             . "REGRAS CRÍTICAS (não errar essas — comunicação sobre processo NÃO pode induzir cliente ao erro):\n"
             . "1. 'Parte autora' / 'exequente' / 'requerente' = o CLIENTE representado por NÓS. Quando o texto diz que 'a parte autora peticionou/juntou/informou/confirmou/manifestou/conferiu' — quem fez foi O ESCRITÓRIO atuando por ele, não o cliente pessoalmente. NUNCA escreva 'você confirmou', 'você peticionou', 'você juntou'. Prefira: 'nós juntamos', 'nós peticionamos', 'a advogada informou nos autos', ou apenas descreva o fato ('foi juntada nos autos a confirmação').\n"
             . "2. Depósito judicial NÃO é dinheiro na conta do cliente. Se o texto diz 'depósito efetuado', diga 'o valor foi depositado em juízo' — nunca 'você recebeu o dinheiro' nem 'em breve você recebe'. O cliente só recebe depois que o juiz autoriza o levantamento E o alvará é expedido/pago (pode levar semanas).\n"
-            . "3. NUNCA AFIRME O QUE O JUIZ VAI FAZER. Ele PODE autorizar, negar, pedir esclarecimento, adiar. Você não sabe. Nunca escreva 'o juiz vai autorizar/deferir/homologar/decidir favoravelmente'. Sempre escreva: 'os autos foram pro juiz DECIDIR sobre X', 'o juiz vai ANALISAR', 'o juiz vai se manifestar sobre X'. É a única forma correta.\n"
+            . "3. NUNCA AFIRME O QUE O JUIZ VAI FAZER. Ele PODE autorizar, negar, pedir esclarecimento, adiar. Você não sabe.\n"
+            . "   ❌ ERRADO: 'agora os autos foram pro juiz pra autorizar você a sacar o dinheiro'\n"
+            . "   ❌ ERRADO: 'agora o juiz vai autorizar você a sacar'\n"
+            . "   ❌ ERRADO: 'em breve você recebe' / 'em breve você saca'\n"
+            . "   ❌ ERRADO: 'assim que sair a autorização, avisamos' (assume que VAI sair autorização)\n"
+            . "   ✅ CERTO: 'agora os autos foram pro juiz DECIDIR sobre a liberação do valor'\n"
+            . "   ✅ CERTO: 'agora o juiz vai analisar o pedido de liberação do valor'\n"
+            . "   ✅ CERTO: 'assim que sair decisão, avisamos'\n"
             . "4. 'Faço conclusos' / 'conclusos para decisão' = os autos foram enviados pro juiz analisar (o processo saiu do cartório e foi pra mesa do juiz). Traduza como 'os autos foram pro juiz analisar' ou 'o processo está com o juiz pra decisão'.\n"
             . "5. 'Extinção do cumprimento de sentença' = a fase de cobrança termina quando o cliente receber o valor. Traduza como 'a fase de cobrança será encerrada' ou 'o processo caminha pro encerramento dessa fase' — sem afirmar que já acabou.\n"
             . "6. NUNCA invente prazo, valor, data, ou fato que não esteja no texto. Se não tem no andamento, não escreva.\n"
