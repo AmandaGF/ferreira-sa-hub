@@ -33,6 +33,16 @@ $minD  = (int)($_GET['min_dias'] ?? 0);   // 0 = sem piso; 27 = so os quase expi
 $dry   = !empty($_GET['dry']);
 $tIni  = microtime(true);
 
+// Ordem de resgate importa: documento e imagem sao o que destrava pasta vazia
+// (RG, comprovante, certidao). Audio e volume e entra depois.
+$permitidos = ['imagem', 'video', 'audio', 'documento'];
+$tipos = array_values(array_intersect(
+    array_filter(array_map('trim', explode(',', (string)($_GET['tipos'] ?? '')))),
+    $permitidos
+));
+if (!$tipos) { $tipos = $permitidos; }
+$tiposSql = "'" . implode("','", $tipos) . "'";
+
 echo "=== RESGATE WhatsApp -> Drive — " . date('d/m/Y H:i:s') . " ===\n";
 echo "limite: $limit | idade minima: {$minD}d | modo: " . ($dry ? 'DRY RUN' : 'REAL') . "\n\n";
 
@@ -43,7 +53,7 @@ $sql =
             DATEDIFF(NOW(), m.created_at) AS idade
      FROM zapi_mensagens m
      JOIN zapi_conversas co ON co.id = m.conversa_id
-     WHERE m.tipo IN ('imagem','video','audio','documento')
+     WHERE m.tipo IN ($tiposSql)
        AND m.arquivo_url IS NOT NULL AND m.arquivo_url != ''
        AND (m.arquivo_salvo_drive = 0 OR m.arquivo_salvo_drive IS NULL)
        -- SEM este filtro o lote trava: ordenamos por mais antigo primeiro, entao o
@@ -113,9 +123,10 @@ echo "salvos: $salvas | falhas: $falhas | tempo: " . round(microtime(true) - $tI
 
 $rest = $pdo->query(
     "SELECT COUNT(*) FROM zapi_mensagens m JOIN zapi_conversas co ON co.id = m.conversa_id
-      WHERE m.tipo IN ('imagem','video','audio','documento')
+      WHERE m.tipo IN ($tiposSql)
         AND m.arquivo_url IS NOT NULL AND m.arquivo_url != ''
         AND (m.arquivo_salvo_drive = 0 OR m.arquivo_salvo_drive IS NULL)
+        AND (m.backup_status IS NULL OR m.backup_status = 'retry_ok')
         AND m.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         AND co.client_id IS NOT NULL
         AND EXISTS (SELECT 1 FROM cases c WHERE c.client_id = co.client_id
