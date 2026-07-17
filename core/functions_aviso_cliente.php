@@ -583,6 +583,45 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     // 2) Prependa o cabecalho padrao + quebra de linha
     $txt = '*_' . $assinante . '_*:' . "\n" . ltrim($txt);
 
+    // Post-processing FORTE quando modo != NOVIDADE:
+    // Se IA nao respeitou a estrutura obrigatoria, injeta o paragrafo
+    // que faltou (mais confiavel que ficar convencendo a IA).
+    // Amanda 17/07/2026.
+    if ($modo === 'LONGA_ESPERA') {
+        $temCartorio = (bool)preg_match('/cart[oó]rio|ordem cronol[oó]gica/iu', $txt);
+        if (!$temCartorio) {
+            // Extrai cabecalho + saudacao (2 primeiras linhas) e injeta paragrafo
+            $linhas = preg_split('/\n/', $txt, 3);
+            $header = $linhas[0] ?? ('*_' . $assinante . '_*:');
+            $saudacao = $linhas[1] ?? '';
+            $resto = $linhas[2] ?? '';
+            $inject = "Sabemos que a espera está se estendendo — e agradecemos sua paciência. "
+                    . "Já *fizemos contato com o cartório* e a resposta continua sendo a mesma: os processos "
+                    . "seguem uma *ordem cronológica de julgamento* — é um prazo interno do cartório, não temos "
+                    . "controle sobre ele. Estamos monitorando de perto e assim que houver qualquer novidade, avisamos aqui.";
+            // Se tem 'so reforçando' / 'ultimo andamento' no resto, mantem — senao coloca só o inject
+            if (preg_match('/[uú]ltimo andamento|s[oó] reforçando|s[oó] relembrando/iu', $resto)) {
+                $txt = $header . "\n" . $saudacao . "\n\n" . $inject . "\n\n" . trim($resto);
+            } else {
+                $txt = $header . "\n" . $saudacao . "\n\n" . $inject;
+            }
+        }
+    } elseif ($modo === 'RELEMBRAR') {
+        $temRelembrar = (bool)preg_match('/(?:n[ãa]o|sem)\s+(?:tivemos|houve|teve)\s+(?:atualiza[çc][ãa]o|nova|novidade)|relembrando/iu', $txt);
+        if (!$temRelembrar) {
+            // Se contem "otima noticia" / "boa noticia", remove essas frases
+            $txt = preg_replace('/[óo]tima not[íi]cia[^!.\n]*[!\.]?\s*/iu', '', $txt);
+            $txt = preg_replace('/boa not[íi]cia[^!.\n]*[!\.]?\s*/iu', '', $txt);
+            $linhas = preg_split('/\n/', $txt, 3);
+            $header = $linhas[0] ?? ('*_' . $assinante . '_*:');
+            $saudacao = $linhas[1] ?? '';
+            $resto = $linhas[2] ?? '';
+            $inject = "Ainda não tivemos nenhuma atualização nova, mas continuamos acompanhando de perto. "
+                    . "Só relembrando o último andamento:";
+            $txt = $header . "\n" . $saudacao . "\n\n" . $inject . "\n\n" . trim($resto);
+        }
+    }
+
     // Append fixo — bloco convite Central VIP (nao gerado pela IA pra garantir
     // uniformidade + link correto). Amanda 17/07/2026 (redacao ajustada 17/07).
     $bloco = "\n\n---\n"
