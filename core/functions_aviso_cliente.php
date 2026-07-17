@@ -391,10 +391,10 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     if (!$txt) return null;
 
     // Append fixo — bloco convite Central VIP (nao gerado pela IA pra garantir
-    // uniformidade + link correto). Amanda 17/07/2026.
+    // uniformidade + link correto). Amanda 17/07/2026 (redacao ajustada 17/07).
     $bloco = "\n\n---\n"
-           . "📱 Você sabia que pode acompanhar *todos os andamentos* pelo sistema EXCLUSIVO do Ferreira & Sá?\n"
-           . "Não deixe de entrar sempre que tiver dúvidas — isso vai *agilizar seus atendimentos*: "
+           . "*Dica:* 📱 Você sabia que também pode acompanhar tudo o que aconteceu no seu processo pelo sistema exclusivo do Ferreira & Sá?! "
+           . "Não deixe de entrar sempre que tiver dúvidas! Isso vai agilizar seus atendimentos: "
            . "https://ferreiraesa.com.br/salavip";
     return $txt . $bloco;
 }
