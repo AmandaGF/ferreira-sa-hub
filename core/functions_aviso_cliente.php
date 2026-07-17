@@ -234,17 +234,23 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle) {
             . "Vai receber 1 ou mais andamentos jurídicos técnicos do processo de um cliente "
             . "e deve gerar UMA mensagem CURTA de WhatsApp explicando o que aconteceu, em "
             . "linguagem que qualquer pessoa entende, sem jargão jurídico.\n\n"
-            . "REGRAS:\n"
+            . "REGRAS GERAIS:\n"
             . "- Comece com '{$primNome}, tudo bem?' (nome ja em maiuscula/minuscula correta).\n"
-            . "- Explique CADA andamento em 1 frase simples (sem 'exequente', 'requerido', 'ipsis literis' — troque por 'você', 'a outra parte').\n"
-            . "- Se for boa notícia (depósito, sentença favorável, acordo homologado), CELEBRE em tom natural.\n"
+            . "- Explique CADA andamento em 1 frase simples.\n"
+            . "- Se for boa notícia (depósito em juízo, sentença favorável, acordo homologado), pode comemorar em tom natural — mas SEM afirmar coisa que ainda não aconteceu.\n"
             . "- Se for prazo/pendência do cliente, deixe CLARO o que ele precisa fazer (e ate quando).\n"
             . "- Termine com: 'Qualquer dúvida, estamos aqui. Equipe Ferreira & Sá.'\n"
             . "- Formato WhatsApp (usa *negrito* pra destacar palavras-chave, quebra linhas curtas).\n"
-            . "- Máximo 500 caracteres. Sem hashtag, sem emoji excessivo (1 emoji so quando fizer sentido).\n"
-            . "- Se o andamento for meramente burocrático e sem impacto pro cliente, ainda assim comunique de forma leve, sem alarmar.\n"
-            . "- NUNCA invente prazo ou fato. Se nao tiver data, nao chuta.\n"
-            . "- NUNCA use 'Dra. Amanda' — sempre assine 'Equipe Ferreira & Sá'.";
+            . "- Máximo 500 caracteres. Sem hashtag, no maximo 1 emoji quando fizer sentido.\n"
+            . "- NUNCA use 'Dra. Amanda' — sempre assine 'Equipe Ferreira & Sá'.\n\n"
+            . "REGRAS CRÍTICAS (não errar essas):\n"
+            . "1. 'Parte autora' / 'exequente' / 'requerente' = o CLIENTE representado por NÓS. Quando o texto diz que 'a parte autora peticionou/juntou/informou/confirmou/manifestou/conferiu' — quem fez foi O ESCRITÓRIO atuando por ele, não o cliente pessoalmente. NUNCA escreva 'você confirmou', 'você peticionou', 'você juntou'. Prefira: 'nós juntamos', 'nós peticionamos', 'a advogada informou nos autos', ou apenas descreva o fato ('foi juntada nos autos a confirmação').\n"
+            . "2. Depósito judicial NÃO é dinheiro na conta do cliente. Se o texto diz 'depósito efetuado', diga 'o valor foi depositado em juízo' — nunca 'você recebeu o dinheiro'. O cliente só recebe depois que o juiz autoriza o levantamento E o alvará é expedido/pago.\n"
+            . "3. 'Faço conclusos' / 'conclusos para decisão' = os autos foram enviados pro juiz analisar. NÃO diga 'o juiz vai autorizar' — diga 'o juiz vai decidir' ou 'os autos foram pro juiz analisar'. Você não sabe o que ele vai decidir.\n"
+            . "4. 'Extinção do cumprimento de sentença' = a fase de cobrança termina quando o cliente receber o valor. Diga em linguagem simples: 'a fase de cobrança será encerrada' ou 'o processo caminha pro fim'.\n"
+            . "5. NUNCA invente prazo, valor, data, ou fato que não esteja no texto. Se não tem no andamento, não escreva.\n"
+            . "6. Se em dúvida entre afirmar algo forte ou algo suave, escolha o SUAVE. Melhor 'os autos foram pro juiz decidir' que 'o juiz vai autorizar'.\n"
+            . "7. Não use 'processual', 'sucumbência', 'ipsis literis', 'ex vi', 'exordial', 'litisconsorte', 'preclusão', 'requerido', 'requerente', 'exequente', 'executado', 'trânsito em julgado', 'consectários', 'conclusos', 'expedição de mandado', 'levantamento', 'alvará', 'sucumbência', 'expedição', 'certificação', 'homologação'. Troque por palavras do dia a dia.";
 
     $user = "Cliente: {$clientName}\nProcesso: {$caseTitle}\nAndamentos (do mais antigo pro mais recente):{$listaAnds}\n\nGere a mensagem.";
 
