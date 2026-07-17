@@ -46,6 +46,9 @@ $sql =
      WHERE m.tipo IN ('imagem','video','audio','documento')
        AND m.arquivo_url IS NOT NULL AND m.arquivo_url != ''
        AND (m.arquivo_salvo_drive = 0 OR m.arquivo_salvo_drive IS NULL)
+       -- SEM este filtro o lote trava: ordenamos por mais antigo primeiro, entao o
+       -- arquivo que falha volta na frente do proximo lote e o loop nunca avanca.
+       AND (m.backup_status IS NULL OR m.backup_status = 'retry_ok')
        AND m.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
        AND m.created_at <= DATE_SUB(NOW(), INTERVAL $minD DAY)
        AND co.client_id IS NOT NULL
@@ -94,7 +97,7 @@ foreach ($msgs as $msg) {
             $salvas++;
         } else {
             echo "FALHA: " . mb_substr((string)($r['error'] ?? '?'), 0, 60) . "\n";
-            $pdo->prepare("UPDATE zapi_mensagens SET backup_status = 'retry' WHERE id = ?")->execute([$msgId]);
+            $pdo->prepare("UPDATE zapi_mensagens SET backup_status = 'falha_pasta' WHERE id = ?")->execute([$msgId]);
             $falhas++;
         }
     } catch (Exception $e) {
