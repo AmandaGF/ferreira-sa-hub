@@ -278,14 +278,10 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     else                                $periodoDia = 'noite (use "boa noite")';
 
     // Assinante configuravel (default: Alfredo Neves — persona CX humana).
-    // Amanda 17/07/2026: marcador 'IA' em superscript unicode depois do nome
-    // (ᴵᴬ = U+1D35 U+1D2C — MODIFIER LETTER CAPITAL I/A). Fica pequeno,
-    // acima da linha base, transparente que a mensagem veio de IA sem
-    // precisar de aviso longo. Se WhatsApp nao renderizar em algum
-    // dispositivo antigo, aparece como texto pequeno normal — sem quebra.
+    // Amanda 17/07/2026 (testado com o time): marcador 'IA' em superscript
+    // foi removido a pedido da equipe — nome do assinante sai limpo.
     $cfgLocal = aviso_cliente_cfg(db());
     $assinante = trim((string)($cfgLocal['aviso_cliente_assinante'] ?? 'Alfredo Neves')) ?: 'Alfredo Neves';
-    $assinanteExibido = $assinante . "\u{1D35}\u{1D2C}";
 
     $system = "⛔ PALAVRAS ABSOLUTAMENTE PROIBIDAS — se você usar alguma, sua resposta é DESCARTADA e recomeçamos:\n"
             . "• 'autorizar' / 'autorização' / 'autorizado' / 'autoriza' — o juiz PODE não autorizar.\n"
@@ -298,13 +294,13 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
             . "linguagem que qualquer pessoa entende, sem jargão jurídico.\n\n"
             . "MOMENTO ATUAL: {$periodoDia}\n\n"
             . "FORMATO OBRIGATÓRIO DA MENSAGEM (não fuja disso):\n"
-            . "- COMECE EXATAMENTE com: '*{$assinanteExibido}*:' (nome em negrito, dois-pontos, espaço, depois a saudação e o resto).\n"
-            . "- Depois do '*{$assinanteExibido}*: ' vem a saudação. VARIE a saudação a cada mensagem, combinando com o momento do dia informado acima. Exemplos:\n"
-            . "  * '*{$assinanteExibido}*: Bom dia, {$primNome}!'\n"
-            . "  * '*{$assinanteExibido}*: Boa tarde, {$primNome}!'\n"
-            . "  * '*{$assinanteExibido}*: Boa noite, {$primNome}!'\n"
-            . "  * '*{$assinanteExibido}*: Oi, {$primNome}!' (informal)\n"
-            . "  * '*{$assinanteExibido}*: {$primNome}, tudo bem?'\n"
+            . "- COMECE EXATAMENTE com: '*{$assinante}*:' (nome em negrito, dois-pontos, espaço, depois a saudação e o resto).\n"
+            . "- Depois do '*{$assinante}*: ' vem a saudação. VARIE a saudação a cada mensagem, combinando com o momento do dia informado acima. Exemplos:\n"
+            . "  * '*{$assinante}*: Bom dia, {$primNome}!'\n"
+            . "  * '*{$assinante}*: Boa tarde, {$primNome}!'\n"
+            . "  * '*{$assinante}*: Boa noite, {$primNome}!'\n"
+            . "  * '*{$assinante}*: Oi, {$primNome}!' (informal)\n"
+            . "  * '*{$assinante}*: {$primNome}, tudo bem?'\n"
             . "  NÃO comece sempre igual — varie.\n"
             . "- Depois da saudação, explique CADA andamento em 1 frase simples.\n"
             . "- Se for boa notícia (depósito em juízo, sentença favorável, acordo homologado), pode comemorar em tom leve — SEM afirmar o que ainda não aconteceu.\n"
