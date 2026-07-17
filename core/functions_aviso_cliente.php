@@ -128,10 +128,12 @@ function aviso_cliente_processar_pendentes($pdo, $limite = 15) {
     // (agrega multiplos andamentos que caem em sequencia numa msg so).
     // FILTRO CRITICO: SO andamentos com visivel_cliente=1. Andamentos internos
     // (cadeado) NUNCA vao pra cliente (Amanda 17/07/2026).
+    // Amanda 17/07/2026: NAO avisa casos arquivados/cancelados/renunciados/
+    // concluidos/finalizados — clientes desses casos ja sabem que acabou.
     $st = $pdo->prepare(
         "SELECT ca.id, ca.case_id, ca.tipo, ca.tipo_origem, ca.descricao, ca.data_andamento,
                 ca.created_at, ca.visivel_cliente, cs.title AS case_title, cs.case_number,
-                cs.aviso_cliente_silenciado,
+                cs.aviso_cliente_silenciado, cs.status AS case_status,
                 cs.client_id, cl.name AS client_name, cl.phone AS client_phone
            FROM case_andamentos ca
            LEFT JOIN cases cs ON cs.id = ca.case_id
@@ -139,6 +141,7 @@ function aviso_cliente_processar_pendentes($pdo, $limite = 15) {
           WHERE ca.notif_cliente_status IS NULL
             AND ca.created_at <= DATE_SUB(NOW(), INTERVAL ? SECOND)
             AND COALESCE(ca.visivel_cliente, 0) = 1
+            AND cs.status NOT IN ('arquivado','cancelado','renunciamos','concluido','finalizado')
           ORDER BY ca.case_id, ca.id
           LIMIT ?"
     );

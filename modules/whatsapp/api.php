@@ -931,7 +931,9 @@ if ($action === 'alfredo_gerar_previa') {
     $clientId = (int)($_POST['client_id'] ?? 0);
     if (!$convId || !$clientId) { echo json_encode(array('error' => 'Parâmetros inválidos', 'csrf' => $newCsrf)); exit; }
 
-    // Pega o CASE ATIVO mais recente do cliente + ultimo andamento visivel
+    // Pega o CASE ATIVO mais recente do cliente + ultimo andamento visivel.
+    // Amanda 17/07/2026: exclui arquivado/cancelado/renunciamos/concluido/
+    // finalizado (cliente ja sabe que acabou).
     $st = $pdo->prepare(
         "SELECT ca.id AS andamento_id, ca.descricao, ca.data_andamento, ca.tipo, ca.visivel_cliente,
                 cs.id AS case_id, cs.title AS case_title, cl.name AS cliente
@@ -939,7 +941,7 @@ if ($action === 'alfredo_gerar_previa') {
            JOIN cases cs ON cs.id = ca.case_id
            LEFT JOIN clients cl ON cl.id = cs.client_id
           WHERE cs.client_id = ?
-            AND cs.status NOT IN ('arquivado','cancelado')
+            AND cs.status NOT IN ('arquivado','cancelado','renunciamos','concluido','finalizado')
             AND COALESCE(ca.visivel_cliente, 0) = 1
           ORDER BY ca.data_andamento DESC, ca.id DESC
           LIMIT 1"
