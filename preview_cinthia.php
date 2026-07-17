@@ -19,9 +19,8 @@ $a = $st->fetch(PDO::FETCH_ASSOC);
 echo "=== ANDAMENTO ORIGINAL ===\n";
 echo $a['descricao'] . "\n\n";
 
-echo "=== 3 RODADAS DA IA COM O PROMPT NOVO (verifica consistencia) ===\n\n";
-for ($i = 1; $i <= 3; $i++) {
-    echo "--- Rodada $i ---\n";
-    $r = aviso_cliente_resumir_via_ia(array($a), $a['cliente'], $a['title']);
-    echo ($r ?: '(vazio/descartado)') . "\n\n";
-}
+@set_time_limit(120);
+echo "=== IA v2 ===\n\n";
+$r = aviso_cliente_resumir_via_ia(array($a), $a['cliente'], $a['title']);
+echo ($r ?: '(vazio/descartado)') . "\n";
+echo "\n(chars: " . mb_strlen($r ?: '') . ")\n";
