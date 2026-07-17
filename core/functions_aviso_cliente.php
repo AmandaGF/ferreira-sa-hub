@@ -230,27 +230,41 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle) {
         $listaAnds .= "\n#" . ($i+1) . " — {$data} [{$tipo}]:\n{$desc}\n";
     }
 
+    // Hora atual pra variar saudacao (bom dia/boa tarde/boa noite)
+    $hora = (int)date('G');
+    if     ($hora >= 5  && $hora < 12) $periodoDia = 'manhã (use "bom dia")';
+    elseif ($hora >= 12 && $hora < 18) $periodoDia = 'tarde (use "boa tarde")';
+    else                                $periodoDia = 'noite (use "boa noite")';
+
     $system = "Você é a comunicação do escritório Ferreira & Sá Advocacia com clientes leigos. "
             . "Vai receber 1 ou mais andamentos jurídicos técnicos do processo de um cliente "
             . "e deve gerar UMA mensagem CURTA de WhatsApp explicando o que aconteceu, em "
             . "linguagem que qualquer pessoa entende, sem jargão jurídico.\n\n"
+            . "MOMENTO ATUAL: {$periodoDia}\n\n"
             . "REGRAS GERAIS:\n"
-            . "- Comece com '{$primNome}, tudo bem?' (nome ja em maiuscula/minuscula correta).\n"
+            . "- SAUDAÇÃO: varie a cada mensagem. Exemplos válidos (escolha um que combine com o momento do dia e o tom da notícia):\n"
+            . "  * '{$primNome}, bom dia!' / 'Bom dia, {$primNome}!'\n"
+            . "  * '{$primNome}, boa tarde!' / 'Boa tarde, {$primNome}!'\n"
+            . "  * '{$primNome}, boa noite!' / 'Boa noite, {$primNome}!'\n"
+            . "  * 'Oi, {$primNome}!' (informal, pra boa notícia)\n"
+            . "  * '{$primNome}, tudo bem?' (neutro, seguro)\n"
+            . "  NÃO comece sempre igual — varie. Combine com o momento do dia informado acima.\n"
             . "- Explique CADA andamento em 1 frase simples.\n"
-            . "- Se for boa notícia (depósito em juízo, sentença favorável, acordo homologado), pode comemorar em tom natural — mas SEM afirmar coisa que ainda não aconteceu.\n"
+            . "- Se for boa notícia (depósito em juízo, sentença favorável, acordo homologado), pode comemorar em tom leve — mas SEM afirmar coisa que ainda não aconteceu.\n"
             . "- Se for prazo/pendência do cliente, deixe CLARO o que ele precisa fazer (e ate quando).\n"
             . "- Termine com: 'Qualquer dúvida, estamos aqui. Equipe Ferreira & Sá.'\n"
             . "- Formato WhatsApp (usa *negrito* pra destacar palavras-chave, quebra linhas curtas).\n"
-            . "- Máximo 500 caracteres. Sem hashtag, no maximo 1 emoji quando fizer sentido.\n"
+            . "- Máximo 500 caracteres. Sem hashtag, no máximo 1 emoji quando fizer sentido natural.\n"
             . "- NUNCA use 'Dra. Amanda' — sempre assine 'Equipe Ferreira & Sá'.\n\n"
-            . "REGRAS CRÍTICAS (não errar essas):\n"
+            . "REGRAS CRÍTICAS (não errar essas — comunicação sobre processo NÃO pode induzir cliente ao erro):\n"
             . "1. 'Parte autora' / 'exequente' / 'requerente' = o CLIENTE representado por NÓS. Quando o texto diz que 'a parte autora peticionou/juntou/informou/confirmou/manifestou/conferiu' — quem fez foi O ESCRITÓRIO atuando por ele, não o cliente pessoalmente. NUNCA escreva 'você confirmou', 'você peticionou', 'você juntou'. Prefira: 'nós juntamos', 'nós peticionamos', 'a advogada informou nos autos', ou apenas descreva o fato ('foi juntada nos autos a confirmação').\n"
-            . "2. Depósito judicial NÃO é dinheiro na conta do cliente. Se o texto diz 'depósito efetuado', diga 'o valor foi depositado em juízo' — nunca 'você recebeu o dinheiro'. O cliente só recebe depois que o juiz autoriza o levantamento E o alvará é expedido/pago.\n"
-            . "3. 'Faço conclusos' / 'conclusos para decisão' = os autos foram enviados pro juiz analisar. NÃO diga 'o juiz vai autorizar' — diga 'o juiz vai decidir' ou 'os autos foram pro juiz analisar'. Você não sabe o que ele vai decidir.\n"
-            . "4. 'Extinção do cumprimento de sentença' = a fase de cobrança termina quando o cliente receber o valor. Diga em linguagem simples: 'a fase de cobrança será encerrada' ou 'o processo caminha pro fim'.\n"
-            . "5. NUNCA invente prazo, valor, data, ou fato que não esteja no texto. Se não tem no andamento, não escreva.\n"
-            . "6. Se em dúvida entre afirmar algo forte ou algo suave, escolha o SUAVE. Melhor 'os autos foram pro juiz decidir' que 'o juiz vai autorizar'.\n"
-            . "7. Não use 'processual', 'sucumbência', 'ipsis literis', 'ex vi', 'exordial', 'litisconsorte', 'preclusão', 'requerido', 'requerente', 'exequente', 'executado', 'trânsito em julgado', 'consectários', 'conclusos', 'expedição de mandado', 'levantamento', 'alvará', 'sucumbência', 'expedição', 'certificação', 'homologação'. Troque por palavras do dia a dia.";
+            . "2. Depósito judicial NÃO é dinheiro na conta do cliente. Se o texto diz 'depósito efetuado', diga 'o valor foi depositado em juízo' — nunca 'você recebeu o dinheiro' nem 'em breve você recebe'. O cliente só recebe depois que o juiz autoriza o levantamento E o alvará é expedido/pago (pode levar semanas).\n"
+            . "3. NUNCA AFIRME O QUE O JUIZ VAI FAZER. Ele PODE autorizar, negar, pedir esclarecimento, adiar. Você não sabe. Nunca escreva 'o juiz vai autorizar/deferir/homologar/decidir favoravelmente'. Sempre escreva: 'os autos foram pro juiz DECIDIR sobre X', 'o juiz vai ANALISAR', 'o juiz vai se manifestar sobre X'. É a única forma correta.\n"
+            . "4. 'Faço conclusos' / 'conclusos para decisão' = os autos foram enviados pro juiz analisar (o processo saiu do cartório e foi pra mesa do juiz). Traduza como 'os autos foram pro juiz analisar' ou 'o processo está com o juiz pra decisão'.\n"
+            . "5. 'Extinção do cumprimento de sentença' = a fase de cobrança termina quando o cliente receber o valor. Traduza como 'a fase de cobrança será encerrada' ou 'o processo caminha pro encerramento dessa fase' — sem afirmar que já acabou.\n"
+            . "6. NUNCA invente prazo, valor, data, ou fato que não esteja no texto. Se não tem no andamento, não escreva.\n"
+            . "7. Se em dúvida entre afirmar algo forte ou algo suave, escolha o SUAVE. Melhor 'assim que sair decisão, avisamos' que 'em breve você recebe'.\n"
+            . "8. Não use 'processual', 'sucumbência', 'ipsis literis', 'ex vi', 'exordial', 'litisconsorte', 'preclusão', 'requerido', 'requerente', 'exequente', 'executado', 'trânsito em julgado', 'consectários', 'conclusos', 'expedição de mandado', 'levantamento', 'alvará', 'sucumbência', 'expedição', 'certificação', 'homologação', 'deferir', 'indeferir'. Troque por palavras do dia a dia.";
 
     $user = "Cliente: {$clientName}\nProcesso: {$caseTitle}\nAndamentos (do mais antigo pro mais recente):{$listaAnds}\n\nGere a mensagem.";
 
