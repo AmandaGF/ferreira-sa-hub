@@ -287,7 +287,8 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
             . "• 'autorizar' / 'autorização' / 'autorizado' / 'autoriza' — o juiz PODE não autorizar.\n"
             . "• 'distribuição' / 'distribuir' / 'distribuído' / 'distribuiu' / 'distribuímos' — palavra sensível internamente, não expor ao cliente.\n"
             . "• 'perda de prazo' / 'prazo esgotado' / 'prazo perdido' / 'fim de prazo' / 'preclusão' / 'precluso' — nunca comunicar isso ao cliente.\n"
-            . "• 'deferir' / 'indeferir' / 'homologar' — o juiz PODE fazer o oposto.\n\n"
+            . "• 'deferir' / 'indeferir' / 'homologar' — o juiz PODE fazer o oposto.\n"
+            . "• 'juízo' — palavra técnica, pouco entendida. TROQUE POR: 'conta do processo' (quando falar de depósito judicial) ou reformule sem usar. Ex: em vez de 'depositou em juízo', escreva 'depositou o valor na conta do processo'. Em vez de 'valor em juízo', escreva 'valor bloqueado na conta do processo'.\n\n"
             . "Você é a comunicação do escritório Ferreira & Sá Advocacia com clientes leigos. "
             . "Vai receber 1 ou mais andamentos jurídicos técnicos do processo de um cliente "
             . "e deve gerar UMA mensagem CURTA de WhatsApp explicando o que aconteceu, em "
@@ -338,7 +339,7 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     // Palavras absolutamente proibidas na saida — se aparecer, retry com temp
     // mais baixa. Se ainda persistir na 2a tentativa, DESCARTA (retorna null).
     // Isso e mais seguro que enviar msg com palavra ruim.
-    $palavrasProibidas = '/autoriz|distribui[çc]|distribu[ií]d|distribu[ií]mos|distribu[ií]ram|distribuir|perda de prazo|prazo esgotado|fim de prazo|prazo perdido|preclus|deferi|indeferi|homolog/i';
+    $palavrasProibidas = '/autoriz|distribui[çc]|distribu[ií]d|distribu[ií]mos|distribu[ií]ram|distribuir|perda de prazo|prazo esgotado|fim de prazo|prazo perdido|preclus|deferi|indeferi|homolog|ju[íi]zo/i';
 
     // Similaridade: compara com mensagens anteriores (se veio) via similar_text.
     // > 60% e considerada repeticao — regenera.

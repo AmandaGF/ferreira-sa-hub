@@ -925,6 +925,97 @@ if ($action === 'abrir_conversa') {
     exit;
 }
 
+// ── ALFREDO: gera prévia do último andamento do cliente em linguagem de leigo (Amanda 17/07/2026)
+if ($action === 'alfredo_gerar_previa') {
+    $convId   = (int)($_POST['conversa_id'] ?? 0);
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    if (!$convId || !$clientId) { echo json_encode(array('error' => 'Parâmetros inválidos', 'csrf' => $newCsrf)); exit; }
+
+    // Pega o CASE ATIVO mais recente do cliente + ultimo andamento visivel
+    $st = $pdo->prepare(
+        "SELECT ca.id AS andamento_id, ca.descricao, ca.data_andamento, ca.tipo, ca.visivel_cliente,
+                cs.id AS case_id, cs.title AS case_title, cl.name AS cliente
+           FROM case_andamentos ca
+           JOIN cases cs ON cs.id = ca.case_id
+           LEFT JOIN clients cl ON cl.id = cs.client_id
+          WHERE cs.client_id = ?
+            AND cs.status NOT IN ('arquivado','cancelado')
+            AND COALESCE(ca.visivel_cliente, 0) = 1
+          ORDER BY ca.data_andamento DESC, ca.id DESC
+          LIMIT 1"
+    );
+    $st->execute(array($clientId));
+    $a = $st->fetch(PDO::FETCH_ASSOC);
+    if (!$a) {
+        echo json_encode(array('error' => 'Esse cliente não tem processo ativo com andamento visível ao cliente.', 'csrf' => $newCsrf));
+        exit;
+    }
+    // Blacklist de conteudo (mesma regra do cron): distribuicao / perda de prazo etc
+    $blacklistRx = '/distribui[çc][ãa]o|distribu[ií]d[ao]|distribu[ií]mos|distribu[ií]ram|distribuir|prazo esgotado|perda de prazo|fim de prazo|prazo perdido|preclus/i';
+    if (preg_match($blacklistRx, (string)$a['descricao'])) {
+        echo json_encode(array('error' => 'O último andamento contém palavras que NÃO devem ser expostas ao cliente (distribuição / prazo / etc). Recuse-se a enviar automaticamente.', 'csrf' => $newCsrf));
+        exit;
+    }
+
+    require_once __DIR__ . '/../../core/functions_aviso_cliente.php';
+    // Ultimas 3 msgs enviadas pro MESMO cliente (pra IA variar)
+    $ultimasMsgs = array();
+    try {
+        $stU = $pdo->prepare("SELECT ca2.notif_cliente_texto FROM case_andamentos ca2
+                              JOIN cases cs2 ON cs2.id = ca2.case_id
+                              WHERE cs2.client_id = ? AND ca2.notif_cliente_status = 'enviado'
+                                AND ca2.notif_cliente_texto IS NOT NULL
+                              ORDER BY ca2.notif_cliente_enviada_em DESC LIMIT 3");
+        $stU->execute(array($clientId));
+        foreach ($stU as $r) if (!empty($r['notif_cliente_texto'])) $ultimasMsgs[] = $r['notif_cliente_texto'];
+    } catch (Exception $e) {}
+    $msg = aviso_cliente_resumir_via_ia(array($a), $a['cliente'], $a['case_title'], $ultimasMsgs);
+    if (!$msg) {
+        echo json_encode(array('error' => 'A IA não conseguiu gerar um resumo válido (pode ter escapado palavra proibida). Tenta de novo — se persistir, envia manual pelo chat.', 'csrf' => $newCsrf));
+        exit;
+    }
+    echo json_encode(array(
+        'ok' => true,
+        'mensagem' => $msg,
+        'case_id' => (int)$a['case_id'],
+        'case_title' => $a['case_title'],
+        'andamento_id' => (int)$a['andamento_id'],
+        'andamento_data' => $a['data_andamento'] ? date('d/m/Y', strtotime($a['data_andamento'])) : '',
+        'csrf' => $newCsrf,
+    ));
+    exit;
+}
+
+// ── ALFREDO: envia a mensagem revisada pelo canal 24 e marca o andamento como enviado
+if ($action === 'alfredo_enviar') {
+    $convId = (int)($_POST['conversa_id'] ?? 0);
+    $mensagem = trim((string)($_POST['mensagem'] ?? ''));
+    if (!$convId || $mensagem === '') { echo json_encode(array('error' => 'Parâmetros inválidos', 'csrf' => $newCsrf)); exit; }
+    $conv = $pdo->prepare("SELECT * FROM zapi_conversas WHERE id = ?");
+    $conv->execute(array($convId));
+    $conv = $conv->fetch(PDO::FETCH_ASSOC);
+    if (!$conv || $conv['canal'] !== '24') { echo json_encode(array('error' => 'Conversa inválida ou não é canal 24', 'csrf' => $newCsrf)); exit; }
+
+    require_once __DIR__ . '/../../core/functions_zapi.php';
+    $r = zapi_send_text('24', $conv['telefone'], $mensagem);
+    if (empty($r['ok'])) {
+        echo json_encode(array('error' => $r['erro'] ?? 'Falha na Z-API', 'csrf' => $newCsrf));
+        exit;
+    }
+    // Registra a msg na conversa pra aparecer no chat
+    try {
+        $mid = $r['messageId'] ?? $r['zaapId'] ?? '';
+        $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, texto, tipo, direcao, enviado_por_id, status, created_at)
+                       VALUES (?,?,?,?,?,?,?,NOW())")
+            ->execute(array($convId, $mid ?: null, $mensagem, 'text', 'enviada', $userId, 'enviada'));
+        $pdo->prepare("UPDATE zapi_conversas SET ultima_msg_em = NOW(), ultima_mensagem = ? WHERE id = ?")
+            ->execute(array(mb_substr($mensagem, 0, 200), $convId));
+    } catch (Exception $e) {}
+    audit_log('alfredo_enviado', 'zapi_conversa', $convId, 'user=' . $userId . ' chars=' . mb_strlen($mensagem));
+    echo json_encode(array('ok' => true, 'csrf' => $newCsrf));
+    exit;
+}
+
 // ── ENVIAR MENSAGEM ──────────────────────────────────────
 if ($action === 'enviar_mensagem') {
     $convId  = (int)($_POST['conversa_id'] ?? 0);

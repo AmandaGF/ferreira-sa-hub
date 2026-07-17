@@ -918,6 +918,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         if (c.client_id) {
             menuItems.push({ id:'processo', emoji:'⚖️', label:'Abrir processo', onclick:'waAbrirProcesso(' + c.client_id + ')', color:'#B87333', tip:'Abrir a pasta do processo vinculado a este cliente' });
         }
+        // Amanda 17/07/2026: botao ALFREDO — gera prévia do ultimo andamento em
+        // linguagem de leigo (IA) e abre modal pra revisar antes de enviar.
+        // Disponivel pra TODOS os usuarios do WhatsApp, canal 24 (CX), quando
+        // tem cliente vinculado. Naiara e quem mais vai usar.
+        if (c.canal === '24' && c.client_id) {
+            menuItems.push({ id:'alfredo', emoji:'📣', label:'Alfredo — enviar último andamento', onclick:'waAlfredoAbrir()', color:'#0d9488', bold:true, tip:'IA resume o último andamento do processo em linguagem de leigo — você revisa antes de enviar' });
+        }
         menuItems.push({ sep:true });
         // Grupo 2: atendimento
         menuItems.push({ id:'etiquetas', emoji:'🏷', label:'Etiquetas', onclick:'waToggleEtiquetas(event)', tip:'Etiquetas' });
@@ -3292,6 +3299,100 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 }
             })
             .catch(function(err){ alert('Falha: ' + err); });
+    };
+
+    // ── ALFREDO: gera prévia do último andamento em linguagem de leigo (Amanda 17/07/2026) ──
+    // Fluxo: abre modal → chama endpoint que resume o ultimo andamento do caso ativo do
+    // cliente da conversa → mostra prévia → botoes REGERAR / EDITAR / ENVIAR / CANCELAR.
+    // Antes de automatizar, o time revisa manualmente cada mensagem.
+    window.waAlfredoAbrir = function() {
+        var c = window._waConvAtual;
+        if (!c || !c.client_id) { alert('Essa conversa não tem cliente vinculado.'); return; }
+        waAlfredoRender('carregando');
+        var fd = new FormData();
+        fd.append('action', 'alfredo_gerar_previa');
+        fd.append('conversa_id', c.id);
+        fd.append('client_id', c.client_id);
+        fd.append('<?= CSRF_TOKEN_NAME ?>', window._FSA_CSRF || '<?= generate_csrf_token() ?>');
+        fetch(apiUrl, { method:'POST', credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.csrf) window._FSA_CSRF = d.csrf;
+                if (d.error) { waAlfredoRender('erro', d.error); return; }
+                waAlfredoRender('previa', d);
+            })
+            .catch(function(){ waAlfredoRender('erro', 'Falha de rede.'); });
+    };
+
+    function waAlfredoRender(estado, data) {
+        var modal = document.getElementById('waAlfredoModal');
+        if (!modal) {
+            modal = document.createElement('div');
+            modal.id = 'waAlfredoModal';
+            modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;';
+            modal.onclick = function(e){ if (e.target === modal) waAlfredoFechar(); };
+            document.body.appendChild(modal);
+        }
+        var html = '<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);">';
+        html += '<div style="padding:1rem 1.25rem;border-bottom:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#0d9488,#0f766e);color:#fff;border-radius:14px 14px 0 0;">';
+        html += '<div><strong style="font-size:1rem;">📣 Alfredo — Prévia da mensagem</strong><div style="font-size:.7rem;opacity:.85;">Revisa antes de enviar. Se ficar ruim, regera ou edita.</div></div>';
+        html += '<button onclick="waAlfredoFechar()" style="background:rgba(255,255,255,.15);border:none;color:#fff;font-size:1.1rem;width:32px;height:32px;border-radius:50%;cursor:pointer;">✕</button>';
+        html += '</div>';
+        html += '<div style="padding:1.25rem;">';
+
+        if (estado === 'carregando') {
+            html += '<div style="text-align:center;padding:2rem 1rem;color:#6b7280;font-size:.9rem;">⏳ Gerando prévia com IA (Claude Haiku)...<br><small style="font-size:.72rem;">~5-15 segundos</small></div>';
+        } else if (estado === 'erro') {
+            html += '<div style="background:#fef2f2;color:#991b1b;padding:.8rem 1rem;border-radius:8px;font-size:.85rem;border-left:3px solid #dc2626;"><strong>Não deu:</strong> ' + escapeHtml(data || 'erro') + '</div>';
+            html += '<div style="text-align:right;margin-top:1rem;"><button onclick="waAlfredoFechar()" class="btn btn-outline btn-sm">Fechar</button></div>';
+        } else if (estado === 'previa') {
+            var meta = '';
+            if (data.andamento_data) meta += '<span style="color:#6b7280;">📅 Andamento de ' + escapeHtml(data.andamento_data) + '</span>';
+            if (data.case_title) meta += (meta ? ' · ' : '') + '<span style="color:#6b7280;">⚖️ ' + escapeHtml(data.case_title) + '</span>';
+            if (meta) html += '<div style="font-size:.75rem;margin-bottom:.6rem;">' + meta + '</div>';
+            html += '<label style="display:block;font-size:.72rem;font-weight:700;color:#6b7280;margin-bottom:.35rem;letter-spacing:.03em;">MENSAGEM QUE VAI SER ENVIADA:</label>';
+            html += '<textarea id="waAlfredoTexto" style="width:100%;min-height:220px;padding:.75rem;border:2px solid #d7ab90;border-radius:8px;font-size:.85rem;font-family:inherit;line-height:1.45;resize:vertical;background:#fefefe;">' + escapeHtml(data.mensagem || '') + '</textarea>';
+            html += '<div style="font-size:.7rem;color:#6b7280;margin-top:.35rem;">💡 Você pode editar o texto acima antes de enviar.</div>';
+            html += '<div style="display:flex;gap:.5rem;flex-wrap:wrap;justify-content:flex-end;margin-top:1rem;">';
+            html += '<button onclick="waAlfredoFechar()" class="btn btn-outline btn-sm">Cancelar</button>';
+            html += '<button onclick="waAlfredoAbrir()" class="btn btn-outline btn-sm" style="border-color:#0d9488;color:#0d9488;">🔄 Regerar</button>';
+            html += '<button onclick="waAlfredoEnviar()" class="btn btn-primary btn-sm" style="background:#059669;color:#fff;">✅ Enviar pro cliente</button>';
+            html += '</div>';
+        }
+        html += '</div></div>';
+        modal.innerHTML = html;
+        modal.style.display = 'flex';
+    }
+
+    window.waAlfredoFechar = function() {
+        var m = document.getElementById('waAlfredoModal');
+        if (m) m.remove();
+    };
+
+    window.waAlfredoEnviar = function() {
+        var c = window._waConvAtual;
+        var t = document.getElementById('waAlfredoTexto');
+        if (!c || !t) return;
+        var msg = (t.value || '').trim();
+        if (!msg) { alert('Mensagem vazia.'); return; }
+        if (!confirm('Enviar essa mensagem pro cliente pelo canal 24?')) return;
+        var btns = document.querySelectorAll('#waAlfredoModal button');
+        btns.forEach(function(b){ b.disabled = true; });
+        var fd = new FormData();
+        fd.append('action', 'alfredo_enviar');
+        fd.append('conversa_id', c.id);
+        fd.append('mensagem', msg);
+        fd.append('<?= CSRF_TOKEN_NAME ?>', window._FSA_CSRF || '<?= generate_csrf_token() ?>');
+        fetch(apiUrl, { method:'POST', credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}, body:fd })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.csrf) window._FSA_CSRF = d.csrf;
+                if (d.error) { alert('Falha ao enviar: ' + d.error); btns.forEach(function(b){ b.disabled = false; }); return; }
+                waAlfredoFechar();
+                // Recarrega a conversa pra mostrar a msg enviada
+                if (typeof convAtiva !== 'undefined' && convAtiva) window.waAbrir(convAtiva);
+            })
+            .catch(function(){ alert('Falha de rede.'); btns.forEach(function(b){ b.disabled = false; }); });
     };
 
     // Abrir pasta do processo vinculado ao cliente da conversa.
