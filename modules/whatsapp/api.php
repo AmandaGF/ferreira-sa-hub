@@ -994,9 +994,9 @@ if ($action === 'alfredo_aprovar_enviar') {
     // Registra a msg na conversa
     try {
         $mid = $r['messageId'] ?? $r['zaapId'] ?? '';
-        $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, texto, tipo, direcao, enviado_por_id, status, created_at)
+        $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, conteudo, tipo, direcao, enviado_por_id, status, created_at)
                        VALUES (?,?,?,?,?,?,?,NOW())")
-            ->execute(array($convId, $mid ?: null, $textoFinal, 'text', 'enviada', $userId, 'enviada'));
+            ->execute(array($convId, $mid ?: null, $textoFinal, 'texto', 'enviada', $userId, 'enviada'));
         $pdo->prepare("UPDATE zapi_conversas SET ultima_msg_em=NOW(), ultima_mensagem=? WHERE id=?")
             ->execute(array(mb_substr($textoFinal, 0, 200), $convId));
     } catch (Exception $e) {}
@@ -1048,7 +1048,7 @@ if ($action === 'alfredo_regerar') {
     if (!$r) { echo json_encode(array('error'=>'sem msg cliente','csrf'=>$newCsrf)); exit; }
 
     // Historico + case + andamentos + exemplos
-    $stH = $pdo->prepare("SELECT direcao, texto, created_at FROM zapi_mensagens
+    $stH = $pdo->prepare("SELECT direcao, conteudo AS texto, created_at FROM zapi_mensagens
                           WHERE conversa_id=? ORDER BY id DESC LIMIT 10");
     $stH->execute(array($convId));
     $hist = array_reverse($stH->fetchAll(PDO::FETCH_ASSOC));
@@ -1179,9 +1179,9 @@ if ($action === 'alfredo_enviar') {
     // Registra a msg na conversa pra aparecer no chat
     try {
         $mid = $r['messageId'] ?? $r['zaapId'] ?? '';
-        $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, texto, tipo, direcao, enviado_por_id, status, created_at)
+        $pdo->prepare("INSERT INTO zapi_mensagens (conversa_id, zapi_message_id, conteudo, tipo, direcao, enviado_por_id, status, created_at)
                        VALUES (?,?,?,?,?,?,?,NOW())")
-            ->execute(array($convId, $mid ?: null, $mensagem, 'text', 'enviada', $userId, 'enviada'));
+            ->execute(array($convId, $mid ?: null, $mensagem, 'texto', 'enviada', $userId, 'enviada'));
         $pdo->prepare("UPDATE zapi_conversas SET ultima_msg_em = NOW(), ultima_mensagem = ? WHERE id = ?")
             ->execute(array(mb_substr($mensagem, 0, 200), $convId));
     } catch (Exception $e) {}

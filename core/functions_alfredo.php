@@ -195,7 +195,7 @@ function alfredo_processar_pendentes($pdo, $limit = 5) {
     if ($ativoGlobal !== '1') { $out['killswitch'] = true; return $out; }
 
     $st = $pdo->prepare(
-        "SELECT m.id AS msg_id, m.conversa_id, m.texto AS msg_cliente, m.created_at,
+        "SELECT m.id AS msg_id, m.conversa_id, m.conteudo AS msg_cliente, m.created_at,
                 co.client_id, co.nome_contato, co.telefone
            FROM zapi_mensagens m
            JOIN zapi_conversas co ON co.id = m.conversa_id
@@ -228,7 +228,7 @@ function alfredo_processar_pendentes($pdo, $limit = 5) {
     foreach ($rows as $r) {
         try {
             // Histórico da conversa (últimas 10 msgs)
-            $stH = $pdo->prepare("SELECT direcao, texto, created_at FROM zapi_mensagens
+            $stH = $pdo->prepare("SELECT direcao, conteudo AS texto, created_at FROM zapi_mensagens
                                   WHERE conversa_id=? ORDER BY id DESC LIMIT 10");
             $stH->execute(array((int)$r['conversa_id']));
             $hist = array_reverse($stH->fetchAll(PDO::FETCH_ASSOC));
