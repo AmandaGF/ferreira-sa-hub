@@ -478,6 +478,14 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     // > 60% e considerada repeticao — regenera.
     $limiarSimilar = 60.0;
 
+    // Amanda 17/07/2026: Haiku nao segue instrucoes complexas de LONGA_ESPERA/
+    // RELEMBRAR (insiste em 'Otima noticia' mesmo com few-shot). Sonnet segue.
+    // Sonnet custa ~3x mais mas so quando modo != NOVIDADE.
+    //   NOVIDADE     → Haiku 4.5   (~R$ 0,03/chamada)
+    //   RELEMBRAR    → Sonnet 4.5  (~R$ 0,10/chamada)
+    //   LONGA_ESPERA → Sonnet 4.5  (~R$ 0,10/chamada)
+    $modelo = ($modo === 'NOVIDADE') ? 'claude-haiku-4-5-20251001' : 'claude-sonnet-4-5-20250929';
+
     $tentativas = 0;
     $temp = 0.5;
     $txt = null;
@@ -486,7 +494,7 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
         $tentativas++;
         $resp = ia_chamar(
             'aviso_cliente_andamento',
-            'claude-haiku-4-5-20251001',
+            $modelo,
             $system,
             array(array('role' => 'user', 'content' => $user)),
             array('max_tokens' => 400, 'temperature' => $temp, 'bypass_killswitch' => true, 'bypass_user_whitelist' => true)
@@ -502,7 +510,8 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
         if ($descartada) return null;
 
         // Guard: palavras proibidas → retry
-        if (preg_match($palavrasProibidas, $candidato)) {
+        if (preg_match($palavrasProibidas, $candidato, $m)) {
+            error_log("[aviso_cliente_ia] retry $tentativas: palavra proibida '{$m[0]}' encontrada. Trecho: " . mb_substr($candidato, 0, 300));
             $temp = max(0.1, $temp - 0.2);
             continue;
         }

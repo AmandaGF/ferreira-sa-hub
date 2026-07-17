@@ -3343,8 +3343,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
         // Amanda 17/07/2026: aviso de custo em TODOS os estados pra ninguem
         // clicar regerar sem cerimonia (cada geracao consome IA).
         var avisoCusto = '<div style="background:#fef9c3;border-left:3px solid #f59e0b;color:#78350f;padding:.55rem .8rem;border-radius:6px;font-size:.72rem;margin-bottom:.85rem;line-height:1.4;">'
-                       + '💰 <strong>Cada geração custa ~R$ 0,05 em IA</strong> (Claude Haiku). '
-                       + 'Use com moderação — clicar em 🔄 <strong>Regerar</strong> gera uma nova cobrança.'
+                       + '💰 <strong>Custo por geração:</strong> ~R$ 0,03 (novidade / Haiku) ou ~R$ 0,10 (relembrar/longa espera / Sonnet, segue instrução melhor). '
+                       + 'Clicar em 🔄 <strong>Regerar</strong> gera uma nova cobrança.'
                        + '</div>';
 
         if (estado === 'carregando') {
