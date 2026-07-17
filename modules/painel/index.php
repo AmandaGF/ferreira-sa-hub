@@ -11,6 +11,44 @@ $userRole = current_user_role();
 $isGestao = in_array($userRole, array('admin', 'gestao'));
 $userName = explode(' ', current_user()['name'] ?? '')[0];
 
+// Self-heal: tabela de bonus manual de dopamina (Amanda 16/07/2026).
+// Gestao pode premiar entregas heroicas com pontos extras + mensagem
+// de parabens que aparece na proxima abertura do painel do premiado.
+try {
+    $pdo->exec("CREATE TABLE IF NOT EXISTS dopamina_bonus (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        pontos DECIMAL(6,1) NOT NULL DEFAULT 0,
+        motivo VARCHAR(300) NULL,
+        data_ref DATE NOT NULL,
+        parabens_titulo VARCHAR(200) NULL,
+        parabens_texto TEXT NULL,
+        parabens_visto_em DATETIME NULL,
+        created_by INT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX (user_id, data_ref),
+        INDEX (user_id, parabens_visto_em)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+} catch (Exception $e) {}
+
+// Se sou eu mesmo abrindo (nao gestao vendo outro user), busca parabens
+// pendente pra mostrar modal + marca como visto. Amanda 16/07/2026.
+$_parabensNovo = null;
+if (!isset($_GET['user']) || (int)$_GET['user'] === (int)$userId) {
+    try {
+        $stPb = $pdo->prepare("SELECT id, pontos, parabens_titulo, parabens_texto, motivo
+                               FROM dopamina_bonus
+                               WHERE user_id = ? AND parabens_visto_em IS NULL AND parabens_titulo IS NOT NULL
+                               ORDER BY id ASC LIMIT 1");
+        $stPb->execute(array($userId));
+        $_parabensNovo = $stPb->fetch(PDO::FETCH_ASSOC) ?: null;
+        if ($_parabensNovo) {
+            $pdo->prepare("UPDATE dopamina_bonus SET parabens_visto_em = NOW() WHERE id = ?")
+                ->execute(array((int)$_parabensNovo['id']));
+        }
+    } catch (Exception $e) {}
+}
+
 // Ver agenda de outro usuário (Admin/Gestão)
 $viewUserId = ($isGestao && isset($_GET['user'])) ? (int)$_GET['user'] : $userId;
 
@@ -464,6 +502,16 @@ function dopa_fmt($n) {
 }
 $dopaTotal = dopa_pontos_da_categoria($dopa, $dopaPesos);
 
+// Amanda 16/07/2026: bonus manual dado pela gestao (SUM de pontos direto,
+// nao passa por peso). Soma ao total do dia se data_ref = hoje.
+$_bonusHoje = 0;
+try {
+    $q = $pdo->prepare("SELECT COALESCE(SUM(pontos),0) FROM dopamina_bonus WHERE user_id=? AND data_ref=?");
+    $q->execute(array($viewUserId, $hoje));
+    $_bonusHoje = (float)$q->fetchColumn();
+} catch (Exception $e) {}
+$dopaTotal += $_bonusHoje;
+
 // ── Progresso do dia: itens DATADOS para hoje (tarefas due hoje + prazos hoje + compromissos hoje) ──
 $diaTot = 0; $diaFeito = 0;
 try { $q = $pdo->prepare("SELECT COUNT(*) t, SUM(status='concluido') f FROM case_tasks WHERE assigned_to=? AND due_date=?");
@@ -511,6 +559,16 @@ foreach ($histQ as $cat => $h) {
         }
     } } catch (Exception $e) {}
 }
+// Amanda 16/07/2026: soma bonus manual por dia (SUM(pontos), sem peso)
+try {
+    $qB = $pdo->prepare("SELECT data_ref d, COALESCE(SUM(pontos),0) c FROM dopamina_bonus
+                         WHERE user_id=? AND data_ref>=? GROUP BY data_ref");
+    $qB->execute(array($viewUserId, substr($desde7, 0, 10)));
+    foreach ($qB->fetchAll() as $row) {
+        $d = substr($row['d'], 0, 10);
+        if (isset($dias7[$d])) $dias7[$d] += (float)$row['c'];
+    }
+} catch (Exception $e) {}
 $dopaMax = max(1, max($dias7));
 // Recorde HISTÓRICO (all-time) — fallback pro recorde da semana se a query falhar
 $dopaRecorde = max($dias7);
@@ -534,8 +592,9 @@ try {
         UNION ALL SELECT DATE(al.created_at) d, COUNT(*)*2 c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? GROUP BY DATE(al.created_at)
         UNION ALL SELECT DATE(created_at) d, COUNT(*)*2 c FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? GROUP BY DATE(created_at)
         UNION ALL SELECT DATE(created_at) d, COUNT(DISTINCT entity_id)*2 c FROM audit_log WHERE action='entrega_puxada' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
+        UNION ALL SELECT data_ref d, SUM(pontos)*2 c FROM dopamina_bonus WHERE user_id=? GROUP BY data_ref
     ) u GROUP BY d ORDER BY tot DESC LIMIT 1");
-    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
+    $q->execute(array($viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId, $viewUserId));
     $rt = (float)$q->fetchColumn();
     if ($rt > $dopaRecorde) $dopaRecorde = $rt;
 } catch (Exception $e) {}
@@ -570,10 +629,12 @@ $dopaSomaDesde = function($pdo, $uid, $desde) {
         UNION ALL SELECT COUNT(*)*2 c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? AND al.created_at>=?
         UNION ALL SELECT COUNT(*)*2 c FROM audit_log WHERE action='AGENDA_BALCAO_REALIZADO' AND entity_type='agenda' AND user_id=? AND created_at>=?
         UNION ALL SELECT COUNT(DISTINCT entity_id)*2 c FROM audit_log WHERE action='entrega_puxada' AND entity_type='case' AND user_id=? AND created_at>=?
+        UNION ALL SELECT COALESCE(SUM(pontos),0)*2 c FROM dopamina_bonus WHERE user_id=? AND data_ref>=?
     ) u";
     try {
         $q = $pdo->prepare($sql);
-        $q->execute(array($uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde));
+        // 33 placeholders no total (2 por cada UNION ALL, agora inclui bonus)
+        $q->execute(array($uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,$desde,$uid,substr($desde,0,10)));
         return (float)$q->fetchColumn();
     } catch (Exception $e) { return 0; }
 };
@@ -1457,6 +1518,12 @@ function confirmarCancelamento(caseId, btn) {
             <div class="pd-dopa-stat <?= $dopa['onboarding'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['onboarding'] ?></span><span class="l">🎯 Onboard</span></div>
             <div class="pd-dopa-stat <?= $dopa['balcao'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['balcao'] ?></span><span class="l">🏛️ Balcão</span></div>
             <div class="pd-dopa-stat <?= $dopa['entregas_puxadas'] ? '' : 'z' ?>" title="Casos puxados na tela Entregas Pendentes"><span class="n"><?= (int)$dopa['entregas_puxadas'] ?></span><span class="l">⏳ Puxadas</span></div>
+            <?php if ($_bonusHoje > 0): ?>
+            <div class="pd-dopa-stat" title="Bônus manual dado pela gestão pela entrega heroica" style="background:linear-gradient(135deg,#fef3c7,#fde68a);border:2px solid #f59e0b;">
+                <span class="n" style="color:#78350f;"><?= dopa_fmt($_bonusHoje) ?></span>
+                <span class="l" style="color:#78350f;font-weight:700;">🏆 Bônus</span>
+            </div>
+            <?php endif; ?>
         </div>
 
         <div class="pd-dopa-totais">
@@ -2787,5 +2854,35 @@ function abrirCorLembrete(id, btn) {
     }, 100);
 }
 </script>
+
+<?php if ($_parabensNovo): ?>
+<!-- 🏆 Modal de PARABÉNS por bônus manual (aparece 1x, ja marcamos como visto) -->
+<div id="pdParabensModal" style="position:fixed;inset:0;background:rgba(5,34,40,.75);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem;animation:pdFadeIn .3s;">
+    <div style="background:linear-gradient(135deg,#fff9c4 0%,#fff3a1 50%,#ffd700 100%);border-radius:20px;max-width:520px;width:100%;padding:2rem 1.75rem;box-shadow:0 20px 80px rgba(0,0,0,.4),0 0 0 4px #f59e0b;text-align:center;position:relative;animation:pdPop .5s cubic-bezier(.34,1.56,.64,1);">
+        <button type="button" onclick="document.getElementById('pdParabensModal').remove()" style="position:absolute;top:12px;right:16px;background:rgba(120,53,15,.15);border:none;font-size:1.2rem;cursor:pointer;width:32px;height:32px;border-radius:50%;line-height:1;color:#78350f;font-weight:700;">✕</button>
+        <div style="font-size:5rem;line-height:1;margin-bottom:.5rem;animation:pdBounce 1s ease-in-out infinite alternate;">🏆</div>
+        <h2 style="color:#7c2d12;font-size:1.6rem;font-weight:900;margin:0 0 .5rem;letter-spacing:-.02em;"><?= e($_parabensNovo['parabens_titulo']) ?></h2>
+        <div style="color:#78350f;font-size:1.05rem;line-height:1.5;margin-bottom:1.25rem;font-weight:500;"><?= nl2br(e($_parabensNovo['parabens_texto'] ?? '')) ?></div>
+        <div style="background:rgba(255,255,255,.6);border:2px solid #f59e0b;border-radius:14px;padding:1rem;margin-bottom:1.25rem;">
+            <div style="font-size:.75rem;color:#78350f;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:.25rem;">Bônus creditado</div>
+            <div style="font-size:3rem;font-weight:900;color:#b45309;line-height:1;">+<?= dopa_fmt($_parabensNovo['pontos']) ?></div>
+            <div style="font-size:.85rem;color:#78350f;font-weight:600;margin-top:.25rem;">pontos de dopamina</div>
+            <?php if (!empty($_parabensNovo['motivo'])): ?>
+            <div style="font-size:.78rem;color:#7c2d12;font-style:italic;margin-top:.5rem;padding-top:.5rem;border-top:1px dashed rgba(120,53,15,.3);"><?= e($_parabensNovo['motivo']) ?></div>
+            <?php endif; ?>
+        </div>
+        <button type="button" onclick="document.getElementById('pdParabensModal').remove(); pdConfete && pdConfete();" style="background:linear-gradient(135deg,#059669,#0d9488);color:#fff;border:none;padding:.9rem 2rem;border-radius:12px;font-size:1rem;font-weight:800;cursor:pointer;box-shadow:0 4px 16px rgba(5,150,105,.35);letter-spacing:.02em;">🎉 Valeu!</button>
+    </div>
+</div>
+<style>
+@keyframes pdFadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes pdPop { 0% { transform:scale(.5) rotate(-8deg); opacity:0; } 60% { transform:scale(1.05) rotate(2deg); } 100% { transform:scale(1) rotate(0); opacity:1; } }
+@keyframes pdBounce { from { transform:translateY(0); } to { transform:translateY(-10px); } }
+</style>
+<script>
+// Solta confete assim que o modal aparecer
+setTimeout(function(){ if (typeof pdConfete === 'function') pdConfete(); }, 300);
+</script>
+<?php endif; ?>
 
 <?php require_once APP_ROOT . '/templates/layout_end.php'; ?>
