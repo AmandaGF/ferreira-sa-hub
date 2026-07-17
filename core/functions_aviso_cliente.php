@@ -414,8 +414,9 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     }
 
     $system = $blocoModo . "\n\n"
-            . "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
-            . "⛔ PALAVRAS ABSOLUTAMENTE PROIBIDAS — se você usar alguma, sua resposta é DESCARTADA e recomeçamos:\n"
+            . "═══════════════════════════════════════\n\n"
+            . "⛔ NÃO USE TRAVESSÕES (—). NÃO USE HÍFEN LONGO. NÃO USE separador '---' entre parágrafos. Não escreva 'entretanto', 'ademais', 'destarte', 'com efeito'. Substitua tudo por vírgula, ponto, ou reformule. Ninguém escreve com travessão no WhatsApp de verdade.\n\n"
+            . "⛔ PALAVRAS ABSOLUTAMENTE PROIBIDAS. Se você usar alguma, sua resposta é DESCARTADA e recomeçamos:\n"
             . "• 'autorizar' / 'autorização' / 'autorizado' / 'autoriza' — o juiz PODE não autorizar.\n"
             . "• 'distribuição' / 'distribuir' / 'distribuído' / 'distribuiu' / 'distribuímos' — palavra sensível internamente, não expor ao cliente.\n"
             . "• 'perda de prazo' / 'prazo esgotado' / 'prazo perdido' / 'fim de prazo' / 'preclusão' / 'precluso' — nunca comunicar isso ao cliente.\n"
@@ -595,9 +596,9 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
             $header = $linhas[0] ?? ('*_' . $assinante . '_*:');
             $saudacao = $linhas[1] ?? '';
             $resto = $linhas[2] ?? '';
-            $inject = "Sabemos que a espera está se estendendo — e agradecemos sua paciência. "
+            $inject = "Sabemos que a espera está se estendendo e agradecemos sua paciência. "
                     . "Já *fizemos contato com o cartório* e a resposta continua sendo a mesma: os processos "
-                    . "seguem uma *ordem cronológica de julgamento* — é um prazo interno do cartório, não temos "
+                    . "seguem uma *ordem cronológica de julgamento*. É um prazo interno do cartório, não temos "
                     . "controle sobre ele. Estamos monitorando de perto e assim que houver qualquer novidade, avisamos aqui.";
             // Se tem 'so reforçando' / 'ultimo andamento' no resto, mantem — senao coloca só o inject
             if (preg_match('/[uú]ltimo andamento|s[oó] reforçando|s[oó] relembrando/iu', $resto)) {
@@ -622,11 +623,20 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
         }
     }
 
+    // Post-processing final: mata travessoes que sobraram + separador '---'
+    // (marcas visuais de IA). Amanda 17/07/2026.
+    // Substitui '—' por ',' quando parece pausa, ou por ':' quando parece
+    // introduzir explicacao. Heuristica simples: se depois vem espaço+letra
+    // minuscula, vira virgula; senão remove.
+    $txt = preg_replace('/\s*—\s*/', ', ', $txt);
+    $txt = preg_replace('/\n---+\n/', "\n\n", $txt);
+
     // Append fixo — bloco convite Central VIP (nao gerado pela IA pra garantir
-    // uniformidade + link correto). Amanda 17/07/2026 (redacao ajustada 17/07).
-    $bloco = "\n\n---\n"
+    // uniformidade + link correto). Amanda 17/07/2026: sem separador '---'
+    // no comeco, so quebra de linha dupla. Redacao mais natural.
+    $bloco = "\n\n"
            . "*Dica:* 📱 Você sabia que também pode acompanhar tudo o que aconteceu no seu processo pelo sistema exclusivo do Ferreira & Sá?! "
-           . "Não deixe de entrar sempre que tiver dúvidas! Isso vai agilizar seus atendimentos: "
+           . "Não deixe de entrar sempre que tiver dúvidas, isso vai agilizar seus atendimentos: "
            . "https://ferreiraesa.com.br/salavip";
     return $txt . $bloco;
 }
