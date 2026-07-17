@@ -21,13 +21,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $tipos = trim($_POST['tipos_ignorar'] ?? '');
             $janela = max(60, min(600, (int)($_POST['janela_seg'] ?? 180)));
             $max = max(1, min(50, (int)($_POST['max_por_run'] ?? 15)));
+            $novDias = max(1, min(30, (int)($_POST['janela_novidade_dias'] ?? 7)));
+            $lonDias = max($novDias + 1, min(120, (int)($_POST['janela_longa_espera_dias'] ?? 30)));
             $st = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?)
                                  ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
             $st->execute(array('aviso_cliente_ativo', $ativo));
             $st->execute(array('aviso_cliente_tipos_ignorar', $tipos));
             $st->execute(array('aviso_cliente_janela_seg', (string)$janela));
             $st->execute(array('aviso_cliente_max_por_run', (string)$max));
-            audit_log('aviso_cliente_cfg', 'configuracoes', 0, "ativo=$ativo janela=$janela");
+            $st->execute(array('aviso_cliente_janela_novidade_dias', (string)$novDias));
+            $st->execute(array('aviso_cliente_janela_longa_espera_dias', (string)$lonDias));
+            audit_log('aviso_cliente_cfg', 'configuracoes', 0, "ativo=$ativo janela=$janela nov=$novDias long=$lonDias");
             $flash = '<div class="alert alert-success">✓ Configuração salva.</div>';
         } elseif ($acao === 'testar_agora') {
             $r = aviso_cliente_processar_pendentes($pdo, 15);
@@ -45,6 +49,8 @@ $ativo = ($cfg['aviso_cliente_ativo'] ?? '0') === '1';
 $tipos = $cfg['aviso_cliente_tipos_ignorar'] ?? '';
 $janela = (int)($cfg['aviso_cliente_janela_seg'] ?? 180);
 $max = (int)($cfg['aviso_cliente_max_por_run'] ?? 15);
+$novDias = (int)($cfg['aviso_cliente_janela_novidade_dias'] ?? 7);
+$lonDias = (int)($cfg['aviso_cliente_janela_longa_espera_dias'] ?? 30);
 
 // Log — ultimos 50 enviados
 $logEnv = array();
@@ -105,6 +111,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
                         <label style="display:block;font-size:.78rem;font-weight:700;color:#6b7280;margin-bottom:.3rem;">Máx casos por rodagem</label>
                         <input type="number" name="max_por_run" value="<?= $max ?>" class="form-input" style="width:100%;" min="1" max="50">
                         <small style="color:#6b7280;font-size:.72rem;">Limite por execução do cron (evita explodir custo IA).</small>
+                    </div>
+                </div>
+
+                <div style="margin-top:1.25rem;padding:.85rem 1rem;background:#f9fafb;border-radius:8px;border-left:3px solid #0d9488;">
+                    <div style="font-size:.85rem;font-weight:700;color:#052228;margin-bottom:.5rem;">🎯 Modo da mensagem por tempo desde o andamento</div>
+                    <div style="font-size:.72rem;color:#6b7280;margin-bottom:.75rem;">
+                        Andamento com <strong>menos que X dias</strong> E cliente <strong>não perguntou</strong> desde então → modo <strong>NOVIDADE</strong> (celebra).<br>
+                        Mais que X dias OU cliente já perguntou → modo <strong>RELEMBRAR</strong> (não finge que é novo).<br>
+                        Mais que Y dias sem movimento → modo <strong>LONGA_ESPERA</strong> (empatia + menção ao cartório).
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+                        <div>
+                            <label style="display:block;font-size:.75rem;font-weight:700;color:#6b7280;margin-bottom:.3rem;">🆕 Janela NOVIDADE (dias)</label>
+                            <input type="number" name="janela_novidade_dias" value="<?= $novDias ?>" class="form-input" style="width:100%;" min="1" max="30">
+                            <small style="color:#6b7280;font-size:.7rem;">Default 7. Andamento com menos dias que isso, sem pergunta do cliente, é novidade.</small>
+                        </div>
+                        <div>
+                            <label style="display:block;font-size:.75rem;font-weight:700;color:#6b7280;margin-bottom:.3rem;">⏳ Janela LONGA_ESPERA (dias)</label>
+                            <input type="number" name="janela_longa_espera_dias" value="<?= $lonDias ?>" class="form-input" style="width:100%;" min="8" max="120">
+                            <small style="color:#6b7280;font-size:.7rem;">Default 30. Sem andamento há mais dias que isso → menciona cartório.</small>
+                        </div>
                     </div>
                 </div>
 

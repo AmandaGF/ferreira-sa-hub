@@ -39,8 +39,69 @@ function aviso_cliente_self_heal($pdo) {
             ('aviso_cliente_tipos_ignorar', 'ato_ordinatorio,mero_expediente,juntada_ap,ciencia'),
             ('aviso_cliente_janela_seg', '180'),
             ('aviso_cliente_max_por_run', '15'),
-            ('aviso_cliente_assinante', 'Alfredo Neves')");
+            ('aviso_cliente_assinante', 'Alfredo Neves'),
+            ('aviso_cliente_janela_novidade_dias', '7'),
+            ('aviso_cliente_janela_longa_espera_dias', '30')");
     } catch (Exception $e) {}
+}
+
+/**
+ * Determina o MODO da mensagem antes de gerar (Amanda 17/07/2026):
+ *   - NOVIDADE     : andamento < janela_novidade E cliente NAO perguntou desde entao
+ *                    → pode celebrar "boa noticia"
+ *   - RELEMBRAR    : andamento > janela_novidade OU cliente ja perguntou desde entao
+ *                    → comeca "ainda nao tivemos atualizacao, mas estamos acompanhando",
+ *                      e ai reexplica o ultimo andamento
+ *   - LONGA_ESPERA : andamento > janela_longa_espera (default 30d)
+ *                    → comeca "sabemos que a espera esta longa, ja fizemos contato com
+ *                      o cartorio, mas segue ordem cronologica de julgamento"
+ *
+ * $andamentoData no formato Y-m-d ou Y-m-d H:i:s.
+ * Retorna: ['modo' => 'NOVIDADE'|'RELEMBRAR'|'LONGA_ESPERA', 'dias' => int,
+ *           'cliente_perguntou_apos' => bool, 'ultima_pergunta' => 'Y-m-d H:i:s'|null]
+ */
+function aviso_cliente_determinar_modo($pdo, $clientId, $andamentoData) {
+    $cfg = aviso_cliente_cfg($pdo);
+    $janelaNovidade    = max(1, (int)($cfg['aviso_cliente_janela_novidade_dias'] ?? 7));
+    $janelaLongaEspera = max($janelaNovidade + 1, (int)($cfg['aviso_cliente_janela_longa_espera_dias'] ?? 30));
+
+    $ts = strtotime((string)$andamentoData);
+    $dias = $ts ? max(0, (int)floor((time() - $ts) / 86400)) : 0;
+
+    // Cliente perguntou depois do andamento? Qualquer msg recebida canal 24
+    // apos a data do andamento conta como "ele ja procurou saber".
+    $perguntou = false;
+    $ultimaPergunta = null;
+    try {
+        $st = $pdo->prepare(
+            "SELECT MAX(m.created_at)
+               FROM zapi_mensagens m
+               JOIN zapi_conversas co ON co.id = m.conversa_id
+              WHERE co.client_id = ?
+                AND co.canal = '24'
+                AND m.direcao = 'recebida'
+                AND m.created_at > ?"
+        );
+        $st->execute(array((int)$clientId, (string)$andamentoData));
+        $r = (string)$st->fetchColumn();
+        if ($r) { $perguntou = true; $ultimaPergunta = $r; }
+    } catch (Exception $e) {}
+
+    $modo = 'NOVIDADE';
+    if ($dias >= $janelaLongaEspera) {
+        $modo = 'LONGA_ESPERA';
+    } elseif ($dias >= $janelaNovidade || $perguntou) {
+        $modo = 'RELEMBRAR';
+    }
+
+    return array(
+        'modo' => $modo,
+        'dias' => $dias,
+        'cliente_perguntou_apos' => $perguntou,
+        'ultima_pergunta' => $ultimaPergunta,
+        'janela_novidade' => $janelaNovidade,
+        'janela_longa_espera' => $janelaLongaEspera,
+    );
 }
 
 function aviso_cliente_cfg($pdo) {
@@ -216,8 +277,13 @@ function aviso_cliente_processar_pendentes($pdo, $limite = 15) {
             }
         } catch (Exception $e) {}
 
+        // Modo (NOVIDADE / RELEMBRAR / LONGA_ESPERA) — usa a data do
+        // andamento MAIS RECENTE do batch pra decidir.
+        $andMaisRecente = end($andsRelevantes);
+        $modoInfo = aviso_cliente_determinar_modo($pdo, (int)$primeiro['client_id'], (string)$andMaisRecente['data_andamento']);
+
         // Gera resumo IA
-        $resumo = aviso_cliente_resumir_via_ia($andsRelevantes, $primeiro['client_name'], $primeiro['case_title'], $ultimasMsgs);
+        $resumo = aviso_cliente_resumir_via_ia($andsRelevantes, $primeiro['client_name'], $primeiro['case_title'], $ultimasMsgs, $modoInfo);
         if (!$resumo) {
             aviso_cliente_marcar_lote($pdo, $ands, 'erro_ia', null);
             $result['erros'] += count($ands);
@@ -259,7 +325,7 @@ function aviso_cliente_marcar_lote($pdo, $ands, $status, $textoResumo = null) {
  * Chama Claude Haiku pra transformar 1+ andamentos jurídicos em 1 mensagem
  * curta em linguagem de leigo, com nome do cliente + assinatura da equipe.
  */
-function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMsgs = array()) {
+function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMsgs = array(), $modoInfo = null) {
     if (!defined('ANTHROPIC_API_KEY') || !ANTHROPIC_API_KEY) return null;
 
     $primNome = trim(explode(' ', (string)$clientName)[0]) ?: 'você';
@@ -286,12 +352,38 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     $cfgLocal = aviso_cliente_cfg(db());
     $assinante = trim((string)($cfgLocal['aviso_cliente_assinante'] ?? 'Alfredo Neves')) ?: 'Alfredo Neves';
 
+    // ── MODO DA MENSAGEM (Amanda 17/07/2026) ──
+    // NOVIDADE     : notícia recente, cliente ainda não perguntou → celebra
+    // RELEMBRAR    : cliente já perguntou OU andamento > 7d → nao finge que e novidade
+    // LONGA_ESPERA : sem andamento há > 30d → contextualiza espera + cartorio
+    $modo = is_array($modoInfo) ? ($modoInfo['modo'] ?? 'NOVIDADE') : 'NOVIDADE';
+    $diasSem = is_array($modoInfo) ? (int)($modoInfo['dias'] ?? 0) : 0;
+
+    if ($modo === 'LONGA_ESPERA') {
+        $blocoModo = "\n\n🎯 MODO DA MENSAGEM: LONGA_ESPERA\n"
+                   . "Já se passaram {$diasSem} dias desde a última movimentação. O cliente PROVAVELMENTE está impaciente. NÃO celebre, NÃO diga 'ótima notícia'.\n"
+                   . "OBRIGATÓRIO comecar por: reconhecer que a espera está longa + explicar que JÁ FIZEMOS CONTATO com o cartório + explicar que os processos seguem ORDEM CRONOLÓGICA de julgamento + reforçar que estamos MONITORANDO DE PERTO e assim que houver movimentação, avisamos. Só DEPOIS explique brevemente qual foi o último andamento (que aconteceu há {$diasSem} dias, na data dele).\n"
+                   . "Tom: empático, sem falso otimismo, mas firme e presente.";
+    } elseif ($modo === 'RELEMBRAR') {
+        $razao = is_array($modoInfo) && !empty($modoInfo['cliente_perguntou_apos'])
+            ? "o cliente JÁ PERGUNTOU sobre esse andamento no WhatsApp (não é novidade pra ele)"
+            : "já se passaram {$diasSem} dias — não é notícia fresca";
+        $blocoModo = "\n\n🎯 MODO DA MENSAGEM: RELEMBRAR\n"
+                   . "ATENÇÃO: {$razao}. NÃO comece com 'Ótima notícia' — o cliente vai se sentir ignorado. \n"
+                   . "OBRIGATÓRIO começar por (adapte a frase, mantendo o sentido): 'Ainda não tivemos nenhuma atualização nova, mas continuamos acompanhando de perto.' Depois: 'Só relembrando o último andamento que aconteceu, em [DATA_DO_ANDAMENTO]:' — e ai reexplica o andamento em linguagem simples.\n"
+                   . "Tom: acolhedor, sem falso otimismo, mostrando presença.";
+    } else {
+        $blocoModo = "\n\n🎯 MODO DA MENSAGEM: NOVIDADE\n"
+                   . "É um andamento recente e o cliente ainda não perguntou. Pode celebrar (se for boa notícia) e apresentar como novidade fresca. Tom natural, alegre quando couber.";
+    }
+
     $system = "⛔ PALAVRAS ABSOLUTAMENTE PROIBIDAS — se você usar alguma, sua resposta é DESCARTADA e recomeçamos:\n"
             . "• 'autorizar' / 'autorização' / 'autorizado' / 'autoriza' — o juiz PODE não autorizar.\n"
             . "• 'distribuição' / 'distribuir' / 'distribuído' / 'distribuiu' / 'distribuímos' — palavra sensível internamente, não expor ao cliente.\n"
             . "• 'perda de prazo' / 'prazo esgotado' / 'prazo perdido' / 'fim de prazo' / 'preclusão' / 'precluso' — nunca comunicar isso ao cliente.\n"
             . "• 'deferir' / 'indeferir' / 'homologar' — o juiz PODE fazer o oposto.\n"
-            . "• 'juízo' — palavra técnica, pouco entendida. TROQUE POR: 'conta do processo' (quando falar de depósito judicial) ou reformule sem usar. Ex: em vez de 'depositou em juízo', escreva 'depositou o valor na conta do processo'. Em vez de 'valor em juízo', escreva 'valor bloqueado na conta do processo'.\n\n"
+            . "• 'juízo' — palavra técnica, pouco entendida. TROQUE POR: 'conta do processo' (quando falar de depósito judicial) ou reformule sem usar. Ex: em vez de 'depositou em juízo', escreva 'depositou o valor na conta do processo'. Em vez de 'valor em juízo', escreva 'valor bloqueado na conta do processo'.\n"
+            . $blocoModo . "\n\n"
             . "Você é a comunicação do escritório Ferreira & Sá Advocacia com clientes leigos. "
             . "Vai receber 1 ou mais andamentos jurídicos técnicos do processo de um cliente "
             . "e deve gerar UMA mensagem CURTA de WhatsApp explicando o que aconteceu, em "

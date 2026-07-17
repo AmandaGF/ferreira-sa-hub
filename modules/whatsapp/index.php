@@ -3359,6 +3359,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
             if (data.andamento_data) meta += '<span style="color:#6b7280;">📅 Andamento de ' + escapeHtml(data.andamento_data) + '</span>';
             if (data.case_title) meta += (meta ? ' · ' : '') + '<span style="color:#6b7280;">⚖️ ' + escapeHtml(data.case_title) + '</span>';
             if (meta) html += '<div style="font-size:.75rem;margin-bottom:.6rem;">' + meta + '</div>';
+            // Amanda 17/07/2026: chip com modo detectado (NOVIDADE / RELEMBRAR / LONGA_ESPERA)
+            if (data.modo) {
+                var chipCor = { NOVIDADE:'#059669', RELEMBRAR:'#b45309', LONGA_ESPERA:'#991b1b' }[data.modo] || '#6b7280';
+                var chipEmoji = { NOVIDADE:'🆕', RELEMBRAR:'🔁', LONGA_ESPERA:'⏳' }[data.modo] || '';
+                var chipDesc = { NOVIDADE:'Notícia recente — pode celebrar', RELEMBRAR: (data.modo_ja_perguntou ? 'Cliente já perguntou sobre isso — não fingir novidade' : 'Andamento antigo — não fingir novidade'), LONGA_ESPERA: 'Sem movimento há ' + data.modo_dias + ' dias — modo empático + cartório' }[data.modo] || '';
+                html += '<div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.85rem;padding:.5rem .75rem;background:#f9fafb;border-radius:6px;border-left:3px solid ' + chipCor + ';">';
+                html += '<span style="background:' + chipCor + ';color:#fff;font-size:.65rem;font-weight:800;padding:2px 8px;border-radius:8px;letter-spacing:.05em;">' + chipEmoji + ' ' + escapeHtml(data.modo) + '</span>';
+                html += '<span style="font-size:.72rem;color:#4b5563;">' + escapeHtml(chipDesc) + '</span>';
+                html += '</div>';
+            }
             html += '<label style="display:block;font-size:.72rem;font-weight:700;color:#6b7280;margin-bottom:.35rem;letter-spacing:.03em;">MENSAGEM QUE VAI SER ENVIADA:</label>';
             html += '<textarea id="waAlfredoTexto" style="width:100%;min-height:220px;padding:.75rem;border:2px solid #d7ab90;border-radius:8px;font-size:.85rem;font-family:inherit;line-height:1.45;resize:vertical;background:#fefefe;">' + escapeHtml(data.mensagem || '') + '</textarea>';
             html += '<div style="font-size:.7rem;color:#6b7280;margin-top:.35rem;">💡 Você pode editar o texto acima antes de enviar (não custa nada — só regerar consome IA).</div>';

@@ -971,7 +971,10 @@ if ($action === 'alfredo_gerar_previa') {
         $stU->execute(array($clientId));
         foreach ($stU as $r) if (!empty($r['notif_cliente_texto'])) $ultimasMsgs[] = $r['notif_cliente_texto'];
     } catch (Exception $e) {}
-    $msg = aviso_cliente_resumir_via_ia(array($a), $a['cliente'], $a['case_title'], $ultimasMsgs);
+    // Determina o modo (NOVIDADE / RELEMBRAR / LONGA_ESPERA) — muda a
+    // abordagem do prompt. Amanda 17/07/2026.
+    $modoInfo = aviso_cliente_determinar_modo($pdo, $clientId, (string)$a['data_andamento']);
+    $msg = aviso_cliente_resumir_via_ia(array($a), $a['cliente'], $a['case_title'], $ultimasMsgs, $modoInfo);
     if (!$msg) {
         echo json_encode(array('error' => 'A IA não conseguiu gerar um resumo válido (pode ter escapado palavra proibida). Tenta de novo — se persistir, envia manual pelo chat.', 'csrf' => $newCsrf));
         exit;
@@ -983,6 +986,9 @@ if ($action === 'alfredo_gerar_previa') {
         'case_title' => $a['case_title'],
         'andamento_id' => (int)$a['andamento_id'],
         'andamento_data' => $a['data_andamento'] ? date('d/m/Y', strtotime($a['data_andamento'])) : '',
+        'modo' => $modoInfo['modo'],
+        'modo_dias' => $modoInfo['dias'],
+        'modo_ja_perguntou' => (bool)$modoInfo['cliente_perguntou_apos'],
         'csrf' => $newCsrf,
     ));
     exit;
