@@ -360,35 +360,39 @@ function aviso_cliente_resumir_via_ia($ands, $clientName, $caseTitle, $ultimasMs
     $diasSem = is_array($modoInfo) ? (int)($modoInfo['dias'] ?? 0) : 0;
 
     if ($modo === 'LONGA_ESPERA') {
-        $blocoModo = "🚨🚨🚨 MODO OBRIGATÓRIO: **LONGA_ESPERA** ({$diasSem} dias desde a última movimentação)\n\n"
-                   . "❌❌❌ ABSOLUTAMENTE PROIBIDO USAR:\n"
-                   . "   • 'Ótima notícia' / 'Boa notícia' / 'Excelente notícia' / 'Que notícia boa'\n"
-                   . "   • Emojis 🎉 🎊 🥳 🙌 ✨ 🚀 (nada comemorativo)\n"
-                   . "   • Verbos que indicam evento: 'aconteceu', 'saiu', 'foi liberado', 'agora sim'\n"
-                   . "   • Qualquer tom celebrativo. NÃO É NOVIDADE.\n\n"
-                   . "✅ ESTRUTURA OBRIGATÓRIA DA MENSAGEM:\n"
-                   . "   1. Reconheça a espera longa ('Sabemos que a espera está se estendendo', 'Entendemos a ansiedade', similar).\n"
-                   . "   2. Diga que JÁ FIZEMOS CONTATO COM O CARTÓRIO.\n"
-                   . "   3. Explique que os processos seguem ORDEM CRONOLÓGICA de julgamento.\n"
-                   . "   4. Reforce que estamos MONITORANDO DE PERTO — assim que houver novidade, avisamos.\n"
-                   . "   5. Só DEPOIS (opcional, curto) reexplique brevemente o último andamento (que já é antigo, de {$diasSem} dias atrás).\n\n"
-                   . "Tom: empático, honesto, firme, presente. Sem falso otimismo.\n";
+        $blocoModo = "🚨 MODO **LONGA_ESPERA** ({$diasSem} dias sem movimento — cliente cansado, provavelmente perguntou várias vezes).\n\n"
+                   . "❌ PROIBIDO: 'ótima notícia', 'boa notícia', emojis 🎉🎊🥳🙌✨🚀, tom celebrativo.\n\n"
+                   . "✅ COPIE ESTA ESTRUTURA (adapte o texto do andamento, mas mantenha as 4 partes):\n\n"
+                   . "```\n"
+                   . "*_{$assinante}_*:\n"
+                   . "Bom dia, [primeiro nome do cliente]!\n"
+                   . "\n"
+                   . "Sabemos que a espera está longa — e agradecemos sua paciência.\n"
+                   . "\n"
+                   . "*Já fizemos contato com o cartório* e a resposta continua sendo a mesma: os processos seguem ordem cronológica de julgamento, então precisamos aguardar chegar a vez do seu. Estamos *monitorando de perto* e assim que houver qualquer novidade, avisamos aqui.\n"
+                   . "\n"
+                   . "Só reforçando: o último andamento foi em [DD/MM/YYYY]: [1 frase simples sobre o que foi].\n"
+                   . "```\n\n"
+                   . "Tom: empático, honesto, sem falso otimismo. Cliente precisa se sentir OUVIDO, não enganado.\n";
     } elseif ($modo === 'RELEMBRAR') {
         $razao = is_array($modoInfo) && !empty($modoInfo['cliente_perguntou_apos'])
-            ? "o cliente JÁ PERGUNTOU sobre esse andamento no WhatsApp — ele NÃO precisa ouvir como novidade"
-            : "já se passaram {$diasSem} dias — não é notícia fresca";
-        $blocoModo = "🚨🚨🚨 MODO OBRIGATÓRIO: **RELEMBRAR** ({$razao})\n\n"
-                   . "❌❌❌ ABSOLUTAMENTE PROIBIDO USAR:\n"
-                   . "   • 'Ótima notícia' / 'Boa notícia' / 'Excelente notícia'\n"
-                   . "   • Emojis comemorativos (🎉 🎊 🥳 🙌 ✨ 🚀) — nada de festa\n"
-                   . "   • Qualquer coisa que finja que ele está sabendo agora pela primeira vez\n\n"
-                   . "✅ ESTRUTURA OBRIGATÓRIA:\n"
-                   . "   1. LOGO APÓS a saudação, escreva EXATAMENTE ou muito próximo: 'Ainda não tivemos nenhuma atualização nova, mas continuamos acompanhando de perto.'\n"
-                   . "   2. Depois: 'Só relembrando: o último andamento aconteceu em [data DD/MM/YYYY]:' — e reexplique em linguagem simples.\n\n"
-                   . "Tom: acolhedor, sem falso otimismo, mostrando presença. NÃO é novidade.\n";
+            ? "cliente JÁ PERGUNTOU sobre esse andamento"
+            : "já se passaram {$diasSem} dias — não é fresco";
+        $blocoModo = "🚨 MODO **RELEMBRAR** ({$razao}).\n\n"
+                   . "❌ PROIBIDO: 'ótima notícia', 'boa notícia', emojis 🎉🎊🥳🙌✨🚀, fingir que é primeira vez.\n\n"
+                   . "✅ COPIE ESTA ESTRUTURA:\n\n"
+                   . "```\n"
+                   . "*_{$assinante}_*:\n"
+                   . "Bom dia, [primeiro nome]!\n"
+                   . "\n"
+                   . "Ainda não tivemos nenhuma atualização nova, mas continuamos acompanhando de perto.\n"
+                   . "\n"
+                   . "Só relembrando: o último andamento aconteceu em [DD/MM/YYYY]. Basicamente [explicação simples do andamento em 1-2 frases]. Estamos aguardando a próxima movimentação.\n"
+                   . "```\n\n"
+                   . "Tom: acolhedor, presente. NÃO é novidade — é lembrete.\n";
     } else {
-        $blocoModo = "🎯 MODO: **NOVIDADE**\n\n"
-                   . "É um andamento recente e o cliente ainda não perguntou. Pode celebrar quando for boa notícia (ex: 'Ótima notícia!'). Tom natural, alegre quando couber.\n";
+        $blocoModo = "🎯 MODO **NOVIDADE** — andamento recente e cliente ainda não perguntou.\n"
+                   . "Pode celebrar quando for boa notícia ('Ótima notícia!'). Tom natural, alegre quando couber.\n";
     }
 
     $system = $blocoModo . "\n\n"
