@@ -90,6 +90,54 @@ function sv_badge_status_processo(string $status): string {
 }
 
 /**
+ * Situação a AVISAR ao cliente sobre um processo, na Central VIP.
+ *
+ * Regra (Amanda 17/07): o cliente NÃO vê o status interno do Kanban. Só
+ * recebe um aviso em DUAS situações específicas:
+ *   - processo arquivado
+ *   - renúncia/desistência registrada para o processo (tabela `renuncias`)
+ *
+ * Em qualquer outro caso retorna null (nada é exibido).
+ *
+ * @return array|null ['icon','label','texto','cor','bg','border'] ou null
+ */
+function sv_situacao_aviso_cliente(PDO $pdo, int $caseId, string $status) {
+    // 1) Renúncia / desistência tem prioridade sobre o status.
+    $tipo = null;
+    try {
+        $st = $pdo->prepare("SELECT tipo FROM renuncias WHERE case_id = ? ORDER BY created_at DESC LIMIT 1");
+        $st->execute([$caseId]);
+        $tipo = $st->fetchColumn();
+    } catch (Exception $e) { /* tabela pode nao existir em ambiente antigo */ }
+
+    if ($tipo === 'renuncia') {
+        return [
+            'icon' => '⚠️', 'label' => 'Patrocínio encerrado',
+            'texto' => 'O escritório comunicou a renúncia ao patrocínio deste processo. Fale com a nossa equipe para mais informações.',
+            'cor' => '#92400e', 'bg' => '#fffbeb', 'border' => '#fde68a',
+        ];
+    }
+    if ($tipo === 'desistencia') {
+        return [
+            'icon' => '⚠️', 'label' => 'Processo encerrado',
+            'texto' => 'Este processo foi encerrado por desistência. Fale com a nossa equipe para mais informações.',
+            'cor' => '#92400e', 'bg' => '#fffbeb', 'border' => '#fde68a',
+        ];
+    }
+
+    // 2) Processo arquivado.
+    if ($status === 'arquivado') {
+        return [
+            'icon' => '📦', 'label' => 'Processo arquivado',
+            'texto' => 'Este processo foi arquivado. Fale com a nossa equipe se precisar de alguma informação.',
+            'cor' => '#4b5563', 'bg' => '#f9fafb', 'border' => '#e5e7eb',
+        ];
+    }
+
+    return null;
+}
+
+/**
  * Cor consistente por processo (case_id) para tema dark da Central VIP.
  * Retorna ['bg' => transparente, 'text' => claro, 'border' => sólida].
  * Mesmo case_id sempre cai na mesma cor da paleta.

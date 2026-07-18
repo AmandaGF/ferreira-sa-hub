@@ -310,6 +310,8 @@ $statusBorderColors = [
         <?php foreach ($processos as $caso):
             $status = $caso['status'] ?? '';
             $borderColor = $statusBorderColors[$status] ?? 'var(--sv-accent)';
+            // Aviso ao cliente (só arquivado ou renúncia/desistência — nunca status interno)
+            $avisoCard = sv_situacao_aviso_cliente($pdo, (int)$caso['id'], $status);
 
             // Último andamento — closeCursor() obrigatório p/ liberar conexão antes da próxima query
             // (sem ele PDO+MySQL erra "unbuffered queries active" na 2ª iteração)
@@ -324,10 +326,12 @@ $statusBorderColors = [
         ?>
             <a href="<?= sv_url('pages/processo_detalhe.php?id=' . (int)$caso['id']) ?>" class="sv-card sv-card--processo" style="border-left-color: <?= $borderColor ?>;">
 
-                <!-- Header: título + badge status -->
+                <!-- Header: título (status interno NÃO é exibido; só aviso de arquivado/renúncia) -->
                 <div class="sv-card__header">
                     <h3 class="sv-card__title"><?= sv_e($caso['title']) ?></h3>
-                    <?= sv_badge_status_processo($status) ?>
+                    <?php if ($avisoCard): ?>
+                    <span style="background:<?= $avisoCard['bg'] ?>;color:<?= $avisoCard['cor'] ?>;border:1px solid <?= $avisoCard['border'] ?>;padding:2px 9px;border-radius:9999px;font-size:.72rem;font-weight:700;white-space:nowrap;"><?= $avisoCard['icon'] ?> <?= sv_e($avisoCard['label']) ?></span>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Número do processo -->

@@ -103,6 +103,9 @@ $tipoAndIcons = [
     'observacao' => '💬', 'chamado' => '🎫', 'publicacao' => '📰',
 ];
 
+// Aviso ao cliente (só arquivado ou renúncia/desistência — nunca status interno)
+$avisoProcesso = sv_situacao_aviso_cliente($pdo, $caseId, $caso['status'] ?? '');
+
 $pageTitle = $caso['title'];
 require_once __DIR__ . '/../includes/header.php';
 ?>
@@ -116,6 +119,16 @@ require_once __DIR__ . '/../includes/header.php';
     <div style="display:flex;align-items:flex-start;gap:1rem;flex-wrap:wrap;">
         <div style="flex:1;min-width:250px;">
             <h3 style="margin:0 0 .75rem;font-size:1.2rem;"><?= sv_e($caso['title']) ?></h3>
+
+            <?php if ($avisoProcesso): ?>
+            <div style="display:flex;align-items:flex-start;gap:.6rem;background:<?= $avisoProcesso['bg'] ?>;border:1px solid <?= $avisoProcesso['border'] ?>;border-radius:10px;padding:.7rem .9rem;margin-bottom:.9rem;">
+                <span style="font-size:1.1rem;line-height:1.3;flex-shrink:0;"><?= $avisoProcesso['icon'] ?></span>
+                <div>
+                    <div style="color:<?= $avisoProcesso['cor'] ?>;font-size:.85rem;font-weight:700;margin-bottom:.15rem;"><?= sv_e($avisoProcesso['label']) ?></div>
+                    <div style="color:<?= $avisoProcesso['cor'] ?>;font-size:.8rem;line-height:1.5;"><?= sv_e($avisoProcesso['texto']) ?></div>
+                </div>
+            </div>
+            <?php endif; ?>
 
             <?php if (!empty($caso['case_number'])): ?>
             <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.5rem;">
@@ -132,10 +145,7 @@ require_once __DIR__ . '/../includes/header.php';
                 </div>
                 <?php endif; ?>
 
-                <div>
-                    <div style="color:var(--sv-text-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;margin-bottom:.2rem;">Status</div>
-                    <?= sv_badge_status_processo($caso['status'] ?? '') ?>
-                </div>
+                <?php /* Status NÃO é exibido ao cliente na Central VIP — é jargão interno do Kanban operacional */ ?>
 
                 <?php if (!empty($caso['court'])): ?>
                 <div>
