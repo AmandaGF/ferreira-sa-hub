@@ -52,25 +52,34 @@ function sv_formatar_moeda(int $valor): string {
  * Badge HTML para status de processo.
  */
 function sv_badge_status_processo(string $status): string {
+    // Rótulos voltados ao CLIENTE. Traduzem os stages internos do Kanban
+    // operacional (tabela cases) para linguagem amigável. NUNCA expor o nome
+    // cru do stage — é jargão interno (ex.: "Para_execucao_ia", "Kanban_prev").
     $map = [
-        'em_andamento'      => ['#059669', 'Em andamento'],
-        'em_elaboracao'      => ['#0ea5e9', 'Em elaboração'],
-        'aguardando_docs'    => ['#f59e0b', 'Aguardando documentos'],
-        'distribuido'        => ['#6366f1', 'Distribuído'],
-        'doc_faltante'       => ['#dc2626', 'Documento faltante'],
-        'suspenso'           => ['#9ca3af', 'Suspenso'],
-        'arquivado'          => ['#6b7280', 'Arquivado'],
-        'cancelado'          => ['#6b7280', 'Cancelado'],
-        'aguardando_prazo'   => ['#d97706', 'Aguardando prazo'],
-        'finalizado'         => ['#059669', 'Finalizado'],
+        'em_andamento'           => ['#059669', 'Em andamento'],
+        'em_elaboracao'          => ['#0ea5e9', 'Em elaboração'],
+        'para_execucao_ia'       => ['#0ea5e9', 'Em elaboração'],
+        'aguardando_docs'        => ['#f59e0b', 'Aguardando documentos'],
+        'aguardando_prazo'       => ['#d97706', 'Aguardando distribuição'],
+        'distribuido'            => ['#6366f1', 'Distribuído'],
+        'doc_faltante'           => ['#dc2626', 'Documento faltante'],
+        'suspenso'               => ['#9ca3af', 'Suspenso'],
+        'kanban_prev'            => ['#059669', 'Em andamento'],
+        'parceria_previdenciario'=> ['#059669', 'Em andamento'],
+        'para_arquivar'          => ['#059669', 'Em andamento'],
+        'arquivado'              => ['#6b7280', 'Arquivado'],
+        'cancelado'              => ['#6b7280', 'Cancelado'],
+        'finalizado'             => ['#059669', 'Finalizado'],
     ];
 
     if (isset($map[$status])) {
         $cor   = $map[$status][0];
         $label = $map[$status][1];
     } else {
-        $cor   = '#888';
-        $label = ucfirst($status);
+        // Fallback SEGURO: qualquer stage interno novo/desconhecido cai aqui.
+        // Nunca imprimir o nome cru do stage — mostrar rótulo genérico neutro.
+        $cor   = '#059669';
+        $label = 'Em andamento';
     }
 
     return sprintf(
