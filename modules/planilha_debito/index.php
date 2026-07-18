@@ -62,12 +62,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
         <div style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:end;">
             <div style="flex:1;min-width:200px;">
                 <label style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Vincular a processo (opcional)</label>
-                <select id="pdCaseId" class="form-select" style="font-size:.85rem;" onchange="pdAtualizarClienteDoCase(this)">
-                    <option value="">— Nenhum —</option>
+                <input type="text" id="pdCaseBusca" list="pdCaseList" class="form-input" style="font-size:.85rem;" placeholder="Digite o nome ou número do processo..." oninput="pdSelecionarCase()">
+                <datalist id="pdCaseList">
                     <?php foreach ($cases as $c): ?>
-                        <option value="<?= $c['id'] ?>" data-client="<?= (int)($c['client_id'] ?? 0) ?>"><?= e($c['title']) ?><?= $c['case_number'] ? ' — ' . e($c['case_number']) : '' ?></option>
+                        <option data-id="<?= (int)$c['id'] ?>" data-client="<?= (int)($c['client_id'] ?? 0) ?>" value="<?= e($c['title']) . ($c['case_number'] ? ' — ' . e($c['case_number']) : '') ?>"></option>
                     <?php endforeach; ?>
-                </select>
+                </datalist>
+                <input type="hidden" id="pdCaseId" value="">
             </div>
             <div style="flex:1;min-width:200px;">
                 <label style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.2rem;">Vincular ao cliente (quando não tem processo)</label>
@@ -198,17 +199,27 @@ function pdSelecionarCliente() {
     document.getElementById('pdClientId').value = achouId;
 }
 
-// Quando escolher um processo, preenche o cliente automaticamente
-function pdAtualizarClienteDoCase(sel) {
-    var opt = sel.options[sel.selectedIndex];
-    var clientId = opt && opt.dataset ? (opt.dataset.client || '') : '';
+// Amanda 18/07/2026: busca de processo por nome OU número digitando (datalist).
+// Resolve o texto digitado -> id do caso e, se casar exato, preenche o cliente.
+function pdSelecionarCase() {
+    var txt = (document.getElementById('pdCaseBusca').value || '').trim().toLowerCase();
+    var opts = document.querySelectorAll('#pdCaseList option');
+    var achouId = '', clientId = '';
+    for (var i = 0; i < opts.length; i++) {
+        if ((opts[i].value || '').toLowerCase() === txt) {
+            achouId  = opts[i].dataset.id || '';
+            clientId = opts[i].dataset.client || '';
+            break;
+        }
+    }
+    document.getElementById('pdCaseId').value = achouId;
+    // Ao casar um processo, preenche o cliente automaticamente
     if (clientId && clientId !== '0') {
         document.getElementById('pdClientId').value = clientId;
-        // Tenta achar o nome no datalist pra refletir na busca
-        var opts = document.querySelectorAll('#pdClientList option');
-        for (var i = 0; i < opts.length; i++) {
-            if (opts[i].dataset.id === clientId) {
-                document.getElementById('pdClientBusca').value = opts[i].value;
+        var cOpts = document.querySelectorAll('#pdClientList option');
+        for (var j = 0; j < cOpts.length; j++) {
+            if (cOpts[j].dataset.id === clientId) {
+                document.getElementById('pdClientBusca').value = cOpts[j].value;
                 break;
             }
         }
@@ -299,11 +310,7 @@ function iniciarProcessamento(tipo) {
     // Amanda 15/06/2026: envia tambem o NOME do cliente e o LABEL do caso —
     // backend usa como fallback se os IDs vierem vazios (datalist nao casou
     // exato, etc). Resolve casos onde o select tinha valor mas o JS leu vazio.
-    var caseLabelVal = '';
-    var caseSel = document.getElementById('pdCaseId');
-    if (caseSel && caseSel.selectedIndex > 0) {
-        caseLabelVal = (caseSel.options[caseSel.selectedIndex].textContent || '').trim();
-    }
+    var caseLabelVal = (document.getElementById('pdCaseBusca').value || '').trim();
     fd.append('case_id', caseIdVal);
     fd.append('client_id', clientIdVal || '0');
     fd.append('case_label', caseLabelVal);
@@ -457,12 +464,8 @@ function mostrarResultado(r) {
 // APOS o processamento (sem refazer IA). Usa mesma logica de fallback do submit
 // (case por label / cliente por nome parcial) que o backend ja tem.
 window.pdVincularAgora = function(planilhaId, btn) {
-    var caseSel   = document.getElementById('pdCaseId');
-    var caseId    = caseSel ? (caseSel.value || '') : '';
-    var caseLabel = '';
-    if (caseSel && caseSel.selectedIndex > 0) {
-        caseLabel = (caseSel.options[caseSel.selectedIndex].textContent || '').trim();
-    }
+    var caseId    = document.getElementById('pdCaseId').value || '';
+    var caseLabel = (document.getElementById('pdCaseBusca').value || '').trim();
     var clientBuscaVal = (document.getElementById('pdClientBusca').value || '').trim();
     var clientId = document.getElementById('pdClientId').value || '';
     // Match datalist parcial
