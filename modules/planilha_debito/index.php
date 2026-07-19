@@ -39,10 +39,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .pd-upload-icon { font-size:2.5rem; margin-bottom:.5rem; }
 .pd-upload-text { font-size:.88rem; color:var(--petrol-900); font-weight:700; }
 .pd-upload-hint { font-size:.75rem; color:var(--text-muted); margin-top:.3rem; }
-.pd-progress { display:none; margin-top:1rem; }
-.pd-progress-bar { height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden; }
-.pd-progress-fill { height:100%; background:linear-gradient(90deg,#052228,#B87333); border-radius:3px; transition:width .3s; width:0; }
-.pd-status { font-size:.78rem; color:var(--text-muted); margin-top:.4rem; text-align:center; }
+.pd-progress { display:none; margin-top:1rem; background:#fff; border:1px solid var(--border); border-radius:10px; padding:.9rem 1rem; }
+.pd-progress-bar { height:10px; background:#e5e7eb; border-radius:5px; overflow:hidden; }
+.pd-progress-fill { height:100%; background:linear-gradient(90deg,#052228,#B87333); border-radius:5px; transition:width .5s ease; width:0; }
+.pd-progress-fill.pd-fill-pulse { background:linear-gradient(90deg,#052228,#B87333,#052228); background-size:200% 100%; animation:pdShimmer 1.1s linear infinite; }
+@keyframes pdShimmer { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
+.pd-status { font-size:.82rem; color:var(--petrol-900); margin-top:.55rem; text-align:center; font-weight:600; }
+.pd-status.pd-status-erro { color:#b91c1c; }
 .pd-list table { width:100%; border-collapse:collapse; font-size:.82rem; }
 .pd-list th { background:var(--petrol-900); color:#fff; padding:.5rem .75rem; text-align:left; font-size:.72rem; text-transform:uppercase; }
 .pd-list td { padding:.5rem .75rem; border-bottom:1px solid var(--border); }
@@ -387,6 +390,45 @@ function prepararUI() {
     // pdOpcoes ja fica sempre visivel no topo (Amanda 10/06/2026)
     document.getElementById('pdProgress').style.display = '';
     document.getElementById('pdResultado').style.display = 'none';
+    // Amanda 19/07: rola ate a barra pra ela SEMPRE ver o progresso
+    try { document.getElementById('pdProgress').scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
+}
+
+// Amanda 19/07: "subo a planilha mas fica parado, nao da pra saber se esta ok".
+// Durante a chamada a IA o navegador nao recebe eventos (so no upload), entao a
+// barra congelava. Aqui simulamos um "pensando" que avanca devagar + mensagens
+// rotativas do que esta acontecendo + cronometro em segundos (prova de que esta
+// vivo). Nunca chega a 100% antes da resposta REAL do servidor.
+var pdThinkTimer = null;
+var pdThinkStart = 0;
+
+function pdPararThinking() {
+    if (pdThinkTimer) { clearInterval(pdThinkTimer); pdThinkTimer = null; }
+    var fill = document.getElementById('pdProgressFill');
+    if (fill) fill.classList.remove('pd-fill-pulse');
+}
+
+function pdIniciarThinking() {
+    pdPararThinking();
+    pdThinkStart = new Date().getTime();
+    var fill = document.getElementById('pdProgressFill');
+    if (fill) fill.classList.add('pd-fill-pulse');
+    var msgs = [
+        'Lendo os valores da planilha...',
+        'Identificando parcelas e datas...',
+        'Conferindo índices de correção e juros...',
+        'Calculando os totais atualizados...',
+        'Montando a planilha no layout do escritório...',
+        'Finalizando — quase lá...'
+    ];
+    var pct = 62;
+    pdThinkTimer = setInterval(function() {
+        var seg = Math.floor((new Date().getTime() - pdThinkStart) / 1000);
+        // Avanca devagar e desacelera perto do fim; teto 95% (100% so no onload real)
+        if (pct < 95) pct += (pct < 85 ? 1.1 : 0.4);
+        var idx = Math.min(msgs.length - 1, Math.floor(seg / 9));
+        setProgress(Math.round(pct), '🧮 ' + msgs[idx] + '  ·  ' + seg + 's');
+    }, 700);
 }
 
 function enviarFD(fd, qual) {
@@ -396,30 +438,39 @@ function enviarFD(fd, qual) {
     xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
     xhr.timeout = 180000;
     xhr.upload.onprogress = function(e) {
-        if (e.lengthComputable) {
+        if (e.lengthComputable && !pdThinkTimer) {
             var pct = Math.round((e.loaded / e.total) * 30) + 30;
-            setProgress(pct, 'Enviando ' + qual.toLowerCase() + '...');
+            setProgress(pct, 'Enviando ' + qual.toLowerCase() + '... ' + Math.round((e.loaded / e.total) * 100) + '%');
         }
     };
+    // Upload terminou -> comeca o "pensando" (fase em que a IA processa e o
+    // navegador nao recebe mais nada ate a resposta chegar)
+    xhr.upload.onload = function() {
+        setProgress(60, 'Recebido! A IA está processando o cálculo...');
+        pdIniciarThinking();
+    };
     xhr.onload = function() {
+        pdPararThinking();
         try {
             var r = JSON.parse(xhr.responseText);
             if (r.csrf) CSRF = r.csrf;
-            if (r.error) { setProgress(0, 'Erro: ' + r.error); return; }
-            setProgress(100, 'Cálculo gerado com sucesso!');
+            if (r.error) { setProgress(0, 'Erro: ' + r.error, true); return; }
+            setProgress(100, '✅ Cálculo gerado com sucesso!');
             mostrarResultado(r);
         } catch(e) {
-            setProgress(0, 'Erro ao processar: ' + (xhr.responseText || '').substring(0, 200));
+            setProgress(0, 'Erro ao processar: ' + (xhr.responseText || '').substring(0, 200), true);
         }
     };
-    xhr.onerror = function() { setProgress(0, 'Erro de rede.'); };
-    xhr.ontimeout = function() { setProgress(0, 'Timeout — a IA demorou demais.'); };
+    xhr.onerror = function() { pdPararThinking(); setProgress(0, 'Erro de rede — verifique a conexão e tente de novo.', true); };
+    xhr.ontimeout = function() { pdPararThinking(); setProgress(0, '⏱️ A IA demorou demais (mais de 3 min). Tente novamente ou envie um arquivo menor.', true); };
     xhr.send(fd);
 }
 
-function setProgress(pct, msg) {
+function setProgress(pct, msg, erro) {
     document.getElementById('pdProgressFill').style.width = pct + '%';
-    document.getElementById('pdStatus').textContent = msg;
+    var st = document.getElementById('pdStatus');
+    st.textContent = msg;
+    st.classList.toggle('pd-status-erro', !!erro);
 }
 
 function mostrarResultado(r) {
