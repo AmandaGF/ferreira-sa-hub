@@ -64,11 +64,22 @@ function alfredo_gerar_sugestao($ctx) {
 
     // Bloco histórico da conversa (últimas 10 msgs)
     $histTxt = '';
+    // Amanda 17/07/2026: detecta se estamos no MEIO de uma conversa ativa —
+    // se ja tem msg NOSSA nas ultimas 12h, NAO usar saudacao (fica robotico
+    // 'Boa noite' se a Naiara acabou de trocar 3 msgs com o cliente).
+    $temMsgNossaRecente = false;
+    $limiar12h = time() - (12 * 3600);
     foreach ((array)$ctx['historico_msgs'] as $h) {
         $quem = $h['direcao'] === 'enviada' ? 'ESCRITÓRIO' : 'CLIENTE';
         $t = mb_substr(preg_replace('/\s+/', ' ', (string)$h['texto']), 0, 200, 'UTF-8');
         $histTxt .= "\n[{$quem}]: {$t}";
+        if ($h['direcao'] === 'enviada' && !empty($h['created_at']) && strtotime($h['created_at']) >= $limiar12h) {
+            $temMsgNossaRecente = true;
+        }
     }
+    $regraSaudacao = $temMsgNossaRecente
+        ? "⚠️ NÃO USE SAUDAÇÃO ('bom dia', 'boa tarde', 'boa noite', 'oi', 'tudo bem?'). Vá DIRETO AO PONTO — o escritório já mandou msg pro cliente nas últimas 12h, estamos no MEIO de uma conversa ativa. Saudação aqui fica robótica e desconexa. Comece a resposta na linha 2 direto com o conteúdo (a linha 1 continua sendo apenas '*_{$assinante}_*:')."
+        : "Use saudação natural na linha 2 conforme o momento do dia informado ({$periodo}). Ex: '{$primNome}, bom dia!', 'Bom dia, {$primNome}!', 'Oi, {$primNome}, tudo bem?'. Varie.";
 
     // Bloco de PROCESSOS ATIVOS do cliente (Amanda 17/07/2026 — antes so 1 case).
     // Passa TODOS os cases ativos com andamentos recentes de cada um. IA le a
@@ -132,8 +143,9 @@ function alfredo_gerar_sugestao($ctx) {
 
             . "PADRÃO DE MENSAGEM (obrigatório):\n"
             . "Linha 1: *_{$assinante}_*:\n"
-            . "Linha 2 em diante: saudação + resposta.\n"
+            . "Linha 2 em diante: resposta (com ou sem saudação — veja regra abaixo).\n"
             . "Momento atual: {$periodo}. Cliente: {$primNome}.\n"
+            . "\n" . $regraSaudacao . "\n\n"
             . "Assinatura no fim NÃO. Bloco 'Dica' NÃO (sistema appenda depois).\n"
             . "Máximo 400 caracteres na sua saída (o bloco Dica que appendo tem mais 250).\n\n"
 
@@ -183,6 +195,33 @@ function alfredo_gerar_sugestao($ctx) {
     // 2) Tira travessões e separador ---
     $txt = preg_replace('/\s*—\s*/', ', ', $txt);
     $txt = preg_replace('/\n---+\n/', "\n\n", $txt);
+    // 3) Se estamos no MEIO de conversa ativa (msg nossa nas ultimas 12h) e
+    // a IA teimou em saudar, removemos a saudacao aqui. Amanda 17/07/2026.
+    if ($temMsgNossaRecente) {
+        // Padrao 1: "Nome, bom dia/tarde/noite!"  ou  "Bom dia/tarde/noite, Nome!"
+        // Padrao 2: "Oi, Nome!"  |  "Nome, tudo bem?"  |  "Ola, Nome!"
+        // Roda em cima da linha 2 (apos o cabecalho).
+        $primNomePreg = preg_quote($primNome, '/');
+        $rxs = array(
+            '/^(' . $primNomePreg . ',\s*)?(bom dia|boa tarde|boa noite)[!,\.\s]+/iu',
+            '/^(bom dia|boa tarde|boa noite),?\s+' . $primNomePreg . '[!,\.\s]+/iu',
+            '/^(oi|ol[áa]|hey|opa|e\s+a[íi])[,!]?\s*' . $primNomePreg . '[!,\.\s]+/iu',
+            '/^' . $primNomePreg . ',\s*(tudo bem|tudo bom|beleza)\?[\s]*/iu',
+        );
+        // Trabalha so no bloco depois do cabecalho
+        $partes = explode("\n", $txt, 2);
+        if (count($partes) === 2) {
+            $corpo = ltrim($partes[1]);
+            foreach ($rxs as $rx) {
+                $corpoNovo = preg_replace($rx, '', $corpo, 1);
+                if ($corpoNovo !== null && $corpoNovo !== $corpo) {
+                    $corpo = ltrim(ucfirst($corpoNovo));
+                    break;
+                }
+            }
+            $txt = $partes[0] . "\n" . $corpo;
+        }
+    }
     // 3) Guard-rail de palavras proibidas — se escapar, ainda envia (nao vale
     //    descartar sugestao inteira, Naiara pode editar)
     return array('texto' => $txt, 'eh_sos' => $ehSos);
