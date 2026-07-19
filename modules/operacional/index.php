@@ -6,6 +6,7 @@
  */
 
 require_once __DIR__ . '/../../core/middleware.php';
+require_once __DIR__ . '/../../core/functions_cnj_parser.php';
 require_login();
 if (!can_view_operacional()) { flash_set('error', 'Sem permissão.'); redirect(url('modules/dashboard/')); }
 
@@ -542,6 +543,29 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="op-card-client">👤 <?= e($cs['client_name'] ?: 'Sem cliente') ?><?php if (!empty($cs['coautores_nossos'])): ?> <span style="opacity:.75;font-weight:400;">e</span> <?= e($cs['coautores_nossos']) ?><?php endif; ?></div>
                     <?php if (!empty($cs['case_number'])): ?>
                         <div title="Clique pra copiar" onclick="copiarCNJ(event,'<?= e($cs['case_number']) ?>',this)" style="font-size:.62rem;color:#15803d;font-weight:600;margin:.15rem 0;font-family:'Courier New',monospace;letter-spacing:.02em;cursor:pointer;user-select:none;">⚖️ <?= e($cs['case_number']) ?></div>
+                    <?php endif; ?>
+                    <?php
+                    // Amanda 18/07: vara + comarca discretos no card, pra identificar de relance.
+                    // Comarca vazia + CNJ derivável (só TJRJ) -> mostra "pelo CNJ" (asterisco),
+                    // sem gravar. Fora do RJ o parser não chuta, então fica só a vara.
+                    $_vara  = trim((string)($cs['court'] ?? ''));
+                    $_com   = trim((string)($cs['comarca'] ?? ''));
+                    $_comUf = trim((string)($cs['comarca_uf'] ?? ''));
+                    $_comCnj = false;
+                    if ($_com === '' && !empty($cs['case_number'])) {
+                        $_pcC = parse_cnj($cs['case_number']);
+                        if (!empty($_pcC['comarca'])) {
+                            $_com = trim(preg_replace('/\s*\(.*?\)\s*/', '', $_pcC['comarca']));
+                            if ($_comUf === '' && !empty($_pcC['uf'])) $_comUf = $_pcC['uf'];
+                            $_comCnj = ($_com !== '');
+                        }
+                    }
+                    if ($_vara || $_com):
+                        $_locBits = array();
+                        if ($_vara) $_locBits[] = '🏛️ ' . e($_vara);
+                        if ($_com)  $_locBits[] = '📍 ' . e($_com) . ($_comUf ? '/' . e($_comUf) : '') . ($_comCnj ? '*' : '');
+                    ?>
+                        <div style="font-size:.6rem;color:#64748b;margin:.1rem 0;line-height:1.3;"<?= $_comCnj ? ' title="Comarca derivada do número CNJ (confira e salve na pasta do caso)"' : '' ?>><?= implode(' · ', $_locBits) ?></div>
                     <?php endif; ?>
                     <?php
                     // 🔗 Cliques em links enviados (últimos 7d): case → fallback client

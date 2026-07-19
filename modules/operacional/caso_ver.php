@@ -6,6 +6,7 @@
 require_once __DIR__ . '/../../core/middleware.php';
 require_once __DIR__ . '/../../core/functions_djen.php';
 require_once __DIR__ . '/../../core/functions_ia.php';
+require_once __DIR__ . '/../../core/functions_cnj_parser.php';
 require_login();
 
 $pdo = db();
@@ -884,16 +885,35 @@ $_ehCancelado = ($case['status'] ?? '') === 'cancelado' || !empty($case['cancela
         <?php if ($case['deadline']): ?> · Prazo: <?= data_br($case['deadline']) ?><?php endif; ?>
         </span>
     </div>
-    <?php if ($case['case_number'] || (isset($case['court']) && $case['court']) || (isset($case['comarca']) && $case['comarca'])): ?>
+    <?php
+    // Amanda 18/07: comarca "pelo CNJ" só pra EXIBIÇÃO quando o campo está vazio
+    // mas o CNJ permite derivar com segurança (só TJRJ tem tabela oficial no
+    // parser). NÃO grava nada — casos MG/SP/etc continuam mostrando "não
+    // informada" porque o parser deliberadamente não chuta fora do RJ.
+    $_comExibir   = trim((string)($case['comarca'] ?? ''));
+    $_comUfExibir = trim((string)($case['comarca_uf'] ?? ''));
+    $_comFonteCnj = false;
+    if ($_comExibir === '' && !empty($case['case_number'])) {
+        $_pc = parse_cnj($case['case_number']);
+        if (!empty($_pc['comarca'])) {
+            $_comExibir = trim(preg_replace('/\s*\(.*?\)\s*/', '', $_pc['comarca']));
+            if ($_comUfExibir === '' && !empty($_pc['uf'])) $_comUfExibir = $_pc['uf'];
+            $_comFonteCnj = ($_comExibir !== '');
+        }
+    }
+    ?>
+    <?php if ($case['case_number'] || (isset($case['court']) && $case['court']) || $_comExibir !== ''): ?>
     <div style="margin-top:.5rem;font-size:.82rem;color:rgba(255,255,255,.8);">
         <?php if ($case['case_number']): ?>
             <span onclick="copiarNumero(this)" style="font-family:monospace;font-size:.85rem;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:4px;cursor:pointer;transition:all .2s;" title="Clique para copiar o nº do processo"><?= e(format_cnj($case['case_number'])) ?></span>
         <?php endif; ?>
         <?php if (isset($case['court']) && $case['court']): ?>
-            · <?= e($case['court']) ?>
+            · <span title="Vara / Juízo">🏛️ <?= e($case['court']) ?></span>
         <?php endif; ?>
-        <?php if (isset($case['comarca']) && $case['comarca']): ?>
-            · <?= e($case['comarca']) ?><?php if (isset($case['comarca_uf']) && $case['comarca_uf']): ?>/<?= e($case['comarca_uf']) ?><?php endif; ?><?php if (isset($case['regional']) && $case['regional']): ?> — Regional de <?= e($case['regional']) ?><?php endif; ?>
+        <?php if ($_comExibir !== ''): ?>
+            · <span title="Comarca<?= $_comFonteCnj ? ' (derivada do número CNJ — confira e salve na aba Processo)' : '' ?>">📍 <?= e($_comExibir) ?><?php if ($_comUfExibir !== ''): ?>/<?= e($_comUfExibir) ?><?php endif; ?><?php if (isset($case['regional']) && $case['regional']): ?> — Regional de <?= e($case['regional']) ?><?php endif; ?><?php if ($_comFonteCnj): ?> <span style="opacity:.6;font-style:italic;font-size:.72rem;">(pelo CNJ)</span><?php endif; ?></span>
+        <?php elseif ($case['case_number']): ?>
+            · <span style="opacity:.55;font-style:italic;" title="Comarca não preenchida — edite na aba Processo do caso">📍 comarca não informada</span>
         <?php endif; ?>
         <?php if ($case['distribution_date']): ?>
             · Distribuído em <?= data_br($case['distribution_date']) ?>
