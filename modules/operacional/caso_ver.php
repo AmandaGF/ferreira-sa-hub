@@ -893,16 +893,17 @@ $_ehCancelado = ($case['status'] ?? '') === 'cancelado' || !empty($case['cancela
     $_comExibir   = trim((string)($case['comarca'] ?? ''));
     $_comUfExibir = trim((string)($case['comarca_uf'] ?? ''));
     $_comFonteCnj = false;
-    if ($_comExibir === '' && !empty($case['case_number'])) {
+    if (!empty($case['case_number']) && ($_comExibir === '' || $_comUfExibir === '')) {
         $_pc = parse_cnj($case['case_number']);
-        if (!empty($_pc['comarca'])) {
+        // UF é 100% confiável pelo número (todos os tribunais); comarca só TJRJ.
+        if ($_comUfExibir === '' && !empty($_pc['uf'])) $_comUfExibir = $_pc['uf'];
+        if ($_comExibir === '' && !empty($_pc['comarca'])) {
             $_comExibir = trim(preg_replace('/\s*\(.*?\)\s*/', '', $_pc['comarca']));
-            if ($_comUfExibir === '' && !empty($_pc['uf'])) $_comUfExibir = $_pc['uf'];
             $_comFonteCnj = ($_comExibir !== '');
         }
     }
     ?>
-    <?php if ($case['case_number'] || (isset($case['court']) && $case['court']) || $_comExibir !== ''): ?>
+    <?php if ($case['case_number'] || (isset($case['court']) && $case['court']) || $_comExibir !== '' || $_comUfExibir !== ''): ?>
     <div style="margin-top:.5rem;font-size:.82rem;color:rgba(255,255,255,.8);">
         <?php if ($case['case_number']): ?>
             <span onclick="copiarNumero(this)" style="font-family:monospace;font-size:.85rem;background:rgba(255,255,255,.15);padding:2px 8px;border-radius:4px;cursor:pointer;transition:all .2s;" title="Clique para copiar o nº do processo"><?= e(format_cnj($case['case_number'])) ?></span>
@@ -912,6 +913,8 @@ $_ehCancelado = ($case['status'] ?? '') === 'cancelado' || !empty($case['cancela
         <?php endif; ?>
         <?php if ($_comExibir !== ''): ?>
             · <span title="Comarca<?= $_comFonteCnj ? ' (derivada do número CNJ — confira e salve na aba Processo)' : '' ?>">📍 <?= e($_comExibir) ?><?php if ($_comUfExibir !== ''): ?>/<?= e($_comUfExibir) ?><?php endif; ?><?php if (isset($case['regional']) && $case['regional']): ?> — Regional de <?= e($case['regional']) ?><?php endif; ?><?php if ($_comFonteCnj): ?> <span style="opacity:.6;font-style:italic;font-size:.72rem;">(pelo CNJ)</span><?php endif; ?></span>
+        <?php elseif ($_comUfExibir !== ''): ?>
+            · <span title="UF derivada do número CNJ — comarca ainda não preenchida (edite na aba Processo)">📍 <?= e($_comUfExibir) ?> · <span style="opacity:.55;font-style:italic;">comarca não informada</span></span>
         <?php elseif ($case['case_number']): ?>
             · <span style="opacity:.55;font-style:italic;" title="Comarca não preenchida — edite na aba Processo do caso">📍 comarca não informada</span>
         <?php endif; ?>

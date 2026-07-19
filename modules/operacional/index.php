@@ -552,18 +552,19 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     $_com   = trim((string)($cs['comarca'] ?? ''));
                     $_comUf = trim((string)($cs['comarca_uf'] ?? ''));
                     $_comCnj = false;
-                    if ($_com === '' && !empty($cs['case_number'])) {
+                    if (!empty($cs['case_number']) && ($_com === '' || $_comUf === '')) {
                         $_pcC = parse_cnj($cs['case_number']);
-                        if (!empty($_pcC['comarca'])) {
+                        if ($_comUf === '' && !empty($_pcC['uf'])) $_comUf = $_pcC['uf'];
+                        if ($_com === '' && !empty($_pcC['comarca'])) {
                             $_com = trim(preg_replace('/\s*\(.*?\)\s*/', '', $_pcC['comarca']));
-                            if ($_comUf === '' && !empty($_pcC['uf'])) $_comUf = $_pcC['uf'];
                             $_comCnj = ($_com !== '');
                         }
                     }
-                    if ($_vara || $_com):
+                    if ($_vara || $_com || $_comUf):
                         $_locBits = array();
                         if ($_vara) $_locBits[] = '🏛️ ' . e($_vara);
-                        if ($_com)  $_locBits[] = '📍 ' . e($_com) . ($_comUf ? '/' . e($_comUf) : '') . ($_comCnj ? '*' : '');
+                        if ($_com)       $_locBits[] = '📍 ' . e($_com) . ($_comUf ? '/' . e($_comUf) : '') . ($_comCnj ? '*' : '');
+                        elseif ($_comUf) $_locBits[] = '📍 ' . e($_comUf);
                     ?>
                         <div style="font-size:.6rem;color:#64748b;margin:.1rem 0;line-height:1.3;"<?= $_comCnj ? ' title="Comarca derivada do número CNJ (confira e salve na pasta do caso)"' : '' ?>><?= implode(' · ', $_locBits) ?></div>
                     <?php endif; ?>
