@@ -212,6 +212,7 @@ $menuItems = array(
     array('label' => 'Seguro de Vida', 'icon' => '🛡️', 'href' => url('modules/admin/seguro_vida.php'), 'id' => 'seguro_vida', 'roles' => array('admin')),
     array('label' => 'Permissões',     'icon' => '🔐', 'href' => url('modules/admin/permissoes.php'), 'id' => 'permissoes',   'roles' => array('admin')),
     array('label' => 'Jorjão (Sinos WhatsApp)', 'icon' => '🐻', 'href' => url('modules/admin/jorjao.php'), 'id' => 'jorjao', 'roles' => array('admin'), 'keywords' => 'sino sinos grupo whatsapp comemorar contrato peticao prazo novidade resumo diario'),
+    array('label' => 'Duplicatas de Cases', 'icon' => '📁', 'href' => url('modules/admin/duplicatas_cases.php'), 'id' => 'duplicatas_cases', 'roles' => array('admin','gestao'), 'keywords' => 'duplicata duplicado merge case pasta processo repetido igual mesmo'),
     array('label' => 'Comemorar Contrato', 'icon' => '🔔', 'href' => url('modules/admin/comemorar_contrato.php'), 'id' => 'comemorar_contrato', 'roles' => array('admin'), 'keywords' => 'sino jorjao grupo'),
     array('label' => 'Rastreio de Cliques', 'icon' => '🔗', 'href' => url('modules/admin/shortlinks.php'), 'id' => 'shortlinks', 'roles' => array('admin','gestao','comercial','cx','operacional','estagiario','colaborador'), 'keywords' => 'shortlinks encurtador link tracking rastreio cliques abriu engajamento lead'),
     array('label' => 'DataJud',         'icon' => '🔄', 'href' => url('modules/admin/datajud_monitor.php'), 'id' => 'datajud',  'roles' => array('admin')),
