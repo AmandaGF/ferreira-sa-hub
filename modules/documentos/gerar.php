@@ -1742,9 +1742,13 @@ function imprimirLimpo() {
         + 'body{font-family:Calibri,sans-serif;font-size:12pt;line-height:1.8;color:#1A1A1A;text-align:justify;-webkit-print-color-adjust:exact;print-color-adjust:exact;}'
         + 'p{text-indent:4em;margin-bottom:8pt;}'
         + '.doc-title{text-align:center;font-weight:700;font-size:14pt;margin:20px 0;text-indent:0;}'
-        + '.local-data{display:block;text-align:right;margin:24pt 0 16pt;text-indent:0;}'
+        // Amanda 20/07/2026: local-data + assinatura NUNCA se separam em pagina.
+        // page-break-after:avoid mantem o elemento seguinte (a assinatura) na
+        // mesma pagina do local-data. page-break-before:avoid na assinatura
+        // reforca. break-* e o padrao moderno pra Chrome/Edge.
+        + '.local-data{display:block;text-align:right;margin:24pt 0 16pt;text-indent:0;page-break-after:avoid;break-after:avoid;page-break-inside:avoid;break-inside:avoid;}'
         // Assinatura forçada em block + .linha com height real (evita colapso em PDF)
-        + '.assinatura{display:block;text-align:center;margin-top:40pt;page-break-inside:avoid;}'
+        + '.assinatura{display:block;text-align:center;margin-top:40pt;page-break-inside:avoid;break-inside:avoid;page-break-before:avoid;break-before:avoid;}'
         + '.assinatura > div{display:block;}'
         + '.assinatura .linha{display:block;border-bottom:1px solid #333;width:60%;height:1px;margin:0 auto 4pt;line-height:1px;font-size:1px;}'
         + '.nome-ass{display:block;font-weight:700;font-size:11pt;margin-top:2pt;}'

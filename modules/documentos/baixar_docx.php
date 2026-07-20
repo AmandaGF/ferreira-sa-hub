@@ -87,10 +87,21 @@ function _ppr_from_style($style, $isTitle = false, $opts = array()) {
         $spacing = '<w:spacing w:line="360" w:lineRule="auto" w:after="80"/>'; // 1.5 line, 4pt depois
     }
 
-    if ($isTitle) {
-        return '<w:pPr><w:jc w:val="center"/><w:spacing w:before="280" w:after="200"/></w:pPr>';
+    // Amanda 20/07/2026: parágrafos do local-data e da assinatura NUNCA
+    // se separam da assinatura na quebra de página do Word. Aplicar
+    // w:keepNext (mantém junto com próximo parágrafo) + w:keepLines
+    // (não quebra dentro do parágrafo). No local-data também aplicamos
+    // pageBreakBefore=false (evita a "Rio de Janeiro, X" começar página nova
+    // se assinatura vai junto).
+    $keep = '';
+    if ($clsHint && preg_match('/\b(local-data|assinatura|linha|nome-ass)\b/', $clsHint)) {
+        $keep = '<w:keepNext/><w:keepLines/>';
     }
-    return '<w:pPr>' . $spacing . $indent . $jc . '</w:pPr>';
+
+    if ($isTitle) {
+        return '<w:pPr><w:jc w:val="center"/><w:spacing w:before="280" w:after="200"/>' . $keep . '</w:pPr>';
+    }
+    return '<w:pPr>' . $spacing . $indent . $jc . $keep . '</w:pPr>';
 }
 
 // Detecta se um <div> é um "card" visual (background OU border presente) →
@@ -341,11 +352,13 @@ function block_to_xml(DOMNode $node, $opts = array()) {
     if ($tag === 'div' && preg_match('/\blinha\b/', $cls)) {
         // Parágrafo vazio com border-top → linha curta centralizada
         // (margem left/right de 1500 twips ≈ 2.6cm cada lado, deixando ~10cm de linha)
+        // keepNext+keepLines: linha nunca se separa do nome logo abaixo (Amanda 20/07/2026)
         return '<w:p><w:pPr>'
              . '<w:pBdr><w:top w:val="single" w:sz="6" w:space="1" w:color="000000"/></w:pBdr>'
              . '<w:ind w:left="1500" w:right="1500"/>'
              . '<w:jc w:val="center"/>'
              . '<w:spacing w:after="0" w:before="0" w:line="240" w:lineRule="auto"/>'
+             . '<w:keepNext/><w:keepLines/>'
              . '</w:pPr></w:p>';
     }
 
