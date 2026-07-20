@@ -109,6 +109,35 @@ if (!validate_csrf()) _api_fail('Token CSRF inválido — sessão pode ter expir
 $action = $_POST['action'] ?? '';
 $pdo = db();
 
+// Amanda 20/07/2026: antes de contrato_assinado abrir folderModal, frontend
+// chama pra saber se cliente ja tem case ATIVO. Se tem → modal de decisao:
+// vincular ao existente ou criar 2a acao. Fix contra duplicatas.
+if ($action === 'check_duplicata_case') {
+    $leadId = (int)($_POST['lead_id'] ?? 0);
+    header('Content-Type: application/json; charset=utf-8');
+    if (!$leadId) { echo json_encode(array('ok'=>false,'erro'=>'lead_id')); exit; }
+    $l = $pdo->prepare("SELECT client_id, name FROM pipeline_leads WHERE id=?");
+    $l->execute(array($leadId));
+    $lr = $l->fetch(PDO::FETCH_ASSOC);
+    if (!$lr || empty($lr['client_id'])) { echo json_encode(array('ok'=>true,'tem_duplicata'=>false)); exit; }
+    $st = $pdo->prepare(
+        "SELECT id, title, case_type, status, DATE_FORMAT(created_at,'%d/%m/%Y') criado
+           FROM cases
+          WHERE client_id = ?
+            AND status NOT IN ('arquivado','cancelado','renunciamos','concluido','finalizado')
+          ORDER BY created_at DESC LIMIT 5"
+    );
+    $st->execute(array((int)$lr['client_id']));
+    $cs = $st->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode(array(
+        'ok' => true,
+        'tem_duplicata' => !empty($cs),
+        'cliente_nome' => $lr['name'],
+        'cases_ativos' => $cs,
+    ));
+    exit;
+}
+
 switch ($action) {
     case 'move':
         $leadId = (int)($_POST['lead_id'] ?? 0);
@@ -200,6 +229,52 @@ switch ($action) {
 
             // Verificar se já tem caso vinculado
             $existingCase = isset($lead['linked_case_id']) && $lead['linked_case_id'] ? (int)$lead['linked_case_id'] : 0;
+
+            // Amanda 20/07/2026: comercial escolheu VINCULAR este lead ao case
+            // ativo existente (via modal). Nao criar case novo — so vincular.
+            $vincularAoExistente = (int)($_POST['pipeline_vincular_case_id'] ?? 0);
+            if (!$existingCase && $vincularAoExistente > 0) {
+                $stChk = $pdo->prepare("SELECT id FROM cases WHERE id = ? AND client_id = ? LIMIT 1");
+                $stChk->execute(array($vincularAoExistente, $clientId));
+                if ($stChk->fetchColumn()) {
+                    $pdo->prepare('UPDATE pipeline_leads SET linked_case_id=? WHERE id=?')
+                        ->execute(array($vincularAoExistente, $leadId));
+                    $existingCase = $vincularAoExistente;
+                    audit_log('lead_vinculado_case_existente', 'lead', $leadId,
+                        "lead vinculado ao case #{$vincularAoExistente} (anti-duplicacao)");
+                }
+            }
+
+            // Amanda 20/07/2026: ANTES de criar case novo, checa se o cliente
+            // ja tem case ATIVO. Se tem, e comercial NAO confirmou explicitamente
+            // 'criar 2a acao', retorna requer_decisao pra frontend abrir modal.
+            // Bug real: Nativania criou 2 leads pra Maria Ana Paula em datas
+            // diferentes → 2 cases duplicados 'x Alimentos' com mesma pasta Drive.
+            if (!$existingCase && $clientId) {
+                $confirmouNovo = !empty($_POST['pipeline_confirm_novo_case']);
+                if (!$confirmouNovo) {
+                    $stExist = $pdo->prepare(
+                        "SELECT id, title, case_type, status, created_at
+                           FROM cases
+                          WHERE client_id = ?
+                            AND status NOT IN ('arquivado','cancelado','renunciamos','concluido','finalizado')
+                          ORDER BY created_at DESC LIMIT 5"
+                    );
+                    $stExist->execute(array($clientId));
+                    $casesAtivos = $stExist->fetchAll(PDO::FETCH_ASSOC);
+                    if (!empty($casesAtivos)) {
+                        echo json_encode(array(
+                            'ok' => false,
+                            'requer_decisao' => 'case_duplicado',
+                            'cliente_nome' => $lead['name'],
+                            'lead_id' => $leadId,
+                            'cases_ativos' => $casesAtivos,
+                            'mensagem' => "Esse cliente já tem " . count($casesAtivos) . " caso(s) ATIVO(S). Você quer VINCULAR este lead ao caso existente ou criar um caso NOVO (2ª ação da mesma cliente)?",
+                        ));
+                        exit;
+                    }
+                }
+            }
 
             if (!$existingCase) {
                 // Criar caso no Operacional (status: aguardando_docs = contrato assinado aguardando documentação)

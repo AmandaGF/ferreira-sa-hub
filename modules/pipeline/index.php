@@ -1263,28 +1263,127 @@ function handleStageMove(select) {
     }
 
     if (stage === 'contrato_assinado') {
-        var leadName = form.dataset.leadName || '';
-        var caseType = form.dataset.caseType || '';
-        window._folderLeadName = leadName;
-        var tipoSel = document.getElementById('folderTipoAcao');
-        // Pré-selecionar tipo se já existe
-        if (caseType && tipoSel) {
-            for (var i = 0; i < tipoSel.options.length; i++) {
-                if (tipoSel.options[i].value === caseType) { tipoSel.selectedIndex = i; break; }
-            }
-        } else if (tipoSel) {
-            tipoSel.selectedIndex = 0;
-        }
-        var sugestao = leadName + (caseType ? ' x ' + caseType : '');
-        document.getElementById('folderNameInput').value = sugestao;
-        document.getElementById('folderModal').style.display = 'flex';
-        document.getElementById('folderNameInput').focus();
-        document.getElementById('folderNameInput').select();
         _pendingForm = form;
         _pendingDragData = null;
+        // Amanda 20/07/2026: ANTES de abrir folderModal, checa se cliente ja
+        // tem case ativo. Se tem, modal de decisao (vincular vs criar 2a acao).
+        pipCheckDuplicataECaminho(form.dataset.leadId, form);
     } else {
         form.submit();
     }
+}
+
+// Anti-duplicacao: checa se cliente do lead ja tem case ativo. Se sim, modal
+// de decisao. Se nao, segue direto pro folderModal (fluxo antigo).
+function pipCheckDuplicataECaminho(leadId, form) {
+    var fd = new FormData();
+    fd.append('action', 'check_duplicata_case');
+    fd.append('lead_id', leadId);
+    fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+    fetch('<?= module_url("pipeline", "api.php") ?>', { method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'} })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d && d.tem_duplicata) {
+                pipAbrirModalDecisaoCase(d, form);
+            } else {
+                pipAbrirFolderModalNormal(form);
+            }
+        })
+        .catch(function(){ pipAbrirFolderModalNormal(form); });
+}
+
+// Abre folderModal (fluxo antigo — criar case novo)
+function pipAbrirFolderModalNormal(form) {
+    var leadName = form.dataset.leadName || '';
+    var caseType = form.dataset.caseType || '';
+    window._folderLeadName = leadName;
+    var tipoSel = document.getElementById('folderTipoAcao');
+    if (caseType && tipoSel) {
+        for (var i = 0; i < tipoSel.options.length; i++) {
+            if (tipoSel.options[i].value === caseType) { tipoSel.selectedIndex = i; break; }
+        }
+    } else if (tipoSel) {
+        tipoSel.selectedIndex = 0;
+    }
+    var sugestao = leadName + (caseType ? ' x ' + caseType : '');
+    document.getElementById('folderNameInput').value = sugestao;
+    document.getElementById('folderModal').style.display = 'flex';
+    document.getElementById('folderNameInput').focus();
+    document.getElementById('folderNameInput').select();
+}
+
+// Modal de decisao anti-duplicacao — mostra cases ativos + botoes
+function pipAbrirModalDecisaoCase(data, form) {
+    var m = document.getElementById('pipDupModal');
+    if (!m) {
+        m = document.createElement('div');
+        m.id = 'pipDupModal';
+        m.style.cssText = 'display:flex;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:1500;align-items:center;justify-content:center;padding:1rem;';
+        document.body.appendChild(m);
+    } else {
+        m.style.display = 'flex';
+    }
+    var casesHtml = data.cases_ativos.map(function(c){
+        return '<div style="border:1px solid #d7ab90;border-radius:10px;padding:.75rem;margin-bottom:.6rem;background:#fefaf5;">'
+             + '<div style="font-weight:700;color:#052228;">⚖️ ' + (c.title || '?') + '</div>'
+             + '<div style="font-size:.75rem;color:#6b7280;margin-top:.15rem;">Tipo: ' + (c.case_type || '—') + ' · Status: <strong>' + c.status + '</strong> · Criado em ' + c.criado + '</div>'
+             + '<button type="button" onclick="pipVincularAoCase(' + c.id + ')" style="margin-top:.5rem;background:#0f766e;color:#fff;border:none;padding:.4rem .9rem;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:700;">🔗 Vincular este lead a ESTE caso</button>'
+             + '</div>';
+    }).join('');
+    m.innerHTML = '<div style="background:#fff;border-radius:14px;max-width:560px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.35);">'
+        + '<div style="padding:1rem 1.25rem;border-bottom:1px solid #e5e7eb;background:linear-gradient(135deg,#b45309,#78350f);color:#fff;border-radius:14px 14px 0 0;">'
+        +   '<strong style="font-size:1rem;">⚠️ Já existe caso ativo pra ' + (data.cliente_nome || 'esse cliente') + '</strong>'
+        +   '<div style="font-size:.75rem;opacity:.9;margin-top:.15rem;">' + (data.cases_ativos.length) + ' caso(s) ativo(s) do mesmo cliente. Escolha:</div>'
+        + '</div>'
+        + '<div style="padding:1rem 1.25rem;">'
+        +   casesHtml
+        +   '<div style="border-top:1px dashed #e5e7eb;margin:1rem 0;padding-top:.8rem;">'
+        +     '<div style="font-size:.85rem;color:#052228;margin-bottom:.4rem;"><strong>OU</strong> é realmente uma 2ª ação diferente?</div>'
+        +     '<div style="font-size:.72rem;color:#6b7280;margin-bottom:.6rem;">Ex: cliente já tem processo de Alimentos e agora contratou também um Divórcio.</div>'
+        +     '<button type="button" onclick="pipCriarCaseNovo()" style="background:#B87333;color:#fff;border:none;padding:.5rem 1rem;border-radius:8px;cursor:pointer;font-size:.82rem;font-weight:700;">➕ Criar caso NOVO (2ª ação)</button>'
+        +   '</div>'
+        +   '<div style="text-align:right;margin-top:1rem;">'
+        +     '<button type="button" onclick="pipFecharDupModal()" style="background:transparent;border:1px solid #cbd5e1;padding:.4rem .9rem;border-radius:6px;cursor:pointer;font-size:.78rem;">Cancelar</button>'
+        +   '</div>'
+        + '</div></div>';
+}
+
+window.pipFecharDupModal = function() {
+    var m = document.getElementById('pipDupModal'); if (m) m.style.display = 'none';
+    // reverte select
+    if (_pendingForm) {
+        var sel = _pendingForm.querySelector('select[name="to_stage"]');
+        if (sel) sel.value = '';
+    }
+    _pendingForm = null;
+};
+
+window.pipVincularAoCase = function(caseId) {
+    if (!_pendingForm) return;
+    if (!confirm('Vincular este lead ao caso #' + caseId + '?\n\nO lead sai da coluna atual e vai pra Contrato Assinado, sem criar caso novo nem pasta nova no Drive.')) return;
+    _pendingForm.querySelector('input[name="folder_name"]').value = ''; // sem pasta nova
+    var inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'pipeline_vincular_case_id'; inp.value = caseId;
+    _pendingForm.appendChild(inp);
+    pipFecharDupModalNoRevert();
+    _pendingForm.submit();
+};
+
+window.pipCriarCaseNovo = function() {
+    if (!_pendingForm) return;
+    var form = _pendingForm;
+    // Marca flag pra backend nao pedir decisao de novo
+    var inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'pipeline_confirm_novo_case'; inp.value = '1';
+    form.appendChild(inp);
+    pipFecharDupModalNoRevert();
+    // Segue fluxo normal do folderModal
+    pipAbrirFolderModalNormal(form);
+    _pendingForm = form; // preserva ref
+};
+
+function pipFecharDupModalNoRevert() {
+    var m = document.getElementById('pipDupModal'); if (m) m.style.display = 'none';
 }
 
 function confirmDocFaltantePipe() {
