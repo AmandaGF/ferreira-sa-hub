@@ -15,8 +15,8 @@ $pdo = db();
 // Self-heal: flags para fluxo "Para Arquivar" sem afetar stage real ou outras telas
 try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN kanban_oculto TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
 try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN marcado_para_arquivar TINYINT(1) DEFAULT 0"); } catch (Exception $e) {}
-// Amanda 13/07/2026: carimbo COM VINCULO quando GERID positivo
-try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN gerid_positivo TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+// Amanda 13/07/2026: carimbo COM VINCULO quando FBI $ positivo
+try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN fbi_vinculo_positivo TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
 
 // Estágios do funil (conforme doc técnico)
 $stages = array(
@@ -281,14 +281,14 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .kanban-body.drag-over { background:rgba(215,171,144,.15); border:2px dashed var(--rose); }
 
 .lead-card { background:var(--bg-card); border-radius:var(--radius); padding:.6rem .7rem; box-shadow:var(--shadow-sm); border-left:4px solid #ccc; cursor:grab; transition:all var(--transition); overflow:hidden; position:relative; }
-/* Amanda 13/07/2026: carimbo redondo "COM VÍNCULO" quando GERID positivo */
-.lead-gerid-carimbo { position:absolute; top:6px; right:6px; width:54px; height:54px; border-radius:50%; background:radial-gradient(circle at 32% 30%, #ef4444 0%, #b91c1c 55%, #7f1d1d 100%); color:#fff; display:flex; align-items:center; justify-content:center; text-align:center; font-family:'Cormorant Garamond',Georgia,serif; font-weight:800; font-size:.58rem; line-height:1.05; letter-spacing:.03em; border:2.5px dashed #fecaca; transform:rotate(-14deg); box-shadow:0 3px 8px rgba(220,38,38,.45), inset 0 0 0 2px rgba(255,255,255,.12); text-shadow:0 1px 2px rgba(0,0,0,.45); z-index:3; user-select:none; pointer-events:auto; cursor:help; animation:pulseCarimbo 2.5s ease-in-out infinite; }
-.lead-gerid-carimbo::before { content:''; position:absolute; inset:3px; border:1px solid rgba(255,255,255,.28); border-radius:50%; pointer-events:none; }
-.lead-gerid-carimbo span { position:relative; z-index:1; padding:2px 3px; text-transform:uppercase; }
+/* Amanda 13/07/2026: carimbo redondo "COM VÍNCULO" quando FBI $ positivo */
+.lead-fbi_vinculo-carimbo { position:absolute; top:6px; right:6px; width:54px; height:54px; border-radius:50%; background:radial-gradient(circle at 32% 30%, #ef4444 0%, #b91c1c 55%, #7f1d1d 100%); color:#fff; display:flex; align-items:center; justify-content:center; text-align:center; font-family:'Cormorant Garamond',Georgia,serif; font-weight:800; font-size:.58rem; line-height:1.05; letter-spacing:.03em; border:2.5px dashed #fecaca; transform:rotate(-14deg); box-shadow:0 3px 8px rgba(220,38,38,.45), inset 0 0 0 2px rgba(255,255,255,.12); text-shadow:0 1px 2px rgba(0,0,0,.45); z-index:3; user-select:none; pointer-events:auto; cursor:help; animation:pulseCarimbo 2.5s ease-in-out infinite; }
+.lead-fbi_vinculo-carimbo::before { content:''; position:absolute; inset:3px; border:1px solid rgba(255,255,255,.28); border-radius:50%; pointer-events:none; }
+.lead-fbi_vinculo-carimbo span { position:relative; z-index:1; padding:2px 3px; text-transform:uppercase; }
 @keyframes pulseCarimbo { 0%,100%{transform:rotate(-14deg) scale(1);} 50%{transform:rotate(-14deg) scale(1.06);} }
 /* Empurra o conteúdo pra esquerda pra nao brigar com o carimbo */
-.lead-card.tem-carimbo-gerid .lead-name,
-.lead-card.tem-carimbo-gerid .lead-meta { padding-right:58px; }
+.lead-card.tem-carimbo-fbi_vinculo .lead-name,
+.lead-card.tem-carimbo-fbi_vinculo .lead-meta { padding-right:58px; }
 .lead-card:hover { box-shadow:var(--shadow-md); transform:translateY(-1px); }
 .lead-card.dragging { opacity:.4; cursor:grabbing; }
 .lead-cobrar-ico { position:absolute; top:4px; right:4px; background:#B87333; border:none; color:#fff; border-radius:4px; padding:0 5px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-size:.55rem; font-weight:800; cursor:pointer; opacity:.9; transition:all .15s; line-height:1; }
@@ -440,10 +440,10 @@ $_foraColunas = $totalAtivos - $_somaColunas;
             <?php else: ?>
                 <?php foreach ($byStage[$stageKey] as $lead): ?>
                 <?php $_leadAreaCor = fsa_area_cor($lead['case_type']); ?>
-                <div class="lead-card<?= !empty($lead['gerid_positivo']) ? ' tem-carimbo-gerid' : '' ?>" draggable="true" data-lead-id="<?= $lead['id'] ?>" style="border-left-color:<?= $_leadAreaCor ?>;border-left-width:5px;"
-                     onclick="if(window._dragging)return;var t=event.target;if(t.closest&&(t.closest('.lead-actions')||t.closest('.lead-cobrar-ico')||t.closest('.lead-gerid-carimbo')||t.closest('button')||t.closest('a')||t.closest('select')))return;window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
-                    <?php if (!empty($lead['gerid_positivo'])): ?>
-                        <div class="lead-gerid-carimbo" title="Pesquisa GERID retornou vínculo empregatício POSITIVO — tarefa urgente criada"><span>COM<br>VÍN<br>CULO</span></div>
+                <div class="lead-card<?= !empty($lead['fbi_vinculo_positivo']) ? ' tem-carimbo-fbi_vinculo' : '' ?>" draggable="true" data-lead-id="<?= $lead['id'] ?>" style="border-left-color:<?= $_leadAreaCor ?>;border-left-width:5px;"
+                     onclick="if(window._dragging)return;var t=event.target;if(t.closest&&(t.closest('.lead-actions')||t.closest('.lead-cobrar-ico')||t.closest('.lead-fbi_vinculo-carimbo')||t.closest('button')||t.closest('a')||t.closest('select')))return;window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
+                    <?php if (!empty($lead['fbi_vinculo_positivo'])): ?>
+                        <div class="lead-fbi_vinculo-carimbo" title="Pesquisa FBI $ retornou vínculo empregatício POSITIVO — tarefa urgente criada"><span>COM<br>VÍN<br>CULO</span></div>
                     <?php endif; ?>
                     <?php if (function_exists('can_access_financeiro') && can_access_financeiro()):
                         $_hasCli = (int)($lead['client_id'] ?? 0) > 0;

@@ -59,7 +59,7 @@ function _permission_defaults()
         'processos'           => $todos,
         'processos_renuncias' => array('admin','gestao','comercial','cx','operacional','estagiario'),
         'audiencistas'        => array('admin','gestao','operacional','cx','estagiario'),
-        'gerid'               => $todos, // Amanda 01/07/2026: liberado pra todos os usuarios
+        'fbi_vinculo'               => $todos, // Amanda 01/07/2026: liberado pra todos os usuarios
         'prazos'              => $todos,
         'documentos'          => $todos,
         'peticoes'            => $todos,

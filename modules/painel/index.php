@@ -374,7 +374,7 @@ if ($isGestao) {
 // Conta por $viewUserId no dia de hoje: tarefas concluídas, prazos cumpridos,
 // compromissos da agenda dados baixa (realizado) e chamados resolvidos.
 // ══════════════════════════════════════════════════════════════════════
-$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'gerid_rev_cv' => 0, 'gerid_rev_sv' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0, 'entregas_puxadas' => 0);
+$dopa = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'fbi_vinculo' => 0, 'fbi_vinculo_rev_cv' => 0, 'fbi_vinculo_rev_sv' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0, 'entregas_puxadas' => 0);
 try {
     $q = $pdo->prepare("SELECT COUNT(*) FROM case_tasks WHERE status='concluido' AND assigned_to=? AND DATE(completed_at)=?");
     $q->execute(array($viewUserId, $hoje)); $dopa['tarefas'] = (int)$q->fetchColumn();
@@ -457,20 +457,20 @@ try {
     $q = $pdo->prepare("SELECT COUNT(DISTINCT m.conversa_id) FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND DATE(m.created_at)=? AND co.canal='24'");
     $q->execute(array($viewUserId, $hoje)); $dopa['clientes24'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
-// Amanda 09/07/2026: pesquisas GERID concluidas hoje pelo usuario (Luiz Eduardo
+// Amanda 09/07/2026: pesquisas FBI $ concluidas hoje pelo usuario (Luiz Eduardo
 // e o principal, mas conta pra qualquer um).
 try {
-    $q = $pdo->prepare("SELECT COUNT(*) FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND DATE(pesquisado_em)=?");
-    $q->execute(array($viewUserId, $hoje)); $dopa['gerid'] = (int)$q->fetchColumn();
+    $q = $pdo->prepare("SELECT COUNT(*) FROM fbi_vinculo_pesquisas WHERE status='concluida' AND pesquisado_por=? AND DATE(pesquisado_em)=?");
+    $q->execute(array($viewUserId, $hoje)); $dopa['fbi_vinculo'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
-// Amanda 15/07/2026: revisao/tratamento pos-pesquisa GERID tambem pontua.
+// Amanda 15/07/2026: revisao/tratamento pos-pesquisa FBI $ tambem pontua.
 // Peso 1 pra COM VINCULO (abre trabalho — verificar processo, alertar), 0.5
 // pra SEM VINCULO (so o "ok, vi"). Quem clica o botao "tratado" leva o ponto.
 try {
-    $q = $pdo->prepare("SELECT COUNT(*) FROM gerid_pesquisas WHERE tratado_por=? AND DATE(tratado_em)=? AND tem_vinculo=1");
-    $q->execute(array($viewUserId, $hoje)); $dopa['gerid_rev_cv'] = (int)$q->fetchColumn();
-    $q = $pdo->prepare("SELECT COUNT(*) FROM gerid_pesquisas WHERE tratado_por=? AND DATE(tratado_em)=? AND (tem_vinculo=0 OR tem_vinculo IS NULL)");
-    $q->execute(array($viewUserId, $hoje)); $dopa['gerid_rev_sv'] = (int)$q->fetchColumn();
+    $q = $pdo->prepare("SELECT COUNT(*) FROM fbi_vinculo_pesquisas WHERE tratado_por=? AND DATE(tratado_em)=? AND tem_vinculo=1");
+    $q->execute(array($viewUserId, $hoje)); $dopa['fbi_vinculo_rev_cv'] = (int)$q->fetchColumn();
+    $q = $pdo->prepare("SELECT COUNT(*) FROM fbi_vinculo_pesquisas WHERE tratado_por=? AND DATE(tratado_em)=? AND (tem_vinculo=0 OR tem_vinculo IS NULL)");
+    $q->execute(array($viewUserId, $hoje)); $dopa['fbi_vinculo_rev_sv'] = (int)$q->fetchColumn();
 } catch (Exception $e) {}
 // Amanda 10/07/2026: renuncias/desistencias marcadas como CUMPRIDAS pelo usuario.
 // Ao clicar "V Cumprida" no banner roxo da ficha OU no botao verde da tabela
@@ -487,13 +487,13 @@ try {
 // pra facilitar mudanca futura de pesos por categoria.
 $dopaPesos = array(
     'distribuicoes' => 2,   // peticao distribuida vale 2 pontos
-    'gerid_rev_cv'  => 1,   // revisao GERID com vinculo — trabalho subsequente
-    'gerid_rev_sv'  => 0.5, // revisao GERID sem vinculo — so o "ok, vi"
+    'fbi_vinculo_rev_cv'  => 1,   // revisao FBI $ com vinculo — trabalho subsequente
+    'fbi_vinculo_rev_sv'  => 0.5, // revisao FBI $ sem vinculo — so o "ok, vi"
 );
 function dopa_pontos_da_categoria($catCounts, $pesos) {
     $total = 0;
     foreach ($catCounts as $cat => $qtd) $total += ((int)$qtd) * (isset($pesos[$cat]) ? $pesos[$cat] : 1);
-    return $total; // pode ser float (peso 0.5 nas revisoes GERID SV)
+    return $total; // pode ser float (peso 0.5 nas revisoes FBI $ SV)
 }
 // Formata pontuacao: inteiro sem casa, float com 1 casa e virgula (ex: 3 · 3,5).
 function dopa_fmt($n) {
@@ -527,7 +527,7 @@ $dias7 = array(); $dias7det = array();
 for ($i = 6; $i >= 0; $i--) {
     $d = date('Y-m-d', strtotime("-$i day"));
     $dias7[$d] = 0;
-    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'gerid' => 0, 'gerid_rev_cv' => 0, 'gerid_rev_sv' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0, 'entregas_puxadas' => 0);
+    $dias7det[$d] = array('tarefas' => 0, 'prazos' => 0, 'agenda' => 0, 'distribuicoes' => 0, 'movimentacoes' => 0, 'leads21' => 0, 'clientes24' => 0, 'helpdesk' => 0, 'fbi_vinculo' => 0, 'fbi_vinculo_rev_cv' => 0, 'fbi_vinculo_rev_sv' => 0, 'renuncias' => 0, 'pasta_apta' => 0, 'onboarding' => 0, 'balcao' => 0, 'entregas_puxadas' => 0);
 }
 $desde7 = date('Y-m-d', strtotime('-6 day')) . ' 00:00:00';
 $histQ = array(
@@ -539,9 +539,9 @@ $histQ = array(
     'movimentacoes' => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
     'leads21'       => array("SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='21' GROUP BY DATE(m.created_at)", array($viewUserId, $desde7)),
     'clientes24'    => array("SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id) c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='24' GROUP BY DATE(m.created_at)", array($viewUserId, $desde7)),
-    'gerid'         => array("SELECT DATE(pesquisado_em) d, COUNT(*) c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND pesquisado_em>=? GROUP BY DATE(pesquisado_em)", array($viewUserId, $desde7)),
-    'gerid_rev_cv'  => array("SELECT DATE(tratado_em) d, COUNT(*) c FROM gerid_pesquisas WHERE tratado_por=? AND tratado_em>=? AND tem_vinculo=1 GROUP BY DATE(tratado_em)", array($viewUserId, $desde7)),
-    'gerid_rev_sv'  => array("SELECT DATE(tratado_em) d, COUNT(*) c FROM gerid_pesquisas WHERE tratado_por=? AND tratado_em>=? AND (tem_vinculo=0 OR tem_vinculo IS NULL) GROUP BY DATE(tratado_em)", array($viewUserId, $desde7)),
+    'fbi_vinculo'         => array("SELECT DATE(pesquisado_em) d, COUNT(*) c FROM fbi_vinculo_pesquisas WHERE status='concluida' AND pesquisado_por=? AND pesquisado_em>=? GROUP BY DATE(pesquisado_em)", array($viewUserId, $desde7)),
+    'fbi_vinculo_rev_cv'  => array("SELECT DATE(tratado_em) d, COUNT(*) c FROM fbi_vinculo_pesquisas WHERE tratado_por=? AND tratado_em>=? AND tem_vinculo=1 GROUP BY DATE(tratado_em)", array($viewUserId, $desde7)),
+    'fbi_vinculo_rev_sv'  => array("SELECT DATE(tratado_em) d, COUNT(*) c FROM fbi_vinculo_pesquisas WHERE tratado_por=? AND tratado_em>=? AND (tem_vinculo=0 OR tem_vinculo IS NULL) GROUP BY DATE(tratado_em)", array($viewUserId, $desde7)),
     'renuncias'     => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND created_at>=? GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
     'pasta_apta'    => array("SELECT DATE(created_at) d, COUNT(*) c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND created_at>=? AND details LIKE '% -> pasta_apta' GROUP BY DATE(created_at)", array($viewUserId, $desde7)),
     'onboarding'    => array("SELECT DATE(al.created_at) d, COUNT(*) c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? AND al.created_at>=? GROUP BY DATE(al.created_at)", array($viewUserId, $desde7)),
@@ -574,7 +574,7 @@ $dopaMax = max(1, max($dias7));
 $dopaRecorde = max($dias7);
 try {
     // Recorde all-time — mesma tecnica x2 do dopaSomaDesde (SUM/2 no final)
-    // pra suportar peso 0.5 (revisao GERID sem vinculo).
+    // pra suportar peso 0.5 (revisao FBI $ sem vinculo).
     $q = $pdo->prepare("SELECT SUM(c)/2 tot FROM (
         SELECT DATE(completed_at) d, COUNT(*)*2 c FROM case_tasks WHERE status='concluido' AND assigned_to=? GROUP BY DATE(completed_at)
         UNION ALL SELECT DATE(concluido_em) d, COUNT(*)*2 c FROM prazos_processuais WHERE concluido=1 AND usuario_id=? GROUP BY DATE(concluido_em)
@@ -584,9 +584,9 @@ try {
         UNION ALL SELECT DATE(created_at) d, COUNT(*)*2 c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? GROUP BY DATE(created_at)
         UNION ALL SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id)*2 c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND co.canal='21' GROUP BY DATE(m.created_at)
         UNION ALL SELECT DATE(m.created_at) d, COUNT(DISTINCT m.conversa_id)*2 c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND co.canal='24' GROUP BY DATE(m.created_at)
-        UNION ALL SELECT DATE(pesquisado_em) d, COUNT(*)*2 c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? GROUP BY DATE(pesquisado_em)
-        UNION ALL SELECT DATE(tratado_em) d, COUNT(*)*2 c FROM gerid_pesquisas WHERE tratado_por=? AND tem_vinculo=1 GROUP BY DATE(tratado_em)
-        UNION ALL SELECT DATE(tratado_em) d, COUNT(*)*1 c FROM gerid_pesquisas WHERE tratado_por=? AND (tem_vinculo=0 OR tem_vinculo IS NULL) GROUP BY DATE(tratado_em)
+        UNION ALL SELECT DATE(pesquisado_em) d, COUNT(*)*2 c FROM fbi_vinculo_pesquisas WHERE status='concluida' AND pesquisado_por=? GROUP BY DATE(pesquisado_em)
+        UNION ALL SELECT DATE(tratado_em) d, COUNT(*)*2 c FROM fbi_vinculo_pesquisas WHERE tratado_por=? AND tem_vinculo=1 GROUP BY DATE(tratado_em)
+        UNION ALL SELECT DATE(tratado_em) d, COUNT(*)*1 c FROM fbi_vinculo_pesquisas WHERE tratado_por=? AND (tem_vinculo=0 OR tem_vinculo IS NULL) GROUP BY DATE(tratado_em)
         UNION ALL SELECT DATE(created_at) d, COUNT(*)*2 c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? GROUP BY DATE(created_at)
         UNION ALL SELECT DATE(created_at) d, COUNT(*)*2 c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND details LIKE '% -> pasta_apta' GROUP BY DATE(created_at)
         UNION ALL SELECT DATE(al.created_at) d, COUNT(*)*2 c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? GROUP BY DATE(al.created_at)
@@ -608,9 +608,9 @@ while ($i7 >= 0 && $vals7[$i7] > 0) { $streak++; $i7--; }
 
 // ── Totais consolidados: semana (segunda→hoje) e mês (dia 1→hoje) ──
 // Todos os COUNT sao multiplicados por 2 e o SUM final e dividido por 2 —
-// truque pra suportar peso 0.5 (revisao GERID sem vinculo) sem precisar
-// de DECIMAL. Peso real: distribuicoes=2 → x4, gerid_rev_cv=1 → x2,
-// gerid_rev_sv=0.5 → x1, demais peso 1 → x2. SUM(c)/2 devolve o valor real.
+// truque pra suportar peso 0.5 (revisao FBI $ sem vinculo) sem precisar
+// de DECIMAL. Peso real: distribuicoes=2 → x4, fbi_vinculo_rev_cv=1 → x2,
+// fbi_vinculo_rev_sv=0.5 → x1, demais peso 1 → x2. SUM(c)/2 devolve o valor real.
 $dopaSomaDesde = function($pdo, $uid, $desde) {
     $sql = "SELECT COALESCE(SUM(c),0)/2 FROM (
         SELECT COUNT(*)*2 c FROM case_tasks WHERE status='concluido' AND assigned_to=? AND completed_at>=?
@@ -621,9 +621,9 @@ $dopaSomaDesde = function($pdo, $uid, $desde) {
         UNION ALL SELECT COUNT(*)*2 c FROM audit_log WHERE action='ANDAMENTO_CRIADO' AND entity_type='case' AND user_id=? AND created_at>=?
         UNION ALL SELECT COUNT(DISTINCT m.conversa_id)*2 c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='21'
         UNION ALL SELECT COUNT(DISTINCT m.conversa_id)*2 c FROM zapi_mensagens m JOIN zapi_conversas co ON co.id=m.conversa_id WHERE m.enviado_por_id=? AND m.created_at>=? AND co.canal='24'
-        UNION ALL SELECT COUNT(*)*2 c FROM gerid_pesquisas WHERE status='concluida' AND pesquisado_por=? AND pesquisado_em>=?
-        UNION ALL SELECT COUNT(*)*2 c FROM gerid_pesquisas WHERE tratado_por=? AND tratado_em>=? AND tem_vinculo=1
-        UNION ALL SELECT COUNT(*)*1 c FROM gerid_pesquisas WHERE tratado_por=? AND tratado_em>=? AND (tem_vinculo=0 OR tem_vinculo IS NULL)
+        UNION ALL SELECT COUNT(*)*2 c FROM fbi_vinculo_pesquisas WHERE status='concluida' AND pesquisado_por=? AND pesquisado_em>=?
+        UNION ALL SELECT COUNT(*)*2 c FROM fbi_vinculo_pesquisas WHERE tratado_por=? AND tratado_em>=? AND tem_vinculo=1
+        UNION ALL SELECT COUNT(*)*1 c FROM fbi_vinculo_pesquisas WHERE tratado_por=? AND tratado_em>=? AND (tem_vinculo=0 OR tem_vinculo IS NULL)
         UNION ALL SELECT COUNT(*)*2 c FROM audit_log WHERE action='renuncia_tarefa_baixa' AND user_id=? AND created_at>=?
         UNION ALL SELECT COUNT(*)*2 c FROM audit_log WHERE action='lead_moved' AND entity_type='lead' AND user_id=? AND created_at>=? AND details LIKE '% -> pasta_apta'
         UNION ALL SELECT COUNT(*)*2 c FROM audit_log al INNER JOIN agenda_eventos ae ON ae.id=al.entity_id WHERE al.action='AGENDA_STATUS' AND al.entity_type='agenda' AND al.details LIKE 'Status: realizado%' AND ae.tipo='onboarding' AND al.user_id=? AND al.created_at>=?
@@ -895,17 +895,17 @@ if (function_exists('can_access') && can_access('audiencistas')) {
 }
 ?>
 <?php
-// 🔎 Pesquisa GERID pendente: pesquisas com status='pendente' (Luiz acompanha).
-// Aparece pra qualquer um com acesso ao modulo gerid — Luiz ve direto, demais
+// 🔎 Pesquisa FBI $ pendente: pesquisas com status='pendente' (Luiz acompanha).
+// Aparece pra qualquer um com acesso ao modulo fbi_vinculo — Luiz ve direto, demais
 // veem o que esta na fila pra dimensionar carga.
-$_geridPend = array();
-if (function_exists('can_access') && can_access('gerid')) {
+$_fbiVinculoPend = array();
+if (function_exists('can_access') && can_access('fbi_vinculo')) {
     try {
         $_stG = db()->query(
             "SELECT g.id, g.parte_nome, g.parte_cpf, g.parente, g.observacao, g.created_at,
                     g.case_id, cs.title AS case_title,
                     cl.name AS client_name, u.name AS solicitante
-             FROM gerid_pesquisas g
+             FROM fbi_vinculo_pesquisas g
              LEFT JOIN cases cs ON cs.id = g.case_id
              LEFT JOIN clients cl ON cl.id = g.client_id
              LEFT JOIN users u ON u.id = g.created_by
@@ -913,19 +913,19 @@ if (function_exists('can_access') && can_access('gerid')) {
              ORDER BY g.created_at ASC
              LIMIT 6"
         );
-        $_geridPend = $_stG->fetchAll(PDO::FETCH_ASSOC);
+        $_fbiVinculoPend = $_stG->fetchAll(PDO::FETCH_ASSOC);
     } catch (Exception $_e) {}
 }
-$_geridTotal = 0;
-try { $_geridTotal = (int)db()->query("SELECT COUNT(*) FROM gerid_pesquisas WHERE status='pendente'")->fetchColumn(); } catch (Exception $_e) {}
+$_fbiVinculoTotal = 0;
+try { $_fbiVinculoTotal = (int)db()->query("SELECT COUNT(*) FROM fbi_vinculo_pesquisas WHERE status='pendente'")->fetchColumn(); } catch (Exception $_e) {}
 ?>
-<?php if (!empty($_geridPend)): ?>
+<?php if (!empty($_fbiVinculoPend)): ?>
 <div style="background:linear-gradient(135deg,#dbeafe,#fff);border-left:4px solid #1e40af;border-radius:10px;padding:12px 16px;margin-bottom:16px;box-shadow:0 2px 6px rgba(30,64,175,.08);">
     <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap;margin-bottom:8px;">
-        <div style="font-weight:800;color:#1e3a8a;font-size:.95rem;">🔎 Pesquisa GERID — <?= $_geridTotal ?> pendente<?= $_geridTotal > 1 ? 's' : '' ?></div>
-        <a href="<?= url('modules/gerid/') ?>" style="font-size:.74rem;font-weight:700;color:#1e3a8a;text-decoration:none;background:#fff;padding:4px 10px;border-radius:6px;border:1px solid #93c5fd;">Abrir módulo →</a>
+        <div style="font-weight:800;color:#1e3a8a;font-size:.95rem;">🔎 Pesquisa FBI $ — <?= $_fbiVinculoTotal ?> pendente<?= $_fbiVinculoTotal > 1 ? 's' : '' ?></div>
+        <a href="<?= url('modules/fbi_vinculo/') ?>" style="font-size:.74rem;font-weight:700;color:#1e3a8a;text-decoration:none;background:#fff;padding:4px 10px;border-radius:6px;border:1px solid #93c5fd;">Abrir módulo →</a>
     </div>
-    <?php foreach ($_geridPend as $_gp):
+    <?php foreach ($_fbiVinculoPend as $_gp):
         $_diasFila = (int)floor((time() - strtotime($_gp['created_at'])) / 86400);
         $_lblTempo = $_diasFila === 0 ? 'hoje' : ($_diasFila === 1 ? 'ontem' : ('há ' . $_diasFila . 'd'));
         $_corTempo = $_diasFila >= 7 ? '#b45309' : ($_diasFila >= 3 ? '#d97706' : '#475569');
@@ -936,11 +936,11 @@ try { $_geridTotal = (int)db()->query("SELECT COUNT(*) FROM gerid_pesquisas WHER
         <?php if ($_gp['parente']): ?><span style="color:#666;font-size:.72rem;background:#e0e7ff;padding:1px 6px;border-radius:4px;"><?= e($_gp['parente']) ?></span><?php endif; ?>
         <?php if ($_gp['case_title']): ?><span style="color:#666;">📂 <?= e($_gp['case_title']) ?></span><?php elseif ($_gp['client_name']): ?><span style="color:#666;">👤 <?= e($_gp['client_name']) ?></span><?php endif; ?>
         <span style="margin-left:auto;font-size:.72rem;color:<?= $_corTempo ?>;font-weight:700;">📥 <?= e($_lblTempo) ?><?= $_gp['solicitante'] ? ' · ' . e(explode(' ', $_gp['solicitante'])[0]) : '' ?></span>
-        <a href="<?= url('modules/gerid/') ?>" style="font-size:.7rem;color:#1e3a8a;text-decoration:none;font-weight:700;">pesquisar →</a>
+        <a href="<?= url('modules/fbi_vinculo/') ?>" style="font-size:.7rem;color:#1e3a8a;text-decoration:none;font-weight:700;">pesquisar →</a>
     </div>
     <?php endforeach; ?>
-    <?php if ($_geridTotal > count($_geridPend)): ?>
-    <div style="margin-top:6px;font-size:.72rem;color:#6b7280;text-align:right;">… +<?= $_geridTotal - count($_geridPend) ?> mais</div>
+    <?php if ($_fbiVinculoTotal > count($_fbiVinculoPend)): ?>
+    <div style="margin-top:6px;font-size:.72rem;color:#6b7280;text-align:right;">… +<?= $_fbiVinculoTotal - count($_fbiVinculoPend) ?> mais</div>
     <?php endif; ?>
 </div>
 <?php endif; ?>
@@ -1506,12 +1506,12 @@ function confirmarCancelamento(caseId, btn) {
             <div class="pd-dopa-stat <?= $dopa['leads21'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['leads21'] ?></span><span class="l">👋 Leads (21)</span></div>
             <div class="pd-dopa-stat <?= $dopa['clientes24'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['clientes24'] ?></span><span class="l">💬 Clientes (24)</span></div>
             <div class="pd-dopa-stat <?= $dopa['helpdesk'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['helpdesk'] ?></span><span class="l">🎫 Chamados</span></div>
-            <div class="pd-dopa-stat <?= $dopa['gerid'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['gerid'] ?></span><span class="l">🔎 GERID</span></div>
-            <div class="pd-dopa-stat <?= $dopa['gerid_rev_cv'] ? '' : 'z' ?>" title="Você revisou/tratou uma pesquisa GERID que deu POSSUI VÍNCULO — vale 1 ponto (dá trabalho depois)."><span class="n"><?= (int)$dopa['gerid_rev_cv'] ?></span><span class="l">✅ GERID rev+</span></div>
-            <div class="pd-dopa-stat pd-dopa-stat-half <?= $dopa['gerid_rev_sv'] ? '' : 'z' ?>" title="Você tratou uma pesquisa GERID SEM VÍNCULO — vale meio ponto (só o &quot;OK, vi&quot;).">
+            <div class="pd-dopa-stat <?= $dopa['fbi_vinculo'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['fbi_vinculo'] ?></span><span class="l">🔎 FBI $</span></div>
+            <div class="pd-dopa-stat <?= $dopa['fbi_vinculo_rev_cv'] ? '' : 'z' ?>" title="Você revisou/tratou uma pesquisa FBI $ que deu POSSUI VÍNCULO — vale 1 ponto (dá trabalho depois)."><span class="n"><?= (int)$dopa['fbi_vinculo_rev_cv'] ?></span><span class="l">✅ FBI $ rev+</span></div>
+            <div class="pd-dopa-stat pd-dopa-stat-half <?= $dopa['fbi_vinculo_rev_sv'] ? '' : 'z' ?>" title="Você tratou uma pesquisa FBI $ SEM VÍNCULO — vale meio ponto (só o &quot;OK, vi&quot;).">
                 <span class="pd-x2-badge" style="background:#94a3b8;">½</span>
-                <span class="n"><?= (int)$dopa['gerid_rev_sv'] ?></span>
-                <span class="l">☑️ GERID rev</span>
+                <span class="n"><?= (int)$dopa['fbi_vinculo_rev_sv'] ?></span>
+                <span class="l">☑️ FBI $ rev</span>
             </div>
             <div class="pd-dopa-stat <?= $dopa['renuncias'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['renuncias'] ?></span><span class="l">📤 Renúncias</span></div>
             <div class="pd-dopa-stat <?= $dopa['pasta_apta'] ? '' : 'z' ?>"><span class="n"><?= (int)$dopa['pasta_apta'] ?></span><span class="l">📂 Pasta Apta</span></div>
@@ -1632,7 +1632,7 @@ function pdConfete(){
 
 // Detalhe do dia ao clicar numa barra
 var PD_DIAS = <?= json_encode($dias7det, JSON_UNESCAPED_UNICODE) ?>;
-var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', movimentacoes:'🔄 Movimentações', leads21:'👋 Leads (21)', clientes24:'💬 Clientes (24)', helpdesk:'🎫 Chamados', gerid:'🔎 GERID', gerid_rev_cv:'✅ GERID rev+', gerid_rev_sv:'☑️ GERID rev ½', renuncias:'📤 Renúncias', pasta_apta:'📂 Pasta Apta', onboarding:'🎯 Onboard', balcao:'🏛️ Balcão', entregas_puxadas:'⏳ Puxadas' };
+var PD_LBL = { tarefas:'✅ Tarefas', prazos:'⚖️ Prazos', agenda:'📅 Compromissos', distribuicoes:'🏛️ Distribuições', movimentacoes:'🔄 Movimentações', leads21:'👋 Leads (21)', clientes24:'💬 Clientes (24)', helpdesk:'🎫 Chamados', fbi_vinculo:'🔎 FBI $', fbi_vinculo_rev_cv:'✅ FBI $ rev+', fbi_vinculo_rev_sv:'☑️ FBI $ rev ½', renuncias:'📤 Renúncias', pasta_apta:'📂 Pasta Apta', onboarding:'🎯 Onboard', balcao:'🏛️ Balcão', entregas_puxadas:'⏳ Puxadas' };
 function pdDopaDia(date, el){
     var ex = document.getElementById('pdDopaPop');
     if (ex){ var was = ex.dataset.date; ex.remove(); document.removeEventListener('click', pdPopClose); if (was === date) return; }

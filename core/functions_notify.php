@@ -9,7 +9,7 @@
 // ─── Envio de e-mail transacional genérico (Brevo) ──────────────
 /**
  * Amanda 03/07: helper genérico pra envios pontuais (notificação de tarefa,
- * resposta de pesquisa GERID, etc.). Usa configurações brevo_* do banco.
+ * resposta de pesquisa FBI $, etc.). Usa configurações brevo_* do banco.
  * Retorna true se enviado, false em qualquer erro (falha silenciosa —
  * não bloqueia o fluxo principal).
  *

@@ -37,8 +37,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                        'analise_aprofundada',
                        // Fase 5 — chat IA do processo (27/05/2026)
                        'chat_caso',
-                       // Fase 6 — oficio de desconto folha auto pos-GERID (09/07/2026)
-                       'gerid_oficio_desconto');
+                       // Fase 6 — oficio de desconto folha auto pos-FBI $ (09/07/2026)
+                       'fbi_vinculo_oficio_desconto');
         $stCfg = $pdo->prepare("INSERT INTO configuracoes (chave, valor) VALUES (?, ?) ON DUPLICATE KEY UPDATE valor = VALUES(valor)");
         $stCfg->execute(array('ia_orcamento_mensal_reais', (string)$orc));
         $stCfg->execute(array('ia_cambio_brl', (string)$cambio));
@@ -73,7 +73,7 @@ $featAnaP   = cfg($pdo, 'ia_feature_analise_aprofundada_enabled', '0') === '1';
 // Fase 5 — DEFAULT OFF (chat IA do processo — Haiku ~R$0,03/pergunta, Sonnet ~R$0,20 só Amanda)
 $featChatC  = cfg($pdo, 'ia_feature_chat_caso_enabled', '0') === '1';
 // Fase 6 — DEFAULT OFF (Sonnet + web_search — ~R$0,15-0,30 por oficio gerado)
-$featGeridOf = cfg($pdo, 'ia_feature_gerid_oficio_desconto_enabled', '0') === '1';
+$featFbiVinculoOf = cfg($pdo, 'ia_feature_fbi_vinculo_oficio_desconto_enabled', '0') === '1';
 
 // Lista todos os usuários ativos pra render do checkbox
 $users = $pdo->query("SELECT id, name, role FROM users WHERE is_active = 1 ORDER BY name")->fetchAll(PDO::FETCH_ASSOC);
@@ -226,9 +226,9 @@ require_once __DIR__ . '/../../templates/layout_start.php';
                     <input type="checkbox" name="feat_chat_caso" <?= $featChatC ? 'checked' : '' ?>>
                     💬 Chat IA do processo (Haiku + Sonnet só Amanda) <span style="color:#9ca3af;font-size:.72rem;">~R$0,02–0,05/pergunta</span>
                 </label>
-                <label style="display:flex;align-items:center;gap:.4rem;background:#fff;border:1px solid #fde68a;padding:.4rem .7rem;border-radius:6px;font-size:.85rem;cursor:pointer;" title="Botão manual no card GERID positivo: a IA (Sonnet + web search) identifica a empresa empregadora, busca contatos de RH/jurídico online e redige o ofício de desconto em folha pronto pra revisão. Cria tarefa 'Enviar ofício desconto folha' na pasta do caso.">
-                    <input type="checkbox" name="feat_gerid_oficio_desconto" <?= $featGeridOf ? 'checked' : '' ?>>
-                    📮 Gerar ofício de desconto em folha (botão pós-GERID) <span style="color:#9ca3af;font-size:.72rem;">Sonnet + web · ~R$0,15–0,30/ofício</span>
+                <label style="display:flex;align-items:center;gap:.4rem;background:#fff;border:1px solid #fde68a;padding:.4rem .7rem;border-radius:6px;font-size:.85rem;cursor:pointer;" title="Botão manual no card FBI $ positivo: a IA (Sonnet + web search) identifica a empresa empregadora, busca contatos de RH/jurídico online e redige o ofício de desconto em folha pronto pra revisão. Cria tarefa 'Enviar ofício desconto folha' na pasta do caso.">
+                    <input type="checkbox" name="feat_fbi_vinculo_oficio_desconto" <?= $featFbiVinculoOf ? 'checked' : '' ?>>
+                    📮 Gerar ofício de desconto em folha (botão pós-FBI $) <span style="color:#9ca3af;font-size:.72rem;">Sonnet + web · ~R$0,15–0,30/ofício</span>
                 </label>
             </div>
         </div>

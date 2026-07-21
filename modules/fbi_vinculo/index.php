@@ -1,8 +1,8 @@
 <?php
 /**
- * Pesquisa GERID — vínculo empregatício.
+ * Pesquisa FBI $ — vínculo empregatício.
  *
- * Pedido pra pesquisar no GERID/INSS Digital se uma parte (pai/mãe) possui
+ * Pedido pra pesquisar no FBI $/INSS Digital se uma parte (pai/mãe) possui
  * vínculo empregatício (útil pra direcionar pensão alimentícia ao empregador).
  * Pode ser criado daqui ou pelo botão na pasta do processo (caso_ver).
  * Ao criar: avisa o Luiz Eduardo + abre tarefa na pasta. Resultado é registrado aqui.
@@ -10,14 +10,14 @@
 
 require_once __DIR__ . '/../../core/middleware.php';
 require_login();
-require_access('gerid');
+require_access('fbi_vinculo');
 
 $pdo = db();
-$pageTitle = 'Pesquisa GERID — Vínculo';
+$pageTitle = 'Pesquisa FBI $ — Vínculo';
 
 // Self-heal
 try {
-    $pdo->exec("CREATE TABLE IF NOT EXISTS gerid_pesquisas (
+    $pdo->exec("CREATE TABLE IF NOT EXISTS fbi_vinculo_pesquisas (
         id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY, case_id INT UNSIGNED NULL, client_id INT UNSIGNED NULL,
         parte_nome VARCHAR(160) NOT NULL, parte_cpf VARCHAR(20) NULL, parente ENUM('pai','mae','outro') NULL,
         observacao TEXT NULL, status ENUM('pendente','concluida') NOT NULL DEFAULT 'pendente',
@@ -27,35 +27,35 @@ try {
         INDEX idx_status (status), INDEX idx_case (case_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 } catch (Exception $e) {}
-// Self-heal 29/06/2026: printscreen do GERID/INSS que o Luiz anexa ao concluir
+// Self-heal 29/06/2026: printscreen do FBI $/INSS que o Luiz anexa ao concluir
 // + colunas de tracking de tratamento pela Amanda (29/06 r2)
 foreach (array(
-    "ALTER TABLE gerid_pesquisas ADD COLUMN printscreen_nome VARCHAR(255) NULL",
-    "ALTER TABLE gerid_pesquisas ADD COLUMN printscreen_path VARCHAR(255) NULL",
-    "ALTER TABLE gerid_pesquisas ADD COLUMN printscreen_mime VARCHAR(80) NULL",
-    "ALTER TABLE gerid_pesquisas ADD COLUMN tratado_em DATETIME NULL",
-    "ALTER TABLE gerid_pesquisas ADD COLUMN tratado_por INT UNSIGNED NULL",
-    "ALTER TABLE gerid_pesquisas ADD COLUMN task_review_id INT UNSIGNED NULL",
+    "ALTER TABLE fbi_vinculo_pesquisas ADD COLUMN printscreen_nome VARCHAR(255) NULL",
+    "ALTER TABLE fbi_vinculo_pesquisas ADD COLUMN printscreen_path VARCHAR(255) NULL",
+    "ALTER TABLE fbi_vinculo_pesquisas ADD COLUMN printscreen_mime VARCHAR(80) NULL",
+    "ALTER TABLE fbi_vinculo_pesquisas ADD COLUMN tratado_em DATETIME NULL",
+    "ALTER TABLE fbi_vinculo_pesquisas ADD COLUMN tratado_por INT UNSIGNED NULL",
+    "ALTER TABLE fbi_vinculo_pesquisas ADD COLUMN task_review_id INT UNSIGNED NULL",
     // Amanda 13/07/2026: carimbo "COM VÍNCULO" no card do Kanban Comercial
-    "ALTER TABLE pipeline_leads ADD COLUMN gerid_positivo TINYINT(1) NOT NULL DEFAULT 0",
+    "ALTER TABLE pipeline_leads ADD COLUMN fbi_vinculo_positivo TINYINT(1) NOT NULL DEFAULT 0",
 ) as $_sqlAlter) { try { $pdo->exec($_sqlAlter); } catch (Exception $e) {} }
 
 // Download autenticado do printscreen
 if (isset($_GET['baixar'])) {
     $id = (int)$_GET['baixar'];
-    $st = $pdo->prepare("SELECT printscreen_path, printscreen_nome, printscreen_mime FROM gerid_pesquisas WHERE id=?");
+    $st = $pdo->prepare("SELECT printscreen_path, printscreen_nome, printscreen_mime FROM fbi_vinculo_pesquisas WHERE id=?");
     $st->execute(array($id));
     $row = $st->fetch();
-    $path = $row && $row['printscreen_path'] ? APP_ROOT . '/files/gerid/' . basename($row['printscreen_path']) : '';
+    $path = $row && $row['printscreen_path'] ? APP_ROOT . '/files/fbi_vinculo/' . basename($row['printscreen_path']) : '';
     if (!$path || !is_file($path)) { http_response_code(404); die('Arquivo não encontrado.'); }
     header('Content-Type: ' . ($row['printscreen_mime'] ?: 'application/octet-stream'));
-    header('Content-Disposition: inline; filename="' . preg_replace('/[^\w.\- ]/', '_', $row['printscreen_nome'] ?: 'gerid_print') . '"');
+    header('Content-Disposition: inline; filename="' . preg_replace('/[^\w.\- ]/', '_', $row['printscreen_nome'] ?: 'fbi_vinculo_print') . '"');
     header('Content-Length: ' . filesize($path));
     readfile($path); exit;
 }
 
-/** id do Luiz Eduardo (quem faz a pesquisa no GERID). */
-function gerid_luiz_id($pdo) {
+/** id do Luiz Eduardo (quem faz a pesquisa no FBI $). */
+function fbi_vinculo_luiz_id($pdo) {
     try {
         $id = $pdo->query("SELECT id FROM users WHERE is_active=1 AND name LIKE 'Luiz Eduardo%' ORDER BY id LIMIT 1")->fetchColumn();
         return $id ? (int)$id : 0;
@@ -71,7 +71,7 @@ if (($_GET['ajax'] ?? '') === 'buscar_cliente') {
     echo json_encode($st->fetchAll()); exit;
 }
 
-// Amanda 09/07/2026: AJAX — historico de pesquisas GERID pra um CPF (dedup cross-case)
+// Amanda 09/07/2026: AJAX — historico de pesquisas FBI $ pra um CPF (dedup cross-case)
 if (($_GET['ajax'] ?? '') === 'historico_cpf') {
     header('Content-Type: application/json; charset=utf-8');
     $cpfDig = preg_replace('/\D/', '', $_GET['cpf'] ?? '');
@@ -82,7 +82,7 @@ if (($_GET['ajax'] ?? '') === 'historico_cpf') {
                 g.printscreen_path, g.created_at,
                 c.title AS case_title, c.case_number,
                 cl.name AS case_client_name
-         FROM gerid_pesquisas g
+         FROM fbi_vinculo_pesquisas g
          LEFT JOIN cases c    ON c.id  = g.case_id
          LEFT JOIN clients cl ON cl.id = c.client_id
          WHERE REPLACE(REPLACE(REPLACE(REPLACE(g.parte_cpf,'.',''),'-',''),'/',''),' ','') = ?
@@ -98,20 +98,20 @@ if (($_GET['ajax'] ?? '') === 'historico_cpf') {
 // Amanda 11/07/2026: endpoint AJAX pra puxar o conteudo da task gerada
 // (contatos ou oficio) — a UI abre modal com o texto direto, sem forcar
 // Amanda a navegar ate a aba Tarefas da pasta do processo.
-if (($_GET['ajax'] ?? '') === 'ver_task_gerid') {
+if (($_GET['ajax'] ?? '') === 'ver_task_fbi_vinculo') {
     header('Content-Type: application/json; charset=utf-8');
-    $geridId = (int)($_GET['gerid_id'] ?? 0);
+    $fbiVinculoId = (int)($_GET['fbi_vinculo_id'] ?? 0);
     $modo    = ($_GET['modo'] ?? '') === 'contatos' ? 'contatos' : 'oficio';
-    if (!$geridId) { echo json_encode(array('ok'=>false,'erro'=>'gerid_id ausente')); exit; }
-    $tipoTk = ($modo === 'contatos') ? 'gerid_contatos_empresa' : 'oficio_desconto_folha';
-    $tag    = ($modo === 'contatos') ? '[gerid-contatos#' : '[gerid#';
+    if (!$fbiVinculoId) { echo json_encode(array('ok'=>false,'erro'=>'fbi_vinculo_id ausente')); exit; }
+    $tipoTk = ($modo === 'contatos') ? 'fbi_vinculo_contatos_empresa' : 'oficio_desconto_folha';
+    $tag    = ($modo === 'contatos') ? '[fbi_vinculo-contatos#' : '[fbi_vinculo#';
     $st = $pdo->prepare("
         SELECT t.id, t.title, t.descricao, t.status, t.case_id, cs.title AS case_title
         FROM case_tasks t LEFT JOIN cases cs ON cs.id = t.case_id
         WHERE t.tipo = ? AND t.title LIKE ?
         ORDER BY t.id DESC LIMIT 1
     ");
-    $st->execute(array($tipoTk, '%' . $tag . $geridId . ']%'));
+    $st->execute(array($tipoTk, '%' . $tag . $fbiVinculoId . ']%'));
     $tk = $st->fetch(PDO::FETCH_ASSOC);
     if (!$tk) { echo json_encode(array('ok'=>false,'erro'=>'Tarefa nao encontrada')); exit; }
     echo json_encode(array(
@@ -135,18 +135,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!validate_csrf()) { echo json_encode(array('ok' => false, 'erro' => 'CSRF.')); exit; }
         $id = (int)($_POST['id'] ?? 0);
         if (!$id) { echo json_encode(array('ok' => false, 'erro' => 'id.')); exit; }
-        $st = $pdo->prepare("SELECT tratado_em, task_review_id FROM gerid_pesquisas WHERE id = ?");
+        $st = $pdo->prepare("SELECT tratado_em, task_review_id FROM fbi_vinculo_pesquisas WHERE id = ?");
         $st->execute(array($id));
         $row = $st->fetch();
         if (!$row) { echo json_encode(array('ok' => false, 'erro' => 'não encontrado.')); exit; }
         if ($row['tratado_em']) {
             // Estava tratado → volta pra não-tratado
-            $pdo->prepare("UPDATE gerid_pesquisas SET tratado_em = NULL, tratado_por = NULL WHERE id = ?")
+            $pdo->prepare("UPDATE fbi_vinculo_pesquisas SET tratado_em = NULL, tratado_por = NULL WHERE id = ?")
                 ->execute(array($id));
             $tratado = false;
         } else {
             // Estava não-tratado → marca tratado
-            $pdo->prepare("UPDATE gerid_pesquisas SET tratado_em = NOW(), tratado_por = ? WHERE id = ?")
+            $pdo->prepare("UPDATE fbi_vinculo_pesquisas SET tratado_em = NOW(), tratado_por = ? WHERE id = ?")
                 ->execute(array(current_user_id(), $id));
             // Fecha a tarefa de review se existir
             if (!empty($row['task_review_id'])) {
@@ -154,12 +154,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $tratado = true;
         }
-        audit_log('gerid_toggle_tratado', 'gerid', $id, $tratado ? 'tratado' : 'destratado');
+        audit_log('fbi_vinculo_toggle_tratado', 'fbi_vinculo', $id, $tratado ? 'tratado' : 'destratado');
         echo json_encode(array('ok' => true, 'tratado' => $tratado, 'em' => $tratado ? date('d/m/Y H:i') : null));
         exit;
     }
 
-    if (!validate_csrf()) { flash_set('error', 'Sessão expirada.'); redirect(module_url('gerid')); }
+    if (!validate_csrf()) { flash_set('error', 'Sessão expirada.'); redirect(module_url('fbi_vinculo')); }
     $acao = $_POST['acao'] ?? '';
 
     // Amanda 09/07/2026: gerar ofício de desconto folha via IA (Sonnet + web search).
@@ -170,26 +170,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Amanda 10/07/2026: agora aceita 'modo' — 'oficio' (default, redige texto completo)
         // ou 'contatos' (so busca endereco + telefones + emails pra Amanda ligar antes).
         $modo = ($_POST['modo'] ?? 'oficio') === 'contatos' ? 'contatos' : 'oficio';
-        if (!$id) { flash_set('error', 'ID inválido.'); redirect(module_url('gerid')); }
-        require_once APP_ROOT . '/core/functions_gerid_oficio.php';
-        if (function_exists('gerid_oficio_auto_ativo') && !gerid_oficio_auto_ativo()) {
+        if (!$id) { flash_set('error', 'ID inválido.'); redirect(module_url('fbi_vinculo')); }
+        require_once APP_ROOT . '/core/functions_fbi_vinculo_oficio.php';
+        if (function_exists('fbi_vinculo_oficio_auto_ativo') && !fbi_vinculo_oficio_auto_ativo()) {
             flash_set('error', 'Feature "Ofício desconto folha" está DESLIGADA em /admin/ia_custo.php. Ligue antes de usar.');
-            redirect(module_url('gerid'));
+            redirect(module_url('fbi_vinculo'));
         }
-        $r = gerid_gerar_oficio_desconto($pdo, $id, $modo);
+        $r = fbi_vinculo_gerar_oficio_desconto($pdo, $id, $modo);
         if (!empty($r['ok'])) {
             $lbl = ($modo === 'contatos') ? 'Contatos da empresa' : 'Ofício desconto folha';
             $btn = ($modo === 'contatos') ? '👁️ Ver dados da empresa' : '👁️ Ver ofício gerado';
-            // Amanda 11/07: volta pro GERID e abre modal automatico com o
+            // Amanda 11/07: volta pro FBI $ e abre modal automatico com o
             // conteudo — antes redirecionava pra ficha do caso mas Amanda
             // tinha que cacar na aba Tarefas. Agora clique unico ve tudo.
             flash_set('success', '✓ ' . $lbl . ' pronto! Clique em "' . $btn . '" na linha da pesquisa pra ver o conteúdo.');
-            audit_log('gerid_gerar_oficio', 'gerid', $id, 'ok modo=' . $modo . ' task#' . (int)$r['task_id']);
-            redirect(module_url('gerid') . '?abrir_task=' . (int)$id . '&modo=' . $modo . '#pesquisa-' . (int)$id);
+            audit_log('fbi_vinculo_gerar_oficio', 'fbi_vinculo', $id, 'ok modo=' . $modo . ' task#' . (int)$r['task_id']);
+            redirect(module_url('fbi_vinculo') . '?abrir_task=' . (int)$id . '&modo=' . $modo . '#pesquisa-' . (int)$id);
         } else {
             flash_set('error', 'Falha: ' . ($r['erro'] ?? 'erro desconhecido'));
-            audit_log('gerid_gerar_oficio', 'gerid', $id, 'falha modo=' . $modo . ': ' . ($r['erro'] ?? '?'));
-            redirect(module_url('gerid'));
+            audit_log('fbi_vinculo_gerar_oficio', 'fbi_vinculo', $id, 'falha modo=' . $modo . ': ' . ($r['erro'] ?? '?'));
+            redirect(module_url('fbi_vinculo'));
         }
     }
 
@@ -197,11 +197,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // como cancelada, fecha task_review se houver, registra andamento de remoção.
     if ($acao === 'excluir') {
         $id = (int)($_POST['id'] ?? 0);
-        if (!$id) { flash_set('error', 'ID inválido.'); redirect(module_url('gerid')); }
-        $g = $pdo->prepare("SELECT * FROM gerid_pesquisas WHERE id=?");
+        if (!$id) { flash_set('error', 'ID inválido.'); redirect(module_url('fbi_vinculo')); }
+        $g = $pdo->prepare("SELECT * FROM fbi_vinculo_pesquisas WHERE id=?");
         $g->execute(array($id));
         $row = $g->fetch();
-        if (!$row) { flash_set('error', 'Pesquisa não encontrada.'); redirect(module_url('gerid')); }
+        if (!$row) { flash_set('error', 'Pesquisa não encontrada.'); redirect(module_url('fbi_vinculo')); }
 
         // Permissão: criador, Luiz Eduardo (pesquisador), admin ou gestão
         $userId = current_user_id();
@@ -209,16 +209,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $podeExcluir = in_array($role, array('admin','gestao'), true)
                     || (int)$row['created_by'] === $userId
                     || (int)$row['pesquisado_por'] === $userId;
-        if (!$podeExcluir) { flash_set('error', 'Sem permissão pra excluir esta pesquisa.'); redirect(module_url('gerid')); }
+        if (!$podeExcluir) { flash_set('error', 'Sem permissão pra excluir esta pesquisa.'); redirect(module_url('fbi_vinculo')); }
 
         // Cancela tarefas vinculadas (pesquisa + review)
         try {
             if (!empty($row['task_id'])) {
-                $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=NOW(), descricao=CONCAT(IFNULL(descricao,''), '\n\n[CANCELADA: pesquisa GERID excluída]') WHERE id=?")
+                $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=NOW(), descricao=CONCAT(IFNULL(descricao,''), '\n\n[CANCELADA: pesquisa FBI $ excluída]') WHERE id=?")
                     ->execute(array((int)$row['task_id']));
             }
             if (!empty($row['task_review_id'])) {
-                $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=NOW(), descricao=CONCAT(IFNULL(descricao,''), '\n\n[CANCELADA: pesquisa GERID excluída]') WHERE id=?")
+                $pdo->prepare("UPDATE case_tasks SET status='concluido', completed_at=NOW(), descricao=CONCAT(IFNULL(descricao,''), '\n\n[CANCELADA: pesquisa FBI $ excluída]') WHERE id=?")
                     ->execute(array((int)$row['task_review_id']));
             }
         } catch (Exception $e) {}
@@ -228,10 +228,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             try {
                 $pdo->prepare(
                     "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at)
-                     VALUES (?, ?, 'gerid', ?, ?, 0, NOW())"
+                     VALUES (?, ?, 'fbi_vinculo', ?, ?, 0, NOW())"
                 )->execute(array(
                     (int)$row['case_id'], date('Y-m-d'),
-                    '🗑️ Pesquisa GERID de ' . $row['parte_nome'] . ' excluída'
+                    '🗑️ Pesquisa FBI $ de ' . $row['parte_nome'] . ' excluída'
                     . ($row['status'] === 'concluida' ? ' (já estava concluída)' : ' (estava pendente)') . '.',
                     $userId,
                 ));
@@ -240,14 +240,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Remove printscreen do disco se houver
         if (!empty($row['printscreen_path'])) {
-            $f = APP_ROOT . '/files/gerid/' . basename($row['printscreen_path']);
+            $f = APP_ROOT . '/files/fbi_vinculo/' . basename($row['printscreen_path']);
             if (is_file($f)) @unlink($f);
         }
 
-        $pdo->prepare("DELETE FROM gerid_pesquisas WHERE id=?")->execute(array($id));
-        audit_log('gerid_excluir', 'gerid', $id, $row['parte_nome']);
-        flash_set('success', 'Pesquisa GERID excluída.');
-        redirect(module_url('gerid'));
+        $pdo->prepare("DELETE FROM fbi_vinculo_pesquisas WHERE id=?")->execute(array($id));
+        audit_log('fbi_vinculo_excluir', 'fbi_vinculo', $id, $row['parte_nome']);
+        flash_set('success', 'Pesquisa FBI $ excluída.');
+        redirect(module_url('fbi_vinculo'));
     }
 
     if ($acao === 'solicitar') {
@@ -257,9 +257,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $obs       = clean_str($_POST['observacao'] ?? '', 2000);
         $caseId    = (int)($_POST['case_id'] ?? 0) ?: null;
         $clientId  = (int)($_POST['client_id'] ?? 0) ?: null;
-        if ($parteNome === '') { flash_set('error', 'Informe o nome completo da parte a pesquisar.'); redirect(module_url('gerid')); }
+        if ($parteNome === '') { flash_set('error', 'Informe o nome completo da parte a pesquisar.'); redirect(module_url('fbi_vinculo')); }
 
-        $pdo->prepare("INSERT INTO gerid_pesquisas (case_id, client_id, parte_nome, parte_cpf, parente, observacao, created_by)
+        $pdo->prepare("INSERT INTO fbi_vinculo_pesquisas (case_id, client_id, parte_nome, parte_cpf, parente, observacao, created_by)
                        VALUES (?,?,?,?,?,?,?)")
             ->execute(array($caseId, $clientId, $parteNome, $parteCpf ?: null, $parente, $obs ?: null, current_user_id()));
         $pesqId = (int)$pdo->lastInsertId();
@@ -272,60 +272,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $corpo = 'Pesquisar vínculo de ' . $parteNome . ($parteCpf ? ' (CPF ' . $parteCpf . ')' : '') . ($parente ? ' [' . $parente . ']' : '') . ($procRef ? ' — processo ' . $procRef : '') . '.';
 
         // avisa o Luiz Eduardo (ou gestão se não achar)
-        $luiz = gerid_luiz_id($pdo);
-        $titulo = '🔎 Pesquisa GERID de vínculo';
+        $luiz = fbi_vinculo_luiz_id($pdo);
+        $titulo = '🔎 Pesquisa FBI $ de vínculo';
         if ($luiz) {
-            notify($luiz, $titulo, $corpo, 'pendencia', url('modules/gerid/'), '🔎');
-            if (function_exists('push_notify')) { try { push_notify($luiz, $titulo, $corpo, '/conecta/modules/gerid/', false); } catch (Exception $e) {} }
+            notify($luiz, $titulo, $corpo, 'pendencia', url('modules/fbi_vinculo/'), '🔎');
+            if (function_exists('push_notify')) { try { push_notify($luiz, $titulo, $corpo, '/conecta/modules/fbi_vinculo/', false); } catch (Exception $e) {} }
         } elseif (function_exists('notify_gestao')) {
-            notify_gestao($titulo, $corpo, 'pendencia', url('modules/gerid/'), '🔎');
+            notify_gestao($titulo, $corpo, 'pendencia', url('modules/fbi_vinculo/'), '🔎');
         }
 
         // tarefa na pasta do processo
         if ($caseId) {
             $pdo->prepare("INSERT INTO case_tasks (case_id, title, tipo, descricao, assigned_to, due_date, prioridade, status, sort_order, created_at)
                            VALUES (?,?,?,?,?,?,?,?,?,NOW())")
-                ->execute(array($caseId, '🔎 Pesquisar vínculo no GERID — ' . $parteNome, 'outros',
+                ->execute(array($caseId, '🔎 Pesquisar vínculo no FBI $ — ' . $parteNome, 'outros',
                                 $corpo . ' Verificar se possui vínculo empregatício e qual o empregador.',
                                 $luiz ?: null, date('Y-m-d', strtotime('+2 days')), 'alta', 'a_fazer', 0));
             $taskId = (int)$pdo->lastInsertId();
-            $pdo->prepare("UPDATE gerid_pesquisas SET task_id=? WHERE id=?")->execute(array($taskId, $pesqId));
+            $pdo->prepare("UPDATE fbi_vinculo_pesquisas SET task_id=? WHERE id=?")->execute(array($taskId, $pesqId));
 
             // 29/06/2026 Amanda: andamento INTERNO (visivel_cliente=0) registrando o
             // pedido, pra equipe ver na linha do tempo do processo e nao solicitar de
             // novo sem querer (caso Wallace Renan: 2 pedidos iguais no mesmo dia).
             try {
-                $descAnd = '🔎 Solicitada pesquisa GERID de vínculo empregatício de ' . $parteNome
+                $descAnd = '🔎 Solicitada pesquisa FBI $ de vínculo empregatício de ' . $parteNome
                          . ($parteCpf ? ' (CPF ' . $parteCpf . ')' : '')
                          . ($parente ? ' [' . $parente . ']' : '')
                          . '. Luiz Eduardo notificado'
                          . ($obs ? '. Obs: ' . $obs : '') . '.';
                 $pdo->prepare(
                     "INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at)
-                     VALUES (?, ?, 'gerid', ?, ?, 0, NOW())"
+                     VALUES (?, ?, 'fbi_vinculo', ?, ?, 0, NOW())"
                 )->execute(array($caseId, date('Y-m-d'), $descAnd, current_user_id()));
             } catch (Exception $e) {}
         }
-        audit_log('gerid_solicitar', 'gerid', $pesqId, $parteNome);
+        audit_log('fbi_vinculo_solicitar', 'fbi_vinculo', $pesqId, $parteNome);
 
-        flash_set('success', 'Pedido de pesquisa GERID registrado. O Luiz Eduardo foi avisado' . ($caseId ? ' e uma tarefa foi aberta na pasta.' : '.'));
+        flash_set('success', 'Pedido de pesquisa FBI $ registrado. O Luiz Eduardo foi avisado' . ($caseId ? ' e uma tarefa foi aberta na pasta.' : '.'));
         $vc = (int)($_POST['voltar_caso'] ?? 0);
-        redirect($vc ? module_url('operacional', 'caso_ver.php?id=' . $vc) : module_url('gerid'));
+        redirect($vc ? module_url('operacional', 'caso_ver.php?id=' . $vc) : module_url('fbi_vinculo'));
     }
 
     if ($acao === 'resultado') {
         $id  = (int)($_POST['id'] ?? 0);
         $tem = !empty($_POST['tem_vinculo']) ? 1 : 0;
         $res = clean_str($_POST['resultado'] ?? '', 2000);
-        $g = $pdo->prepare("SELECT * FROM gerid_pesquisas WHERE id=?"); $g->execute(array($id)); $row = $g->fetch();
+        $g = $pdo->prepare("SELECT * FROM fbi_vinculo_pesquisas WHERE id=?"); $g->execute(array($id)); $row = $g->fetch();
         if ($row) {
             // Amanda 09/07/2026: guarda o estado ANTES do UPDATE pra decidir se dispara
             // emails/notificacoes. Ela reclamou 4 emails identicos pra mesma pesquisa —
             // cada clique em Registrar re-disparava o envio pra equipe. Fix: so envia
             // no TRANSIÇÃO real (pendente → tem_vinculo), nao em re-saves.
-            $_geridEraPendente = ($row['status'] === 'pendente');
-            $_geridTinhaVinculo = (int)($row['tem_vinculo'] ?? 0);
-            // Upload printscreen INSS/GERID (opcional, PNG/JPG/PDF até 10MB)
+            $_fbiVinculoEraPendente = ($row['status'] === 'pendente');
+            $_fbiVinculoTinhaVinculo = (int)($row['tem_vinculo'] ?? 0);
+            // Upload printscreen INSS/FBI $ (opcional, PNG/JPG/PDF até 10MB)
             $psNome = null; $psPath = null; $psMime = null;
             if (!empty($_FILES['printscreen']) && (int)$_FILES['printscreen']['error'] === UPLOAD_ERR_OK) {
                 $tmpUp = $_FILES['printscreen']['tmp_name'];
@@ -334,10 +334,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $size  = (int)$_FILES['printscreen']['size'];
                 $allowed = array('image/png','image/jpeg','image/jpg','application/pdf');
                 if ($size <= 10 * 1024 * 1024 && in_array($mime, $allowed, true)) {
-                    $dirUp = APP_ROOT . '/files/gerid';
+                    $dirUp = APP_ROOT . '/files/fbi_vinculo';
                     if (!is_dir($dirUp)) @mkdir($dirUp, 0755, true);
                     $safe = preg_replace('/[^A-Za-z0-9._-]/', '_', $orig);
-                    $stored = 'gerid_' . uniqid('', true) . '_' . $safe;
+                    $stored = 'fbi_vinculo_' . uniqid('', true) . '_' . $safe;
                     if (move_uploaded_file($tmpUp, $dirUp . '/' . $stored)) {
                         @chmod($dirUp . '/' . $stored, 0644);
                         $psNome = $orig; $psPath = $stored; $psMime = $mime;
@@ -353,7 +353,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // != status final desejado (ou tem_vinculo != novo). Se rowCount=0,
             // significa que o 1o request ja processou. O 2o vira noop nos envios.
             $stUp = $pdo->prepare(
-                "UPDATE gerid_pesquisas
+                "UPDATE fbi_vinculo_pesquisas
                  SET status='concluida', tem_vinculo=?, resultado=?,
                      pesquisado_por=?, pesquisado_em=NOW(),
                      printscreen_nome=COALESCE(?, printscreen_nome),
@@ -363,12 +363,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                    AND (status != 'concluida' OR tem_vinculo != ? OR tem_vinculo IS NULL)"
             );
             $stUp->execute(array($tem, $res ?: null, current_user_id(), $psNome, $psPath, $psMime, $id, $tem));
-            $_geridMudou = $stUp->rowCount() > 0;
+            $_fbiVinculoMudou = $stUp->rowCount() > 0;
             // Se rowCount == 0, foi request duplicado (double-click) OU re-save
             // sem alterar valor. Nao envia emails/notif/tarefa denovo.
-            if (!$_geridMudou) {
-                $_geridEraPendente = false; // desliga guards que dependem disso
-                $_geridTinhaVinculo = (int)$tem; // finge que ja era o mesmo → nao dispara
+            if (!$_fbiVinculoMudou) {
+                $_fbiVinculoEraPendente = false; // desliga guards que dependem disso
+                $_fbiVinculoTinhaVinculo = (int)$tem; // finge que ja era o mesmo → nao dispara
             }
             // fecha a tarefa
             if (!empty($row['task_id'])) {
@@ -378,14 +378,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!empty($row['case_id'])) {
                 try {
                     $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at) VALUES (?,?,?,?,?,0,NOW())")
-                        ->execute(array($row['case_id'], date('Y-m-d'), 'gerid',
-                            'Pesquisa GERID (' . $row['parte_nome'] . '): ' . ($tem ? 'POSSUI vínculo empregatício' : 'sem vínculo localizado') . ($res ? ' — ' . $res : '')));
+                        ->execute(array($row['case_id'], date('Y-m-d'), 'fbi_vinculo',
+                            'Pesquisa FBI $ (' . $row['parte_nome'] . '): ' . ($tem ? 'POSSUI vínculo empregatício' : 'sem vínculo localizado') . ($res ? ' — ' . $res : '')));
                 } catch (Exception $e) {}
             }
             // avisa quem pediu (notify + email + cria TAREFA na pasta pra revisar resultado)
             // GUARD: so na TRANSIÇÃO pendente→concluida ou mudou tem_vinculo (nao re-save)
-            $_geridTrocouResultado = ($_geridEraPendente || $_geridTinhaVinculo !== (int)$tem);
-            if (!empty($row['created_by']) && (int)$row['created_by'] !== current_user_id() && $_geridTrocouResultado) {
+            $_fbiVinculoTrocouResultado = ($_fbiVinculoEraPendente || $_fbiVinculoTinhaVinculo !== (int)$tem);
+            if (!empty($row['created_by']) && (int)$row['created_by'] !== current_user_id() && $_fbiVinculoTrocouResultado) {
                 $solicitante = (int)$row['created_by'];
                 $detalheRes = ($tem ? 'POSSUI vínculo' : 'sem vínculo') . ($res ? ' — ' . $res : '');
 
@@ -400,15 +400,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $chipTxt = $tem ? 'POSSUI VÍNCULO' : 'SEM VÍNCULO';
                         $linkPasta = !empty($row['case_id'])
                             ? 'https://ferreiraesa.com.br/conecta/modules/operacional/caso_ver.php?id=' . (int)$row['case_id']
-                            : 'https://ferreiraesa.com.br/conecta/modules/gerid/';
+                            : 'https://ferreiraesa.com.br/conecta/modules/fbi_vinculo/';
                         $body = '<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f7;padding:20px;">'
                               . '<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">'
                               . '<div style="background:linear-gradient(135deg,#0f2140,#1a3358);padding:22px;text-align:center;">'
-                              . '<h1 style="color:#c9a94e;font-size:19px;margin:0;font-family:Georgia,serif;">🔎 Resultado da pesquisa GERID</h1>'
+                              . '<h1 style="color:#c9a94e;font-size:19px;margin:0;font-family:Georgia,serif;">🔎 Resultado da pesquisa FBI $</h1>'
                               . '<p style="color:#94a3b8;font-size:11px;margin:4px 0 0;">Ferreira &amp; Sá Advocacia</p></div>'
                               . '<div style="padding:24px;color:#374151;line-height:1.6;">'
                               . '<p style="margin:0 0 14px;font-size:15px;">Olá, <strong>' . htmlspecialchars(explode(' ', (string)$sol['name'])[0], ENT_QUOTES, 'UTF-8') . '</strong>!</p>'
-                              . '<p style="margin:0 0 18px;font-size:14px;"><strong>' . htmlspecialchars($meuNome, ENT_QUOTES, 'UTF-8') . '</strong> concluiu a pesquisa de vínculo empregatício (GERID) que você solicitou.</p>'
+                              . '<p style="margin:0 0 18px;font-size:14px;"><strong>' . htmlspecialchars($meuNome, ENT_QUOTES, 'UTF-8') . '</strong> concluiu a pesquisa de vínculo empregatício (FBI $) que você solicitou.</p>'
                               . '<div style="background:#f9fafb;border-left:4px solid ' . $chipCor . ';border-radius:6px;padding:14px 16px;margin:16px 0;">'
                               . '<p style="margin:0 0 6px;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Parte pesquisada</p>'
                               . '<p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#0f2140;">' . htmlspecialchars((string)$row['parte_nome'], ENT_QUOTES, 'UTF-8')
@@ -418,27 +418,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                               . ($res ? '<p style="margin:8px 0 0;font-size:13.5px;color:#374151;">' . nl2br(htmlspecialchars((string)$res, ENT_QUOTES, 'UTF-8')) . '</p>' : '')
                               . '</div>'
                               . '<div style="text-align:center;margin:24px 0 8px;">'
-                              . '<a href="' . htmlspecialchars($linkPasta, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:linear-gradient(135deg,#0e7490,#0891b2);color:#fff;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">' . (!empty($row['case_id']) ? 'Abrir pasta do processo →' : 'Ver todas as pesquisas GERID →') . '</a></div>'
+                              . '<a href="' . htmlspecialchars($linkPasta, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:linear-gradient(135deg,#0e7490,#0891b2);color:#fff;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">' . (!empty($row['case_id']) ? 'Abrir pasta do processo →' : 'Ver todas as pesquisas FBI $ →') . '</a></div>'
                               . '<p style="margin:20px 0 0;font-size:12px;color:#94a3b8;">Uma tarefa de revisão foi criada na pasta do processo pra você decidir os próximos passos (ofício ao empregador, penhora de salário, etc.).</p>'
                               . '</div>'
                               . '<div style="background:#f9fafb;padding:12px 20px;font-size:11px;color:#9ca3af;text-align:center;">Ferreira &amp; Sá Advocacia — Sistema Conecta</div>'
                               . '</div></body></html>';
-                        send_brevo_email_simple($sol['email'], $sol['name'], '🔎 GERID: ' . $row['parte_nome'] . ' — ' . $chipTxt, $body);
+                        send_brevo_email_simple($sol['email'], $sol['name'], '🔎 FBI $: ' . $row['parte_nome'] . ' — ' . $chipTxt, $body);
                     }
                 } catch (Exception $emailErr) { /* envio silencioso — não bloqueia fluxo */ }
 
-                notify($solicitante, '🔎 Resultado da pesquisa GERID',
+                notify($solicitante, '🔎 Resultado da pesquisa FBI $',
                     $row['parte_nome'] . ': ' . $detalheRes,
-                    'info', url('modules/gerid/'), '🔎');
+                    'info', url('modules/fbi_vinculo/'), '🔎');
 
                 // 29/06/2026 Amanda: criar tarefa de REVIEW na pasta pra Amanda
                 // tomar providência (decidir próximo passo: pedir penhora de salário,
                 // mandar oficio ao empregador, etc.). Só cria quando há case vinculado.
                 if (!empty($row['case_id'])) {
                     try {
-                        $tituloRev = '👀 Revisar resultado GERID — ' . $row['parte_nome']
+                        $tituloRev = '👀 Revisar resultado FBI $ — ' . $row['parte_nome']
                                    . ($tem ? ' (POSSUI vínculo)' : ' (sem vínculo)');
-                        $descRev = 'Luiz Eduardo concluiu a pesquisa GERID de ' . $row['parte_nome']
+                        $descRev = 'Luiz Eduardo concluiu a pesquisa FBI $ de ' . $row['parte_nome']
                                  . ($row['parte_cpf'] ? ' (CPF ' . $row['parte_cpf'] . ')' : '')
                                  . '. Resultado: ' . $detalheRes
                                  . '. Decidir próximo passo (ofício ao empregador, penhora salário, arquivar etc.).';
@@ -448,7 +448,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             $solicitante, date('Y-m-d', strtotime('+3 days')),
                                             $tem ? 'alta' : 'media', 'a_fazer', 0));
                         $taskRevId = (int)$pdo->lastInsertId();
-                        $pdo->prepare("UPDATE gerid_pesquisas SET task_review_id = ? WHERE id = ?")
+                        $pdo->prepare("UPDATE fbi_vinculo_pesquisas SET task_review_id = ? WHERE id = ?")
                             ->execute(array($taskRevId, $id));
                     } catch (Exception $e) {}
                 }
@@ -460,21 +460,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // empregador, penhora de salario, execução).
             // GUARD: só dispara na TRANSIÇÃO pendente→com_vinculo (bug 09/07:
             // Amanda recebeu 4 emails iguais por re-cliques em 'Registrar').
-            if ((int)$tem === 1 && ($_geridEraPendente || $_geridTinhaVinculo === 0)) {
+            if ((int)$tem === 1 && ($_fbiVinculoEraPendente || $_fbiVinculoTinhaVinculo === 0)) {
                 try {
                     // Amanda 09/07/2026: lista de user_ids que NAO recebem o email
-                    // geral de GERID positivo. Pra adicionar/remover, editar aqui.
-                    $_geridOptOutIds = array(
+                    // geral de FBI $ positivo. Pra adicionar/remover, editar aqui.
+                    $_fbiVinculoOptOutIds = array(
                         3,  // Rodrigo de Almeida Gustavo (r.almeidagustavo@gmail.com)
                         10, // Amanda Teste (amandaferreira@ferreiraesa.com.br) — duplicata
                         14, // Admin Hub (admin.hub@ferreiraesa.com.br) — usuario tecnico
                     );
-                    $_optOutPh = implode(',', array_fill(0, count($_geridOptOutIds), '?'));
+                    $_optOutPh = implode(',', array_fill(0, count($_fbiVinculoOptOutIds), '?'));
                     $stEq = db()->prepare("SELECT id, name, email FROM users
                                             WHERE is_active = 1
                                               AND email IS NOT NULL AND email <> ''
                                               AND id NOT IN ($_optOutPh)");
-                    $stEq->execute($_geridOptOutIds);
+                    $stEq->execute($_fbiVinculoOptOutIds);
                     $equipe = $stEq->fetchAll(PDO::FETCH_ASSOC);
                     $pesqNome = function_exists('user_display_name') ? user_display_name() : 'A equipe';
                     $solicNome = '';
@@ -484,13 +484,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $solicNome = (string)$stSN->fetchColumn();
                     }
                     $linkPastaEq = !empty($row['case_id'])
-                        ? 'https://ferreiraesa.com.br/conecta/modules/operacional/caso_ver.php?id=' . (int)$row['case_id'] . '#gerid'
-                        : 'https://ferreiraesa.com.br/conecta/modules/gerid/';
+                        ? 'https://ferreiraesa.com.br/conecta/modules/operacional/caso_ver.php?id=' . (int)$row['case_id'] . '#fbi_vinculo'
+                        : 'https://ferreiraesa.com.br/conecta/modules/fbi_vinculo/';
                     $bodyEq = '<!DOCTYPE html><html><body style="font-family:Arial,sans-serif;background:#f4f4f7;padding:20px;">'
                             . '<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.08);">'
                             . '<div style="background:linear-gradient(135deg,#065f46,#059669);padding:22px;text-align:center;">'
                             . '<h1 style="color:#fff;font-size:20px;margin:0;font-family:Georgia,serif;">✅ Vínculo empregatício encontrado!</h1>'
-                            . '<p style="color:#d1fae5;font-size:12px;margin:4px 0 0;">Pesquisa GERID · Ferreira &amp; Sá Advocacia</p></div>'
+                            . '<p style="color:#d1fae5;font-size:12px;margin:4px 0 0;">Pesquisa FBI $ · Ferreira &amp; Sá Advocacia</p></div>'
                             . '<div style="padding:24px;color:#374151;line-height:1.6;">'
                             . '<p style="margin:0 0 14px;font-size:15px;">O escritório tem um resultado positivo pra comemorar 🎉</p>'
                             . '<div style="background:#ecfdf5;border-left:4px solid #059669;border-radius:6px;padding:14px 16px;margin:16px 0;">'
@@ -507,22 +507,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             . '<tr><td style="padding:4px 0;color:#94a3b8;">Concluído em</td><td style="padding:4px 0;font-weight:600;color:#0f172a;">' . date('d/m/Y H:i') . '</td></tr>'
                             . '</table>'
                             . '<div style="text-align:center;margin:24px 0 8px;">'
-                            . '<a href="' . htmlspecialchars($linkPastaEq, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:linear-gradient(135deg,#065f46,#059669);color:#fff;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">' . (!empty($row['case_id']) ? 'Abrir pasta do processo →' : 'Ver todas as pesquisas GERID →') . '</a></div>'
+                            . '<a href="' . htmlspecialchars($linkPastaEq, ENT_QUOTES, 'UTF-8') . '" style="display:inline-block;background:linear-gradient(135deg,#065f46,#059669);color:#fff;padding:12px 26px;border-radius:8px;text-decoration:none;font-weight:700;font-size:14px;">' . (!empty($row['case_id']) ? 'Abrir pasta do processo →' : 'Ver todas as pesquisas FBI $ →') . '</a></div>'
                             . '<p style="margin:20px 0 0;font-size:12px;color:#94a3b8;">Comunicado enviado a toda equipe pra alinhar próximos passos: ofício ao empregador, penhora de salário, execução, etc.</p>'
                             . '</div>'
                             . '<div style="background:#f9fafb;padding:12px 20px;font-size:11px;color:#9ca3af;text-align:center;">Ferreira &amp; Sá Advocacia — Sistema Conecta</div>'
                             . '</div></body></html>';
-                    $assunto = '✅ GERID POSITIVO: ' . $row['parte_nome'] . ' possui vínculo empregatício';
+                    $assunto = '✅ FBI $ POSITIVO: ' . $row['parte_nome'] . ' possui vínculo empregatício';
                     $enviados = 0;
                     foreach ($equipe as $u) {
                         try {
                             if (send_brevo_email_simple($u['email'], $u['name'], $assunto, $bodyEq)) $enviados++;
                         } catch (Throwable $e) { /* envio silencioso por destinatario */ }
                     }
-                    audit_log('gerid_email_equipe', 'gerid', (int)$id, $enviados . '/' . count($equipe) . ' emails de vinculo positivo enviados');
+                    audit_log('fbi_vinculo_email_equipe', 'fbi_vinculo', (int)$id, $enviados . '/' . count($equipe) . ' emails de vinculo positivo enviados');
                 } catch (Throwable $e) { /* nao bloqueia fluxo */ }
 
-                // Amanda 13/07/2026: marca lead comercial com gerid_positivo=1 (carimbo
+                // Amanda 13/07/2026: marca lead comercial com fbi_vinculo_positivo=1 (carimbo
                 // "COM VÍNCULO" no card do Kanban) + cria TAREFA URGENTE pro comercial
                 // responsavel, pra chamar atencao imediata.
                 try {
@@ -538,9 +538,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ));
                     $leadRow = $stLead->fetch(PDO::FETCH_ASSOC);
                     if ($leadRow) {
-                        $pdo->prepare("UPDATE pipeline_leads SET gerid_positivo = 1 WHERE id = ?")
+                        $pdo->prepare("UPDATE pipeline_leads SET fbi_vinculo_positivo = 1 WHERE id = ?")
                             ->execute(array((int)$leadRow['id']));
-                        audit_log('pipeline_gerid_carimbo', 'pipeline_leads', (int)$leadRow['id'], 'gerid#' . (int)$id);
+                        audit_log('pipeline_fbi_vinculo_carimbo', 'pipeline_leads', (int)$leadRow['id'], 'fbi_vinculo#' . (int)$id);
                     }
 
                     // Tarefa URGENTE no case pra chamar atencao do comercial
@@ -549,22 +549,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($leadRow && !empty($leadRow['assigned_to'])) $assignTo = (int)$leadRow['assigned_to'];
                         if (!$assignTo && !empty($row['created_by'])) $assignTo = (int)$row['created_by'];
                         if ($assignTo) {
-                            $tituloUrg = '🎯 URGENTE — GERID POSITIVO: ' . $row['parte_nome'];
-                            $descUrg = '⚠️ Pesquisa GERID retornou vínculo empregatício POSITIVO para '
+                            $tituloUrg = '🎯 URGENTE — FBI $ POSITIVO: ' . $row['parte_nome'];
+                            $descUrg = '⚠️ Pesquisa FBI $ retornou vínculo empregatício POSITIVO para '
                                      . $row['parte_nome']
                                      . ($row['parte_cpf'] ? ' (CPF ' . $row['parte_cpf'] . ')' : '')
-                                     . '.' . "\n\nRESULTADO: " . ($res ?: 'POSSUI vínculo (ver ficha do GERID pra detalhes).')
+                                     . '.' . "\n\nRESULTADO: " . ($res ?: 'POSSUI vínculo (ver ficha do FBI $ pra detalhes).')
                                      . "\n\nCOMERCIAL: acionar o cliente HOJE sobre próximos passos "
                                      . '(ofício ao empregador, penhora salário, execução).';
                             $pdo->prepare("INSERT INTO case_tasks (case_id, title, tipo, descricao, assigned_to, due_date, prioridade, status, sort_order, created_at)
                                            VALUES (?,?,?,?,?,CURDATE(),'urgente','a_fazer',0,NOW())")
                                 ->execute(array((int)$row['case_id'], $tituloUrg, 'outros', $descUrg, $assignTo));
                             $taskUrgId = (int)$pdo->lastInsertId();
-                            audit_log('gerid_task_urgente', 'case_tasks', $taskUrgId, 'gerid#' . (int)$id . ' -> user#' . $assignTo);
+                            audit_log('fbi_vinculo_task_urgente', 'case_tasks', $taskUrgId, 'fbi_vinculo#' . (int)$id . ' -> user#' . $assignTo);
                             // Notifica o comercial responsavel na hora
                             if (function_exists('notify')) {
                                 @notify($assignTo, $tituloUrg,
-                                    'GERID positivo pra ' . $row['parte_nome'] . ' — tarefa urgente aberta na pasta.',
+                                    'FBI $ positivo pra ' . $row['parte_nome'] . ' — tarefa urgente aberta na pasta.',
                                     'urgente',
                                     url('modules/operacional/caso_ver.php?id=' . (int)$row['case_id']),
                                     '🎯');
@@ -577,13 +577,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // positivos que nao viram acao. Ver acao='gerar_oficio' abaixo.
             }
 
-            audit_log('gerid_resultado', 'gerid', $id, $tem ? 'com vinculo' : 'sem vinculo');
+            audit_log('fbi_vinculo_resultado', 'fbi_vinculo', $id, $tem ? 'com vinculo' : 'sem vinculo');
             flash_set('success', 'Resultado registrado.');
         }
-        redirect(module_url('gerid'));
+        redirect(module_url('fbi_vinculo'));
     }
 
-    redirect(module_url('gerid'));
+    redirect(module_url('fbi_vinculo'));
 }
 
 // Amanda 09/07/2026: busca livre por nome (parte OU nosso cliente) OU num processo
@@ -612,7 +612,7 @@ $_stP = $pdo->prepare(
     "SELECT g.*, cl.name AS client_name, cc.name AS case_client_name,
             c.case_number, c.title AS case_title,
             u.name AS reg_por, u.email AS reg_email
-     FROM gerid_pesquisas g
+     FROM fbi_vinculo_pesquisas g
      LEFT JOIN clients cl ON cl.id=g.client_id
      LEFT JOIN cases c ON c.id=g.case_id
      LEFT JOIN clients cc ON cc.id=c.client_id
@@ -627,7 +627,7 @@ $_stC = $pdo->prepare(
     "SELECT g.*, cl.name AS client_name, cc.name AS case_client_name,
             c.case_number, c.title AS case_title,
             u.name AS reg_por, u.email AS reg_email, p.name AS pesq_por
-     FROM gerid_pesquisas g
+     FROM fbi_vinculo_pesquisas g
      LEFT JOIN clients cl ON cl.id=g.client_id
      LEFT JOIN cases c ON c.id=g.case_id
      LEFT JOIN clients cc ON cc.id=c.client_id
@@ -641,32 +641,32 @@ $concluidas = $_stC->fetchAll();
 
 // Amanda 14/07/2026: Estatísticas com/sem vínculo por período (ano/mês/semana).
 // Só considera pesquisas concluídas (tem_vinculo IS NOT NULL).
-$_geridStatsAno = array();
-$_geridStatsMes = array();
-$_geridStatsSem = array();
+$_fbiVinculoStatsAno = array();
+$_fbiVinculoStatsMes = array();
+$_fbiVinculoStatsSem = array();
 try {
     // Por ANO
     $q = $pdo->query("SELECT YEAR(pesquisado_em) AS periodo,
                              COUNT(*) AS total,
                              SUM(CASE WHEN tem_vinculo = 1 THEN 1 ELSE 0 END) AS com,
                              SUM(CASE WHEN tem_vinculo = 0 THEN 1 ELSE 0 END) AS sem
-                      FROM gerid_pesquisas
+                      FROM fbi_vinculo_pesquisas
                       WHERE status = 'concluida' AND pesquisado_em IS NOT NULL
                       GROUP BY YEAR(pesquisado_em)
                       ORDER BY periodo DESC");
-    $_geridStatsAno = $q->fetchAll(PDO::FETCH_ASSOC);
+    $_fbiVinculoStatsAno = $q->fetchAll(PDO::FETCH_ASSOC);
 
     // Por MÊS (últimos 12)
     $q = $pdo->query("SELECT DATE_FORMAT(pesquisado_em, '%Y-%m') AS periodo,
                              COUNT(*) AS total,
                              SUM(CASE WHEN tem_vinculo = 1 THEN 1 ELSE 0 END) AS com,
                              SUM(CASE WHEN tem_vinculo = 0 THEN 1 ELSE 0 END) AS sem
-                      FROM gerid_pesquisas
+                      FROM fbi_vinculo_pesquisas
                       WHERE status = 'concluida' AND pesquisado_em IS NOT NULL
                         AND pesquisado_em >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
                       GROUP BY DATE_FORMAT(pesquisado_em, '%Y-%m')
                       ORDER BY periodo DESC");
-    $_geridStatsMes = $q->fetchAll(PDO::FETCH_ASSOC);
+    $_fbiVinculoStatsMes = $q->fetchAll(PDO::FETCH_ASSOC);
 
     // Por SEMANA (últimas 12) — usa YEARWEEK modo 3 (ISO: começa segunda)
     $q = $pdo->query("SELECT YEARWEEK(pesquisado_em, 3) AS yw,
@@ -674,12 +674,12 @@ try {
                              COUNT(*) AS total,
                              SUM(CASE WHEN tem_vinculo = 1 THEN 1 ELSE 0 END) AS com,
                              SUM(CASE WHEN tem_vinculo = 0 THEN 1 ELSE 0 END) AS sem
-                      FROM gerid_pesquisas
+                      FROM fbi_vinculo_pesquisas
                       WHERE status = 'concluida' AND pesquisado_em IS NOT NULL
                         AND pesquisado_em >= DATE_SUB(NOW(), INTERVAL 12 WEEK)
                       GROUP BY YEARWEEK(pesquisado_em, 3)
                       ORDER BY yw DESC");
-    $_geridStatsSem = $q->fetchAll(PDO::FETCH_ASSOC);
+    $_fbiVinculoStatsSem = $q->fetchAll(PDO::FETCH_ASSOC);
 } catch (Exception $e) {}
 
 $_mesesBR = array('01'=>'Jan','02'=>'Fev','03'=>'Mar','04'=>'Abr','05'=>'Mai','06'=>'Jun','07'=>'Jul','08'=>'Ago','09'=>'Set','10'=>'Out','11'=>'Nov','12'=>'Dez');
@@ -705,8 +705,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
 </style>
 
 <div class="page-header" style="margin-bottom:.6rem;">
-  <h1 style="margin:0;">🔎 Pesquisa GERID — Vínculo Empregatício</h1>
-  <p style="color:#777;margin:4px 0 0;">Peça pra descobrir, via GERID/INSS Digital, se a parte (pai/mãe) tem vínculo de emprego. O Luiz Eduardo é avisado e a pesquisa é registrada aqui.</p>
+  <h1 style="margin:0;">🔎 Pesquisa FBI $ — Vínculo Empregatício</h1>
+  <p style="color:#777;margin:4px 0 0;">Peça pra descobrir, via FBI $/INSS Digital, se a parte (pai/mãe) tem vínculo de emprego. O Luiz Eduardo é avisado e a pesquisa é registrada aqui.</p>
 </div>
 
 <!-- Amanda 14/07/2026: Estatísticas com/sem vínculo por período -->
@@ -782,9 +782,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
     };
     ?>
 
-    <div class="gd-stats-view on" id="gdStatsMes"><?php $_gdRender($_geridStatsMes, 'Mês', 'últimos 12 meses'); ?></div>
-    <div class="gd-stats-view"     id="gdStatsSem"><?php $_gdRender($_geridStatsSem, 'Semana', 'últimas 12 semanas'); ?></div>
-    <div class="gd-stats-view"     id="gdStatsAno"><?php $_gdRender($_geridStatsAno, 'Ano', 'histórico'); ?></div>
+    <div class="gd-stats-view on" id="gdStatsMes"><?php $_gdRender($_fbiVinculoStatsMes, 'Mês', 'últimos 12 meses'); ?></div>
+    <div class="gd-stats-view"     id="gdStatsSem"><?php $_gdRender($_fbiVinculoStatsSem, 'Semana', 'últimas 12 semanas'); ?></div>
+    <div class="gd-stats-view"     id="gdStatsAno"><?php $_gdRender($_fbiVinculoStatsAno, 'Ano', 'histórico'); ?></div>
 
     <div style="font-size:.7rem;color:#94a3b8;margin-top:8px;font-style:italic;">
         Considera apenas pesquisas com status = concluída (com resultado registrado). Pendentes não entram na conta.
@@ -800,24 +800,24 @@ function gdStatsView(v) {
         if (el) el.classList.toggle('on', k === v);
         if (btn) btn.classList.toggle('on', k === v);
     });
-    try { localStorage.setItem('gerid_stats_view', v); } catch(e) {}
+    try { localStorage.setItem('fbi_vinculo_stats_view', v); } catch(e) {}
 }
-(function(){ try { var v = localStorage.getItem('gerid_stats_view'); if (v && v !== 'mes') gdStatsView(v); } catch(e) {} })();
+(function(){ try { var v = localStorage.getItem('fbi_vinculo_stats_view'); if (v && v !== 'mes') gdStatsView(v); } catch(e) {} })();
 </script>
 
 <!-- Amanda 09/07/2026: busca por parte, nosso cliente, CPF ou numero de processo -->
-<form method="get" action="<?= module_url('gerid') ?>" style="margin:.5rem 0 1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;max-width:760px;">
+<form method="get" action="<?= module_url('fbi_vinculo') ?>" style="margin:.5rem 0 1rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;max-width:760px;">
   <input type="text" name="q" value="<?= e($_qBusca) ?>" placeholder="🔍 Buscar por parte, nosso cliente, CPF ou nº do processo…" style="flex:1;min-width:280px;border:1px solid #ddd;border-radius:8px;padding:9px 12px;font-size:.92rem;">
   <button type="submit" class="gd-btn" style="padding:9px 18px;">Buscar</button>
   <?php if ($_qBusca !== ''): ?>
-    <a href="<?= module_url('gerid') ?>" style="font-size:.82rem;color:#b91c1c;text-decoration:none;font-weight:600;">✕ limpar</a>
+    <a href="<?= module_url('fbi_vinculo') ?>" style="font-size:.82rem;color:#b91c1c;text-decoration:none;font-weight:600;">✕ limpar</a>
     <span style="font-size:.78rem;color:#666;background:#fef3c7;padding:4px 10px;border-radius:999px;border:1px solid #fbbf24;">Filtrando por: <strong><?= e($_qBusca) ?></strong> — <?= count($pendentes) + count($concluidas) ?> resultado(s)</span>
   <?php endif; ?>
 </form>
 
 <details class="gd-card" style="max-width:760px;">
   <summary style="font-weight:700;color:#0e7490;cursor:pointer;">➕ Nova pesquisa (avulsa)</summary>
-  <form method="post" action="<?= module_url('gerid') ?>" style="margin-top:12px;">
+  <form method="post" action="<?= module_url('fbi_vinculo') ?>" style="margin-top:12px;">
     <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
     <input type="hidden" name="acao" value="solicitar">
     <input type="hidden" name="client_id" id="gdClientId">
@@ -847,7 +847,7 @@ function gdStatsView(v) {
 <div class="gd-card gd-item">
   <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
     <div style="font-weight:700;color:#0e7490;flex:1;">👤 <?= e($g['parte_nome']) ?><?= $g['parte_cpf'] ? ' · CPF ' . e($g['parte_cpf']) : '' ?><?= $g['parente'] ? ' · ' . e($g['parente']) : '' ?></div>
-    <form method="post" action="<?= module_url('gerid') ?>" onsubmit="return confirm('Excluir definitivamente esta pesquisa GERID? Tarefas vinculadas serão canceladas.');" style="margin:0;">
+    <form method="post" action="<?= module_url('fbi_vinculo') ?>" onsubmit="return confirm('Excluir definitivamente esta pesquisa FBI $? Tarefas vinculadas serão canceladas.');" style="margin:0;">
       <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
       <input type="hidden" name="acao" value="excluir">
       <input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
@@ -867,7 +867,7 @@ function gdStatsView(v) {
     pedido por <?= e($g['reg_por'] ?: '—') ?> em <?= date('d/m/Y', strtotime($g['created_at'])) ?>
   </div>
   <?php if ($g['observacao']): ?><div style="font-size:.83rem;margin-top:5px;color:#444;"><?= e($g['observacao']) ?></div><?php endif; ?>
-  <form method="post" action="<?= module_url('gerid') ?>" enctype="multipart/form-data" style="margin-top:10px;border-top:1px solid #f0f0f0;padding-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;" onsubmit="gdSubmitLock(this)">
+  <form method="post" action="<?= module_url('fbi_vinculo') ?>" enctype="multipart/form-data" style="margin-top:10px;border-top:1px solid #f0f0f0;padding-top:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;" onsubmit="gdSubmitLock(this)">
     <input type="hidden" name="csrf_token" value="<?= $csrf ?>"><input type="hidden" name="acao" value="resultado"><input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
     <span style="font-size:.82rem;font-weight:700;">Resultado:</span>
     <label style="font-size:.85rem;display:flex;align-items:center;gap:5px;"><input type="radio" name="tem_vinculo" value="1" required> ✅ Tem vínculo</label>
@@ -912,22 +912,22 @@ function gdStatsView(v) {
         <?php endif; ?>
         <?php if (!empty($g['tem_vinculo']) && !empty($g['case_id'])):
             // Amanda 09-10/07/2026: 2 botoes — Contatos (so pesquisa) e Oficio (redige texto).
-            // Dedup por tipo distinto: gerid_contatos_empresa vs oficio_desconto_folha.
+            // Dedup por tipo distinto: fbi_vinculo_contatos_empresa vs oficio_desconto_folha.
             $_jaTemOficio = false; $_jaTemContatos = false;
             try {
                 $stChkOf = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'oficio_desconto_folha' AND title LIKE ? LIMIT 1");
-                $stChkOf->execute(array((int)$g['case_id'], '%[gerid#' . (int)$g['id'] . ']%'));
+                $stChkOf->execute(array((int)$g['case_id'], '%[fbi_vinculo#' . (int)$g['id'] . ']%'));
                 $_jaTemOficio = (bool)$stChkOf->fetchColumn();
-                $stChkCt = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'gerid_contatos_empresa' AND title LIKE ? LIMIT 1");
-                $stChkCt->execute(array((int)$g['case_id'], '%[gerid-contatos#' . (int)$g['id'] . ']%'));
+                $stChkCt = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'fbi_vinculo_contatos_empresa' AND title LIKE ? LIMIT 1");
+                $stChkCt->execute(array((int)$g['case_id'], '%[fbi_vinculo-contatos#' . (int)$g['id'] . ']%'));
                 $_jaTemContatos = (bool)$stChkCt->fetchColumn();
             } catch (Throwable $e) {}
         ?>
           <div style="display:flex;flex-direction:column;gap:4px;margin-top:5px;">
             <?php if ($_jaTemContatos): ?>
-              <button type="button" onclick="gdVerTaskGerid(<?= (int)$g['id'] ?>, 'contatos')" style="background:#e0f2fe;color:#0369a1;border:1.5px solid #0369a1;border-radius:5px;padding:4px 9px;font-size:.7rem;font-weight:700;cursor:pointer;width:100%;" title="Clique pra ver os dados da empresa direto aqui">👁️ Ver dados da empresa</button>
+              <button type="button" onclick="gdVerTaskFbiVinculo(<?= (int)$g['id'] ?>, 'contatos')" style="background:#e0f2fe;color:#0369a1;border:1.5px solid #0369a1;border-radius:5px;padding:4px 9px;font-size:.7rem;font-weight:700;cursor:pointer;width:100%;" title="Clique pra ver os dados da empresa direto aqui">👁️ Ver dados da empresa</button>
             <?php else: ?>
-              <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;" onsubmit="return gdConfirmarContatos(this);">
+              <form method="post" action="<?= module_url('fbi_vinculo') ?>" style="display:inline;" onsubmit="return gdConfirmarContatos(this);">
                 <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
                 <input type="hidden" name="acao" value="gerar_oficio">
                 <input type="hidden" name="modo" value="contatos">
@@ -936,9 +936,9 @@ function gdStatsView(v) {
               </form>
             <?php endif; ?>
             <?php if ($_jaTemOficio): ?>
-              <button type="button" onclick="gdVerTaskGerid(<?= (int)$g['id'] ?>, 'oficio')" style="background:#f3e8ff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:5px;padding:4px 9px;font-size:.7rem;font-weight:700;cursor:pointer;width:100%;" title="Clique pra ver o ofício direto aqui">👁️ Ver ofício gerado</button>
+              <button type="button" onclick="gdVerTaskFbiVinculo(<?= (int)$g['id'] ?>, 'oficio')" style="background:#f3e8ff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:5px;padding:4px 9px;font-size:.7rem;font-weight:700;cursor:pointer;width:100%;" title="Clique pra ver o ofício direto aqui">👁️ Ver ofício gerado</button>
             <?php else: ?>
-              <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;" onsubmit="return gdConfirmarOficio(this);">
+              <form method="post" action="<?= module_url('fbi_vinculo') ?>" style="display:inline;" onsubmit="return gdConfirmarOficio(this);">
                 <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
                 <input type="hidden" name="acao" value="gerar_oficio">
                 <input type="hidden" name="modo" value="oficio">
@@ -962,7 +962,7 @@ function gdStatsView(v) {
         <?php endif; ?>
       </td>
       <td style="padding:9px 11px;text-align:center;">
-        <form method="post" action="<?= module_url('gerid') ?>" onsubmit="return confirm('Excluir definitivamente esta pesquisa GERID concluída? Esta ação não pode ser desfeita.');" style="margin:0;">
+        <form method="post" action="<?= module_url('fbi_vinculo') ?>" onsubmit="return confirm('Excluir definitivamente esta pesquisa FBI $ concluída? Esta ação não pode ser desfeita.');" style="margin:0;">
           <input type="hidden" name="csrf_token" value="<?= $csrf ?>">
           <input type="hidden" name="acao" value="excluir">
           <input type="hidden" name="id" value="<?= (int)$g['id'] ?>">
@@ -976,7 +976,7 @@ function gdStatsView(v) {
 <?php endif; ?>
 
 <script>
-var GD_URL = '<?= module_url('gerid') ?>';
+var GD_URL = '<?= module_url('fbi_vinculo') ?>';
 var gdT=null;
 function gdBuscarCli(q){
   clearTimeout(gdT); var box=document.getElementById('gdCliBox');
@@ -1060,7 +1060,7 @@ function gdChecarCpf(cpf) {
         else if (h.status === 'concluida')                        status = '<strong style="color:#64748b;">❌ SEM vínculo</strong>';
         else                                                      status = '<strong style="color:#a16207;">⏳ pendente</strong>';
         var caseLink = h.case_id
-          ? ('caso <a href="<?= url('modules/operacional/caso_ver.php?id=') ?>' + h.case_id + '#gerid" target="_blank" style="color:#0e7490;font-weight:600;text-decoration:underline;">' + (h.case_title || ('#' + h.case_id)) + '</a>' + (h.case_client_name ? ' <em>(cliente: ' + h.case_client_name + ')</em>' : ''))
+          ? ('caso <a href="<?= url('modules/operacional/caso_ver.php?id=') ?>' + h.case_id + '#fbi_vinculo" target="_blank" style="color:#0e7490;font-weight:600;text-decoration:underline;">' + (h.case_title || ('#' + h.case_id)) + '</a>' + (h.case_client_name ? ' <em>(cliente: ' + h.case_client_name + ')</em>' : ''))
           : 'pesquisa avulsa';
         var d = h.created_at ? h.created_at.substring(0, 10).split('-').reverse().join('/') : '';
         var res = h.resultado ? '<br><em style="color:#451a03;">"' + (h.resultado.length > 120 ? h.resultado.substring(0, 120) + '…' : h.resultado) + '"</em>' : '';
@@ -1118,8 +1118,8 @@ function gdToggleTratado(id) {
 }
 
 // Amanda 11/07/2026: modal com o texto da tarefa (contatos ou oficio)
-// direto na tela do GERID — evita ter que caçar na aba Tarefas da pasta.
-function gdVerTaskGerid(geridId, modo) {
+// direto na tela do FBI $ — evita ter que caçar na aba Tarefas da pasta.
+function gdVerTaskFbiVinculo(fbiVinculoId, modo) {
   var mod = document.getElementById('gdTaskModal');
   var body = document.getElementById('gdTaskModalBody');
   var titulo = document.getElementById('gdTaskModalTitulo');
@@ -1128,7 +1128,7 @@ function gdVerTaskGerid(geridId, modo) {
   titulo.textContent = '';
   linkPasta.style.display = 'none';
   mod.style.display = 'flex';
-  fetch('<?= module_url("gerid") ?>?ajax=ver_task_gerid&gerid_id=' + geridId + '&modo=' + modo, {
+  fetch('<?= module_url("fbi_vinculo") ?>?ajax=ver_task_fbi_vinculo&fbi_vinculo_id=' + fbiVinculoId + '&modo=' + modo, {
     credentials: 'same-origin',
     headers: { 'X-Requested-With': 'XMLHttpRequest' }
   })
@@ -1151,7 +1151,7 @@ document.addEventListener('DOMContentLoaded', function() {
   var aid = p.get('abrir_task');
   var amod = p.get('modo');
   if (aid && (amod === 'contatos' || amod === 'oficio')) {
-    setTimeout(function() { gdVerTaskGerid(parseInt(aid, 10), amod); }, 300);
+    setTimeout(function() { gdVerTaskFbiVinculo(parseInt(aid, 10), amod); }, 300);
   }
 });
 function gdTaskModalCopiar() {

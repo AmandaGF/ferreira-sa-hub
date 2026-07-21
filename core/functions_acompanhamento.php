@@ -246,7 +246,7 @@ function acompanhamento_teve_andamento_desde(PDO $pdo, $caseId, $desdeDate) {
             "SELECT COUNT(*) FROM case_andamentos
              WHERE case_id = ?
                AND data_andamento >= ?
-               AND tipo NOT IN ('gerid','cancelamento','observacao_interna')"
+               AND tipo NOT IN ('fbi_vinculo','cancelamento','observacao_interna')"
         );
         $st->execute(array($caseId, $desdeDate));
         return (int)$st->fetchColumn() > 0;

@@ -2,41 +2,41 @@
 /**
  * Ferreira & Sá Hub — Geração automática de ofício de desconto em folha
  *
- * Quando GERID retorna POSITIVO (parte executada tem vínculo empregatício),
+ * Quando FBI $ retorna POSITIVO (parte executada tem vínculo empregatício),
  * a IA busca dados de contato da empresa online (Claude Sonnet + web_search)
  * e redige um oficio pronto pra ser enviado ao RH/Jurídico solicitando
  * desconto em folha da pensão alimentícia.
  *
  * Fluxo:
- *   1. gerid_gerar_oficio_desconto($pdo, $pesquisaId)
+ *   1. fbi_vinculo_gerar_oficio_desconto($pdo, $pesquisaId)
  *   2. Chama Claude Sonnet com web_search_20250305
  *   3. Cria case_task com título "📮 Enviar oficio desconto folha - EMPRESA"
  *      + descrição contendo rascunho do oficio + contatos + fontes web
  *   4. Amanda revisa dentro da pasta do processo, envia por email/carta.
  *
- * Killswitch: configuracoes.gerid_oficio_auto_ativo = '1' pra ligar.
+ * Killswitch: configuracoes.fbi_vinculo_oficio_auto_ativo = '1' pra ligar.
  * Custo estimado: ~R$ 0,15-0,30 por ofício (Sonnet + web search 3 buscas).
  */
 
-if (!function_exists('gerid_oficio_auto_ativo')) {
-function gerid_oficio_auto_ativo() {
+if (!function_exists('fbi_vinculo_oficio_auto_ativo')) {
+function fbi_vinculo_oficio_auto_ativo() {
     // Usa o framework padrao de features IA (padrao ia_feature_X_enabled).
     // Amanda liga em /admin/ia_custo.php.
     require_once __DIR__ . '/functions_ia.php';
-    if (function_exists('ia_feature_ativa')) return ia_feature_ativa('gerid_oficio_desconto');
+    if (function_exists('ia_feature_ativa')) return ia_feature_ativa('fbi_vinculo_oficio_desconto');
     try {
-        $v = db()->query("SELECT valor FROM configuracoes WHERE chave='ia_feature_gerid_oficio_desconto_enabled'")->fetchColumn();
+        $v = db()->query("SELECT valor FROM configuracoes WHERE chave='ia_feature_fbi_vinculo_oficio_desconto_enabled'")->fetchColumn();
         return $v === '1';
     } catch (Throwable $e) { return false; }
 }
 }
 
-if (!function_exists('gerid_gerar_oficio_desconto')) {
+if (!function_exists('fbi_vinculo_gerar_oficio_desconto')) {
 /**
  * Gera oficio de desconto em folha via IA + web search.
  * @return array{ok:bool, erro:?string, task_id:?int, texto:?string}
  */
-function gerid_gerar_oficio_desconto(PDO $pdo, $pesquisaId, $modo = 'oficio') {
+function fbi_vinculo_gerar_oficio_desconto(PDO $pdo, $pesquisaId, $modo = 'oficio') {
     require_once __DIR__ . '/functions_ia.php';
     // Amanda 10/07/2026: 2 modos suportados —
     //   'oficio'   (default): identifica empresa + busca contatos + REDIGE oficio pronto
@@ -50,7 +50,7 @@ function gerid_gerar_oficio_desconto(PDO $pdo, $pesquisaId, $modo = 'oficio') {
                 g.case_id, g.created_by,
                 c.title AS case_title, c.case_number, c.client_id,
                 cl.name AS client_name, cl.cpf AS client_cpf
-         FROM gerid_pesquisas g
+         FROM fbi_vinculo_pesquisas g
          LEFT JOIN cases c    ON c.id  = g.case_id
          LEFT JOIN clients cl ON cl.id = c.client_id
          WHERE g.id = ?"
@@ -62,8 +62,8 @@ function gerid_gerar_oficio_desconto(PDO $pdo, $pesquisaId, $modo = 'oficio') {
     if (empty($p['case_id'])) return array('ok' => false, 'erro' => 'Sem case vinculado (nao criamos tarefa avulsa)', 'task_id' => null, 'texto' => null);
 
     // Dedup por modo — cada modo tem sufixo distinto pra permitir gerar os 2
-    $tipoTk = ($modo === 'contatos') ? 'gerid_contatos_empresa' : 'oficio_desconto_folha';
-    $tagTk = ($modo === 'contatos') ? '[gerid-contatos#' : '[gerid#';
+    $tipoTk = ($modo === 'contatos') ? 'fbi_vinculo_contatos_empresa' : 'oficio_desconto_folha';
+    $tagTk = ($modo === 'contatos') ? '[fbi_vinculo-contatos#' : '[fbi_vinculo#';
     try {
         $stChk = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = ? AND title LIKE ? LIMIT 1");
         $stChk->execute(array((int)$p['case_id'], $tipoTk, '%' . $tagTk . (int)$pesquisaId . ']%'));
@@ -78,7 +78,7 @@ function gerid_gerar_oficio_desconto(PDO $pdo, $pesquisaId, $modo = 'oficio') {
 Voce e uma assistente juridica do escritorio Ferreira & Sa Advocacia, especializada
 em execucao de alimentos.
 
-TAREFA: quando uma pesquisa GERID confirma que o alimentante possui vinculo
+TAREFA: quando uma pesquisa FBI $ confirma que o alimentante possui vinculo
 empregaticio, voce vai APENAS:
 
 1. IDENTIFICAR a empresa empregadora a partir do texto do resultado da pesquisa.
@@ -112,7 +112,7 @@ PROMPT;
 Voce e uma assistente juridica do escritorio Ferreira & Sa Advocacia, especializada
 em execucao de alimentos.
 
-TAREFA: quando uma pesquisa GERID confirma que o alimentante (devedor de pensao)
+TAREFA: quando uma pesquisa FBI $ confirma que o alimentante (devedor de pensao)
 possui vinculo empregaticio, voce vai:
 
 1. IDENTIFICAR a empresa empregadora a partir do texto do resultado da pesquisa
@@ -157,7 +157,7 @@ PROMPT;
     }
 
     // 3) User message com dados
-    $userMsg = "PESQUISA GERID (id " . (int)$p['id'] . "):\n\n"
+    $userMsg = "PESQUISA FBI $ (id " . (int)$p['id'] . "):\n\n"
              . "Parte adversa (alimentante que possui vinculo): " . $p['parte_nome']
              . ($p['parte_cpf'] ? " (CPF " . $p['parte_cpf'] . ")" : '') . "\n"
              . ($p['parente'] ? "Relacao com o cliente: " . $p['parente'] . " (do cliente)\n" : '')
@@ -174,7 +174,7 @@ PROMPT;
     // 4) Chamada IA com web_search
     $modelo = 'claude-sonnet-4-6';
     $resp = ia_chamar(
-        'gerid_oficio_desconto',
+        'fbi_vinculo_oficio_desconto',
         $modelo,
         $system,
         array(array('role' => 'user', 'content' => $userMsg)),
@@ -183,7 +183,7 @@ PROMPT;
             'temperature'         => 0.4,
             'bypass_killswitch'   => true,
             'bypass_user_whitelist' => true,
-            'contexto'            => 'gerid#' . (int)$p['id'] . ' case#' . (int)$p['case_id'],
+            'contexto'            => 'fbi_vinculo#' . (int)$p['id'] . ' case#' . (int)$p['case_id'],
             'tools' => array(array(
                 'type'     => 'web_search_20250305',
                 'name'     => 'web_search',
@@ -215,9 +215,9 @@ PROMPT;
 
     if (!empty($j['erro']) && (empty($j['corpo_oficio']) && $modo !== 'contatos')) {
         // Cria tarefa curta pra Amanda saber que a IA nao conseguiu
-        $tituloTk = '⚠️ GERID positivo: IA nao gerou ' . ($modo === 'contatos' ? 'contatos' : 'oficio')
+        $tituloTk = '⚠️ FBI $ positivo: IA nao gerou ' . ($modo === 'contatos' ? 'contatos' : 'oficio')
                   . ' - ' . $p['parte_nome'] . ' ' . $tagTk . (int)$p['id'] . ']';
-        $descTk = "A pesquisa GERID de " . $p['parte_nome'] . " deu POSITIVO, mas a IA nao conseguiu identificar/gerar os dados automaticamente.\n\n"
+        $descTk = "A pesquisa FBI $ de " . $p['parte_nome'] . " deu POSITIVO, mas a IA nao conseguiu identificar/gerar os dados automaticamente.\n\n"
                 . "Motivo: " . $j['erro'] . "\n\n"
                 . "Peca ao Luiz Eduardo pra complementar a pesquisa com nome + CNPJ da empregadora e refaca manualmente.\n\n"
                 . "---\nResposta bruta da IA:\n" . mb_substr($textoBruto, 0, 1500);
@@ -253,7 +253,7 @@ PROMPT;
         if ($modo === 'contatos') {
             $descPartes[] = "\n" . str_repeat('=', 60)
                          . "\n📞 Use estes dados pra fazer contato inicial com a empresa.\n"
-                         . "Se decidir enviar oficio formal depois, volte na aba GERID e clique em 'Gerar oficio desconto folha'.\n"
+                         . "Se decidir enviar oficio formal depois, volte na aba FBI $ e clique em 'Gerar oficio desconto folha'.\n"
                          . str_repeat('=', 60);
         } else {
             $descPartes[] = "\n" . str_repeat('=', 60) . "\n📄 RASCUNHO DO OFICIO (revise antes de enviar):\n"
@@ -284,7 +284,7 @@ PROMPT;
         // Andamento interno pra ficar registrado
         try {
             $pdo->prepare("INSERT INTO case_andamentos (case_id, data_andamento, tipo, descricao, created_by, visivel_cliente, created_at)
-                           VALUES (?, ?, 'gerid', ?, ?, 0, NOW())")
+                           VALUES (?, ?, 'fbi_vinculo', ?, ?, 0, NOW())")
                 ->execute(array(
                     (int)$p['case_id'], date('Y-m-d'),
                     '🤖 IA gerou rascunho de oficio de desconto em folha para "' . ($j['empresa_identificada'] ?? '?') . '" — task #' . $taskId,
@@ -293,7 +293,7 @@ PROMPT;
         } catch (Throwable $e) {}
 
         if (function_exists('audit_log')) {
-            try { audit_log('gerid_oficio_gerado', 'gerid', (int)$p['id'], 'task_id=' . $taskId . ' empresa=' . ($j['empresa_identificada'] ?? '?')); } catch (Throwable $e) {}
+            try { audit_log('fbi_vinculo_oficio_gerado', 'fbi_vinculo', (int)$p['id'], 'task_id=' . $taskId . ' empresa=' . ($j['empresa_identificada'] ?? '?')); } catch (Throwable $e) {}
         }
 
         return array('ok' => true, 'erro' => null, 'task_id' => $taskId, 'case_id' => (int)$p['case_id'], 'modo' => $modo, 'texto' => $descTk);

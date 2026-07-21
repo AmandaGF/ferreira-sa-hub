@@ -1085,7 +1085,7 @@ if (!empty($case['cancelado_pelo_comercial'])):
                 </div>
             <?php endif; ?>
             <div style="font-size:.8rem;margin-top:.5rem;font-weight:600;">
-                🚫 <strong>NÃO PROSSIGA</strong> com peças, audiências, ofícios ou GERID sem antes confirmar com o comercial.
+                🚫 <strong>NÃO PROSSIGA</strong> com peças, audiências, ofícios ou FBI $ sem antes confirmar com o comercial.
             </div>
         </div>
     </div>
@@ -1695,24 +1695,24 @@ try {
     $_prazosBadge = (int)$stPB->fetchColumn();
 } catch (Exception $e) {}
 
-// Amanda 09/07/2026: pesquisas GERID deste case (aba dedicada)
-$_geridDoCase = array();
-$_geridBadge = 0; // total (pra badge no tab)
-$_geridPendCount = 0; // pendentes (destaque visual)
+// Amanda 09/07/2026: pesquisas FBI $ deste case (aba dedicada)
+$_fbiVinculoDoCase = array();
+$_fbiVinculoBadge = 0; // total (pra badge no tab)
+$_fbiVinculoPendCount = 0; // pendentes (destaque visual)
 try {
     $_stG = $pdo->prepare(
         "SELECT g.*, u.name AS pesquisado_por_nome, uc.name AS criado_por_nome
-         FROM gerid_pesquisas g
+         FROM fbi_vinculo_pesquisas g
          LEFT JOIN users u  ON u.id  = g.pesquisado_por
          LEFT JOIN users uc ON uc.id = g.created_by
          WHERE g.case_id = ?
          ORDER BY g.created_at DESC"
     );
     $_stG->execute(array($caseId));
-    $_geridDoCase = $_stG->fetchAll(PDO::FETCH_ASSOC);
-    $_geridBadge = count($_geridDoCase);
-    foreach ($_geridDoCase as $_gr) {
-        if (($_gr['status'] ?? '') === 'pendente') $_geridPendCount++;
+    $_fbiVinculoDoCase = $_stG->fetchAll(PDO::FETCH_ASSOC);
+    $_fbiVinculoBadge = count($_fbiVinculoDoCase);
+    foreach ($_fbiVinculoDoCase as $_gr) {
+        if (($_gr['status'] ?? '') === 'pendente') $_fbiVinculoPendCount++;
     }
 } catch (Exception $e) {}
 ?>
@@ -1731,7 +1731,7 @@ try {
     <button type="button" class="cv-tab" data-aba="partes" onclick="cvAba('partes')">👥 Partes</button>
     <button type="button" class="cv-tab" data-aba="incidentais" onclick="cvAba('incidentais')">📎 Incidentais</button>
     <button type="button" class="cv-tab" data-aba="formularios" onclick="cvAba('formularios')">📝 Formulários<?php if (!empty($_formsCliente)): ?> <span class="cv-tab-badge"><?= count($_formsCliente) ?></span><?php endif; ?></button>
-    <button type="button" class="cv-tab" data-aba="gerid" onclick="cvAba('gerid')">🔎 GERID<?php if ($_geridBadge > 0): ?> <span class="cv-tab-badge" style="<?= $_geridPendCount > 0 ? 'background:#fbbf24;color:#78350f;' : '' ?>" title="<?= $_geridPendCount > 0 ? ($_geridPendCount . ' pendente(s), ' . $_geridBadge . ' total') : 'Total de pesquisas' ?>"><?= $_geridBadge ?></span><?php endif; ?></button>
+    <button type="button" class="cv-tab" data-aba="fbi_vinculo" onclick="cvAba('fbi_vinculo')">🔎 FBI $<?php if ($_fbiVinculoBadge > 0): ?> <span class="cv-tab-badge" style="<?= $_fbiVinculoPendCount > 0 ? 'background:#fbbf24;color:#78350f;' : '' ?>" title="<?= $_fbiVinculoPendCount > 0 ? ($_fbiVinculoPendCount . ' pendente(s), ' . $_fbiVinculoBadge . ' total') : 'Total de pesquisas' ?>"><?= $_fbiVinculoBadge ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="helpdesk" onclick="cvAba('helpdesk')">🎫 Helpdesk<?php if ($_helpdeskAbertos > 0): ?> <span class="cv-tab-badge" style="background:#dc2626;color:#fff;" title="<?= $_helpdeskAbertos ?> aberto(s), <?= $_helpdeskBadge ?> total"><?= $_helpdeskAbertos ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="treinamentos" onclick="cvAba('treinamentos')">🎓 Treinamentos<?php if (!empty($_treinamentosCase)): ?> <span class="cv-tab-badge"><?= count($_treinamentosCase) ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="ia" onclick="cvAba('ia')">🧠 IA</button>
@@ -2426,7 +2426,7 @@ $_actAttBtn = $_actBlocked
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=audiencia&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#052228;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">Agendar Audiência</a>
     <button type="button" onclick="<?= $_actBlocked ? "if(!confirm('" . addslashes($_actWarn) . "'))return;" : '' ?>audSolOpen()" class="btn btn-primary btn-sm" style="font-size:.78rem;background:#b87333;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>" title="Solicita que a equipe contate uma audiencista pra verificar disponibilidade e contratar">👩‍⚖️ Solicitar audiencista</button>
     <button type="button" onclick="renOpen()" class="btn btn-sm" style="font-size:.78rem;background:#9333ea;color:#fff;border:none;" title="Registrar renúncia ou desistência deste processo">📤 Renúncia/Desistência</button>
-    <button type="button" onclick="<?= $_actBlocked ? "if(!confirm('" . addslashes($_actWarn) . "'))return;" : '' ?>gdOpen()" class="btn btn-sm" style="font-size:.78rem;background:#0e7490;color:#fff;border:none;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>" title="Pedir pesquisa de vínculo empregatício no GERID (avisa o Luiz Eduardo + abre tarefa)">🔎 Pesquisar vínculo (GERID)</button>
+    <button type="button" onclick="<?= $_actBlocked ? "if(!confirm('" . addslashes($_actWarn) . "'))return;" : '' ?>gdOpen()" class="btn btn-sm" style="font-size:.78rem;background:#0e7490;color:#fff;border:none;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>" title="Pedir pesquisa de vínculo empregatício no FBI $ (avisa o Luiz Eduardo + abre tarefa)">🔎 Pesquisar vínculo (FBI $)</button>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=reuniao_cliente&modalidade=online&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#059669;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">Reunião + Meet</a>
     <a href="<?= module_url('agenda') ?>?novo=1&tipo=balcao_virtual&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-primary btn-sm" style="font-size:.78rem;background:#0d9488;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">Balcão Virtual</a>
     <a href="<?= module_url('agenda') ?>?novo=1&case_id=<?= $caseId ?>&client_id=<?= $case['client_id'] ?: '' ?>&voltar_caso=<?= $caseId ?>"<?= $_actAtt ?> class="btn btn-outline btn-sm" style="font-size:.78rem;<?= $_actBlocked ? 'opacity:.55;filter:grayscale(.6);' : '' ?>">+ Compromisso</a>
@@ -2528,12 +2528,12 @@ $_actAttBtn = $_actBlocked
 </div>
 
 <script>
-// Amanda 09/07/2026: aviso de custo antes de disparar geração de ofício via IA (aba GERID).
-window.cvConfirmarContatosGerid = function(f) {
+// Amanda 09/07/2026: aviso de custo antes de disparar geração de ofício via IA (aba FBI $).
+window.cvConfirmarContatosFbiVinculo = function(f) {
   var msg = '⚠️ ATENÇÃO: esta ação chama IA (Claude Sonnet + web search).\n\n'
           + 'Cada busca custa aproximadamente R$ 0,10 a R$ 0,20 do orçamento de IA.\n\n'
           + 'A IA vai:\n'
-          + '  1. Identificar a empresa no texto do resultado GERID\n'
+          + '  1. Identificar a empresa no texto do resultado FBI $\n'
           + '  2. Buscar endereço + emails de RH/jurídico + telefone online\n'
           + '  3. Criar tarefa "📞 Contatos" na pasta do caso\n\n'
           + 'NÃO redige ofício — pra contato inicial antes de decidir se envia ofício formal.\n\n'
@@ -2548,12 +2548,12 @@ window.cvConfirmarContatosGerid = function(f) {
   }
   return true;
 };
-window.cvConfirmarOficioGerid = function(f) {
+window.cvConfirmarOficioFbiVinculo = function(f) {
   var msg = '⚠️ ATENÇÃO: esta ação chama IA (Claude Sonnet + web search).\n\n'
           + 'Cada geração custa aproximadamente R$ 0,15 a R$ 0,30 do orçamento de IA do escritório.\n\n'
           + 'Peça com moderação — só gere ofício para casos que você vai realmente executar.\n\n'
           + 'A IA vai:\n'
-          + '  1. Identificar a empresa no texto do resultado GERID\n'
+          + '  1. Identificar a empresa no texto do resultado FBI $\n'
           + '  2. Buscar contatos de RH/jurídico online (até 3 buscas)\n'
           + '  3. Redigir o ofício pronto pra revisão\n'
           + '  4. Criar tarefa na pasta do caso\n\n'
@@ -2715,15 +2715,15 @@ function renValidar(f){
 </script>
 
 <?php
-// ── Auto-preenchimento GERID (29/06/2026 Amanda) ──
+// ── Auto-preenchimento FBI $ (29/06/2026 Amanda) ──
 // Busca a 1ª parte ADVERSA do processo (não-cliente) em case_partes.
 // Schema da tabela (memória schema_case_partes): papel + nome OU razao_social
 // OU representante_nome OU nome_fantasia + cpf/cnpj. Filtra papéis adversos
 // (réu, litisconsorte_passivo, terceiro_interessado, requerido) e ignora
 // quem está marcado como nosso cliente (eh_nosso_cliente=1 ou client_id ==
 // case.client_id). Fallback: parte_re_nome/parte_re_cpf_cnpj da própria cases.
-$_geridNomeSug = $case['parte_re_nome'] ?? '';
-$_geridCpfSug  = $case['parte_re_cpf_cnpj'] ?? '';
+$_fbiVinculoNomeSug = $case['parte_re_nome'] ?? '';
+$_fbiVinculoCpfSug  = $case['parte_re_cpf_cnpj'] ?? '';
 try {
     $_stPa = $pdo->prepare(
         "SELECT papel, nome, razao_social, representante_nome, nome_fantasia, cpf, cnpj
@@ -2743,25 +2743,25 @@ try {
         foreach (array('nome','razao_social','representante_nome','nome_fantasia') as $_c) {
             if (!empty($_pa[$_c])) { $_nomeCand = trim($_pa[$_c]); break; }
         }
-        if ($_nomeCand) $_geridNomeSug = $_nomeCand;
-        // CPF/CNPJ: prioriza CPF (pessoa física) — GERID busca por CPF
-        if (!empty($_pa['cpf']))      $_geridCpfSug = $_pa['cpf'];
-        elseif (!empty($_pa['cnpj'])) $_geridCpfSug = $_pa['cnpj'];
+        if ($_nomeCand) $_fbiVinculoNomeSug = $_nomeCand;
+        // CPF/CNPJ: prioriza CPF (pessoa física) — FBI $ busca por CPF
+        if (!empty($_pa['cpf']))      $_fbiVinculoCpfSug = $_pa['cpf'];
+        elseif (!empty($_pa['cnpj'])) $_fbiVinculoCpfSug = $_pa['cnpj'];
     }
 } catch (Exception $_e) {}
 ?>
-<!-- Amanda 09/07/2026: aba GERID — pesquisas de vinculo empregaticio deste case -->
-<div class="card mb-2 cv-secao" data-aba="gerid" id="cv-gerid">
+<!-- Amanda 09/07/2026: aba FBI $ — pesquisas de vinculo empregaticio deste case -->
+<div class="card mb-2 cv-secao" data-aba="fbi_vinculo" id="cv-fbi_vinculo">
   <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:.5rem;">
-    <h3 style="margin:0;">🔎 Pesquisas GERID (<?= $_geridBadge ?>)</h3>
+    <h3 style="margin:0;">🔎 Pesquisas FBI $ (<?= $_fbiVinculoBadge ?>)</h3>
     <button type="button" onclick="gdOpen()" class="btn btn-sm" style="background:#0e7490;color:#fff;border:none;font-size:.78rem;">➕ Nova pesquisa</button>
   </div>
   <div class="card-body" style="padding:.6rem 1rem 1rem;">
-    <?php if (empty($_geridDoCase)): ?>
-      <p style="color:#666;font-size:.88rem;margin:.5rem 0;">Nenhuma pesquisa GERID neste caso ainda.</p>
+    <?php if (empty($_fbiVinculoDoCase)): ?>
+      <p style="color:#666;font-size:.88rem;margin:.5rem 0;">Nenhuma pesquisa FBI $ neste caso ainda.</p>
       <p style="font-size:.78rem;color:#888;margin:0;">Use <strong>➕ Nova pesquisa</strong> pra solicitar ao Luiz Eduardo verificar se a parte adversa tem vínculo empregatício (útil pra direcionar pensão ao empregador).</p>
     <?php else: ?>
-      <?php foreach ($_geridDoCase as $_gr):
+      <?php foreach ($_fbiVinculoDoCase as $_gr):
           $_status = $_gr['status'] ?? 'pendente';
           $_pendente = ($_status === 'pendente');
           $_temVinc = isset($_gr['tem_vinculo']) ? (int)$_gr['tem_vinculo'] : null;
@@ -2807,24 +2807,24 @@ try {
             <span>🔍 Pesquisado por <?= e($_gr['pesquisado_por_nome'] ? explode(' ', $_gr['pesquisado_por_nome'])[0] : '?') ?> em <?= date('d/m/Y', strtotime($_gr['pesquisado_em'])) ?></span>
           <?php endif; ?>
           <?php if (!empty($_gr['printscreen_path'])): ?>
-            <a href="<?= module_url('gerid') ?>?baixar=<?= (int)$_gr['id'] ?>" target="_blank" style="color:#0e7490;text-decoration:none;font-weight:600;">📎 ver printscreen</a>
+            <a href="<?= module_url('fbi_vinculo') ?>?baixar=<?= (int)$_gr['id'] ?>" target="_blank" style="color:#0e7490;text-decoration:none;font-weight:600;">📎 ver printscreen</a>
           <?php endif; ?>
           <?php if (!empty($_gr['tem_vinculo']) && $_gr['status'] === 'concluida'):
               // Amanda 09-10/07/2026: 2 botoes — Buscar contatos e Gerar oficio.
               $_jaTemOf = false; $_jaTemCt = false;
               try {
                   $_stChkOf = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'oficio_desconto_folha' AND title LIKE ? LIMIT 1");
-                  $_stChkOf->execute(array($caseId, '%[gerid#' . (int)$_gr['id'] . ']%'));
+                  $_stChkOf->execute(array($caseId, '%[fbi_vinculo#' . (int)$_gr['id'] . ']%'));
                   $_jaTemOf = (bool)$_stChkOf->fetchColumn();
-                  $_stChkCt = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'gerid_contatos_empresa' AND title LIKE ? LIMIT 1");
-                  $_stChkCt->execute(array($caseId, '%[gerid-contatos#' . (int)$_gr['id'] . ']%'));
+                  $_stChkCt = $pdo->prepare("SELECT id FROM case_tasks WHERE case_id = ? AND tipo = 'fbi_vinculo_contatos_empresa' AND title LIKE ? LIMIT 1");
+                  $_stChkCt->execute(array($caseId, '%[fbi_vinculo-contatos#' . (int)$_gr['id'] . ']%'));
                   $_jaTemCt = (bool)$_stChkCt->fetchColumn();
               } catch (Throwable $e) {}
           ?>
               <?php if ($_jaTemCt): ?>
-                  <a href="<?= module_url('gerid') ?>#pesquisa-<?= (int)$_gr['id'] ?>" style="background:#e0f2fe;color:#0369a1;border:1.5px solid #0369a1;border-radius:5px;padding:3px 8px;font-size:.7rem;font-weight:700;text-decoration:none;" title="Abrir no módulo GERID pra ver os dados da empresa">👁️ Ver dados da empresa</a>
+                  <a href="<?= module_url('fbi_vinculo') ?>#pesquisa-<?= (int)$_gr['id'] ?>" style="background:#e0f2fe;color:#0369a1;border:1.5px solid #0369a1;border-radius:5px;padding:3px 8px;font-size:.7rem;font-weight:700;text-decoration:none;" title="Abrir no módulo FBI $ pra ver os dados da empresa">👁️ Ver dados da empresa</a>
               <?php else: ?>
-                  <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;margin:0;" onsubmit="return cvConfirmarContatosGerid(this);">
+                  <form method="post" action="<?= module_url('fbi_vinculo') ?>" style="display:inline;margin:0;" onsubmit="return cvConfirmarContatosFbiVinculo(this);">
                       <?= csrf_input() ?>
                       <input type="hidden" name="acao" value="gerar_oficio">
                       <input type="hidden" name="modo" value="contatos">
@@ -2833,9 +2833,9 @@ try {
                   </form>
               <?php endif; ?>
               <?php if ($_jaTemOf): ?>
-                  <a href="<?= module_url('gerid') ?>#pesquisa-<?= (int)$_gr['id'] ?>" style="background:#f3e8ff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:5px;padding:3px 8px;font-size:.7rem;font-weight:700;text-decoration:none;" title="Abrir no módulo GERID pra ver o ofício">👁️ Ver ofício gerado</a>
+                  <a href="<?= module_url('fbi_vinculo') ?>#pesquisa-<?= (int)$_gr['id'] ?>" style="background:#f3e8ff;color:#7c3aed;border:1.5px solid #7c3aed;border-radius:5px;padding:3px 8px;font-size:.7rem;font-weight:700;text-decoration:none;" title="Abrir no módulo FBI $ pra ver o ofício">👁️ Ver ofício gerado</a>
               <?php else: ?>
-                  <form method="post" action="<?= module_url('gerid') ?>" style="display:inline;margin:0;" onsubmit="return cvConfirmarOficioGerid(this);">
+                  <form method="post" action="<?= module_url('fbi_vinculo') ?>" style="display:inline;margin:0;" onsubmit="return cvConfirmarOficioFbiVinculo(this);">
                       <?= csrf_input() ?>
                       <input type="hidden" name="acao" value="gerar_oficio">
                       <input type="hidden" name="modo" value="oficio">
@@ -2844,7 +2844,7 @@ try {
                   </form>
               <?php endif; ?>
           <?php endif; ?>
-          <a href="<?= module_url('gerid') ?>#pesquisa-<?= (int)$_gr['id'] ?>" style="color:#0e7490;text-decoration:none;font-weight:600;margin-left:auto;">abrir no módulo GERID →</a>
+          <a href="<?= module_url('fbi_vinculo') ?>#pesquisa-<?= (int)$_gr['id'] ?>" style="color:#0e7490;text-decoration:none;font-weight:600;margin-left:auto;">abrir no módulo FBI $ →</a>
         </div>
       </div>
       <?php endforeach; ?>
@@ -2937,13 +2937,13 @@ try {
 </div>
 
 <?php
-// Amanda 09/07/2026: histórico de pesquisas GERID pra essa parte em OUTROS cases.
+// Amanda 09/07/2026: histórico de pesquisas FBI $ pra essa parte em OUTROS cases.
 // Bug real Wellington: 403.565.308-09 e 40356530809 (msm CPF, mascaras diferentes)
 // gerou 2 pedidos duplicados. Normaliza tanto o CPF sugerido quanto o do banco
 // (só dígitos) pra achar match cross-mascara.
-$_geridHistoricoParte = array();
+$_fbiVinculoHistoricoParte = array();
 try {
-    $_cpfDig = preg_replace('/\D/', '', (string)$_geridCpfSug);
+    $_cpfDig = preg_replace('/\D/', '', (string)$_fbiVinculoCpfSug);
     if (strlen($_cpfDig) >= 11) {
         $_stH = $pdo->prepare(
             "SELECT g.id, g.case_id, g.parte_nome, g.parte_cpf, g.status, g.tem_vinculo, g.resultado,
@@ -2951,7 +2951,7 @@ try {
                     c.title AS case_title, c.case_number,
                     cl.name AS case_client_name,
                     u.name AS pesquisado_por_nome, uc.name AS criado_por_nome
-             FROM gerid_pesquisas g
+             FROM fbi_vinculo_pesquisas g
              LEFT JOIN cases c    ON c.id  = g.case_id
              LEFT JOIN clients cl ON cl.id = c.client_id
              LEFT JOIN users u    ON u.id  = g.pesquisado_por
@@ -2962,24 +2962,24 @@ try {
              LIMIT 5"
         );
         $_stH->execute(array($_cpfDig, $caseId));
-        $_geridHistoricoParte = $_stH->fetchAll(PDO::FETCH_ASSOC);
+        $_fbiVinculoHistoricoParte = $_stH->fetchAll(PDO::FETCH_ASSOC);
     }
 } catch (Exception $_e) {}
 ?>
 
-<!-- Modal: Pesquisar vínculo no GERID (pede nome+CPF, avisa Luiz Eduardo, abre tarefa) -->
+<!-- Modal: Pesquisar vínculo no FBI $ (pede nome+CPF, avisa Luiz Eduardo, abre tarefa) -->
 <div id="gdModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:#fff;border-radius:12px;padding:22px;max-width:500px;width:94%;max-height:90vh;overflow:auto;box-shadow:0 10px 40px rgba(0,0,0,.3);">
-    <h3 style="margin:0 0 4px;">🔎 Pesquisar vínculo no GERID</h3>
-    <p style="color:#666;font-size:.85rem;margin:0 0 12px;">O Luiz Eduardo será avisado pra pesquisar no GERID se a parte tem vínculo empregatício, e uma tarefa será aberta nesta pasta.</p>
-    <?php if ($_geridNomeSug && empty($case['parte_re_nome'])): ?>
+    <h3 style="margin:0 0 4px;">🔎 Pesquisar vínculo no FBI $</h3>
+    <p style="color:#666;font-size:.85rem;margin:0 0 12px;">O Luiz Eduardo será avisado pra pesquisar no FBI $ se a parte tem vínculo empregatício, e uma tarefa será aberta nesta pasta.</p>
+    <?php if ($_fbiVinculoNomeSug && empty($case['parte_re_nome'])): ?>
     <div style="background:#dcfce7;color:#15803d;border-radius:6px;padding:6px 10px;margin-bottom:10px;font-size:.74rem;">
       ✓ Preenchido automaticamente com a parte adversa do processo (aba Partes).
     </div>
     <?php endif; ?>
-    <?php if (!empty($_geridHistoricoParte)):
+    <?php if (!empty($_fbiVinculoHistoricoParte)):
         // Amanda 09/07/2026: alerta duplicidade — este CPF ja foi pesquisado em outro case
-        $_ultima = $_geridHistoricoParte[0];
+        $_ultima = $_fbiVinculoHistoricoParte[0];
         $_ultResultadoTxt = '';
         if ($_ultima['status'] === 'concluida') {
             $_ultResultadoTxt = ($_ultima['tem_vinculo'] ? '✅ POSSUI vínculo' : '❌ Sem vínculo')
@@ -2991,10 +2991,10 @@ try {
     <div style="background:#fef3c7;border:1.5px solid #fbbf24;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:.8rem;color:#78350f;">
       <strong>⚠️ Esta parte já foi pesquisada antes!</strong>
       <p style="margin:.4rem 0 .3rem;color:#78350f;font-size:.78rem;">
-        Encontramos <strong><?= count($_geridHistoricoParte) ?></strong> pesquisa(s) anterior(es) pro CPF <?= e($_geridCpfSug) ?>:
+        Encontramos <strong><?= count($_fbiVinculoHistoricoParte) ?></strong> pesquisa(s) anterior(es) pro CPF <?= e($_fbiVinculoCpfSug) ?>:
       </p>
       <ul style="margin:.3rem 0 .5rem;padding-left:1.2rem;font-size:.76rem;color:#451a03;">
-        <?php foreach ($_geridHistoricoParte as $_hp): ?>
+        <?php foreach ($_fbiVinculoHistoricoParte as $_hp): ?>
           <li style="margin-bottom:.25rem;">
             <?php if ($_hp['status'] === 'concluida' && $_hp['tem_vinculo']): ?>
               <strong style="color:#15803d;">✅ POSSUI</strong>
@@ -3005,7 +3005,7 @@ try {
             <?php endif; ?>
             —
             <?php if ($_hp['case_id']): ?>
-              caso <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$_hp['case_id']) ?>#gerid" target="_blank" style="color:#0e7490;font-weight:600;text-decoration:underline;"><?= e($_hp['case_title'] ?: ('#' . $_hp['case_id'])) ?></a>
+              caso <a href="<?= module_url('operacional', 'caso_ver.php?id=' . (int)$_hp['case_id']) ?>#fbi_vinculo" target="_blank" style="color:#0e7490;font-weight:600;text-decoration:underline;"><?= e($_hp['case_title'] ?: ('#' . $_hp['case_id'])) ?></a>
               <?php if ($_hp['case_client_name']): ?><em>(cliente: <?= e($_hp['case_client_name']) ?>)</em><?php endif; ?>
             <?php else: ?>
               pesquisa avulsa
@@ -3013,7 +3013,7 @@ try {
             · pedido <?= date('d/m/Y', strtotime($_hp['created_at'])) ?>
             <?php if ($_hp['resultado']): ?><br><span style="color:#451a03;font-style:italic;">"<?= e(mb_substr($_hp['resultado'], 0, 120)) ?><?= mb_strlen($_hp['resultado']) > 120 ? '…' : '' ?>"</span><?php endif; ?>
             <?php if (!empty($_hp['printscreen_path'])): ?>
-              · <a href="<?= module_url('gerid') ?>?baixar=<?= (int)$_hp['id'] ?>" target="_blank" style="color:#0e7490;font-weight:600;">📸 print</a>
+              · <a href="<?= module_url('fbi_vinculo') ?>?baixar=<?= (int)$_hp['id'] ?>" target="_blank" style="color:#0e7490;font-weight:600;">📸 print</a>
             <?php endif; ?>
           </li>
         <?php endforeach; ?>
@@ -3023,16 +3023,16 @@ try {
       </p>
     </div>
     <?php endif; ?>
-    <form method="post" action="<?= module_url('gerid') ?>" onsubmit="return gdValidar(this);">
+    <form method="post" action="<?= module_url('fbi_vinculo') ?>" onsubmit="return gdValidar(this);">
       <input type="hidden" name="csrf_token" value="<?= generate_csrf_token() ?>">
       <input type="hidden" name="acao" value="solicitar">
       <input type="hidden" name="client_id" value="<?= (int)($case['client_id'] ?: 0) ?>">
       <input type="hidden" name="case_id" value="<?= $caseId ?>">
       <input type="hidden" name="voltar_caso" value="<?= $caseId ?>">
       <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">Nome completo da parte *</label>
-      <input type="text" name="parte_nome" id="gdNome" value="<?= e($_geridNomeSug) ?>" required class="form-input" style="width:100%;margin-bottom:10px;" placeholder="Quem queremos saber se tem vínculo">
+      <input type="text" name="parte_nome" id="gdNome" value="<?= e($_fbiVinculoNomeSug) ?>" required class="form-input" style="width:100%;margin-bottom:10px;" placeholder="Quem queremos saber se tem vínculo">
       <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">CPF</label>
-      <input type="text" name="parte_cpf" value="<?= e($_geridCpfSug) ?>" class="form-input" style="width:100%;margin-bottom:10px;" placeholder="000.000.000-00">
+      <input type="text" name="parte_cpf" value="<?= e($_fbiVinculoCpfSug) ?>" class="form-input" style="width:100%;margin-bottom:10px;" placeholder="000.000.000-00">
       <label style="font-size:.8rem;font-weight:700;display:block;margin-bottom:5px;">É o(a)…</label>
       <div style="display:flex;gap:14px;margin-bottom:10px;font-size:.9rem;">
         <label style="cursor:pointer;"><input type="radio" name="parente" value="pai"> Pai</label>
@@ -9059,7 +9059,7 @@ window.pedirObsRealizado = function(form) {
         if (renuTipo === 'renuncia' || renuTipo === 'desistencia' || ehRenunciado) document.body.classList.add('cv-renunciado');
         // Aba inicial: hash da URL ou 'visao'
         var hashAba = (location.hash || '').replace('#', '');
-        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','gerid','helpdesk','treinamentos','ia'];
+        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','fbi_vinculo','helpdesk','treinamentos','ia'];
         cvAba(abasValidas.indexOf(hashAba) !== -1 ? hashAba : 'visao');
         // Hash change (botão voltar do navegador, links externos)
         window.addEventListener('hashchange', function() {

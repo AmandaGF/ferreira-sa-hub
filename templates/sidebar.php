@@ -49,10 +49,10 @@ try {
     $_renunciasPendentes = (int)db()->query("SELECT COUNT(*) FROM renuncias r JOIN case_tasks t ON t.id = r.task_id WHERE t.status <> 'concluido'")->fetchColumn();
 } catch (Exception $e) {}
 
-// Pesquisa GERID: pesquisas com status='pendente' (Luiz ainda nao concluiu)
-$_geridPendentes = 0;
+// Pesquisa FBI $: pesquisas com status='pendente' (Luiz ainda nao concluiu)
+$_fbiVinculoPendentes = 0;
 try {
-    $_geridPendentes = (int)db()->query("SELECT COUNT(*) FROM gerid_pesquisas WHERE status = 'pendente'")->fetchColumn();
+    $_fbiVinculoPendentes = (int)db()->query("SELECT COUNT(*) FROM fbi_vinculo_pesquisas WHERE status = 'pendente'")->fetchColumn();
 } catch (Exception $e) {}
 
 // Msg diária de acompanhamento: quantas configs ativas
@@ -145,7 +145,7 @@ $menuItems = array(
     array('label' => 'Processos',       'icon' => '⚖️', 'href' => url('modules/processos/'),       'id' => 'processos',       'roles' => $_rolesEquipe),
     array('label' => 'Renúncia/Desistência','icon' => '📤', 'href' => url('modules/processos/renuncias.php'), 'id' => 'processos_renuncias', 'roles' => array('admin','gestao','comercial','cx','operacional','estagiario'), 'badge' => $_renunciasPendentes, 'badgeCor' => '#b91c1c'),
     array('label' => 'Audiencistas',    'icon' => '👩‍⚖️', 'href' => url('modules/audiencistas/'),       'id' => 'audiencistas',    'roles' => array('admin','gestao','operacional','cx','estagiario'), 'badge' => $_audPendentes, 'badgeCor' => '#b87333'),
-    array('label' => 'Pesquisa GERID',  'icon' => '🔎', 'href' => url('modules/gerid/'),              'id' => 'gerid',           'roles' => array('admin','gestao','comercial','cx','operacional','estagiario','colaborador'), 'badge' => $_geridPendentes, 'badgeCor' => '#0c4a6e'),
+    array('label' => 'Pesquisa FBI $',  'icon' => '🔎', 'href' => url('modules/fbi_vinculo/'),              'id' => 'fbi_vinculo',           'roles' => array('admin','gestao','comercial','cx','operacional','estagiario','colaborador'), 'badge' => $_fbiVinculoPendentes, 'badgeCor' => '#0c4a6e'),
     array('label' => 'Central Intimações','icon' => '📢', 'href' => url('modules/intimacoes/'),    'id' => 'intimacoes',      'roles' => array('admin','gestao','operacional')),
     array('label' => 'Tarefas',         'icon' => '✅', 'href' => url('modules/tarefas/'),        'id' => 'tarefas',         'roles' => array('admin','gestao','operacional')),
     array('label' => 'Msg diária p/ clientes', 'icon' => '🔁', 'href' => url('modules/operacional/acomp_diario.php'), 'id' => 'acomp_diario', 'roles' => array('admin','gestao','operacional','cx','estagiario'), 'badge' => $_acompDiarioAtivos, 'badgeCor' => '#0891b2'),
