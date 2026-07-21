@@ -590,11 +590,14 @@ function fsaAbrirInstalar() {
    pra tirar pela estrela da sidebar — se o item sumisse do menu (modulo
    renomeado/removido), o favorito virava orfao IMPOSSIVEL de remover, so
    dando 404. Foi o que aconteceu no rename GERID -> FBI $. */
-.fav-bar-x { margin-left:3px; opacity:.28; font-weight:600; font-size:.6rem; line-height:1; padding:0 2px; border-radius:50%; cursor:pointer; }
-.fav-bar-link:hover .fav-bar-x { opacity:.6; }
-/* :hover do proprio ✕ precisa de especificidade MAIOR que a regra do chip
-   acima, senao a do chip vence e o ✕ nunca fica 100%/vermelho. */
-.fav-bar-link:hover .fav-bar-x:hover { opacity:1; background:rgba(220,38,38,.18); color:#dc2626; }
+/* Amanda 19/07: some em repouso (barra fica limpa como antes) e aparece so no
+   hover do chip. opacity/width em vez de display:none pra nao dar salto de
+   layout. Tamanho fixo em px — .6rem herdava escala e ainda parecia grande. */
+.fav-bar-x { margin-left:0; opacity:0; width:0; overflow:hidden; font-weight:600; font-size:9px; line-height:1; border-radius:50%; cursor:pointer; transition:opacity .12s, width .12s, margin-left .12s; }
+.fav-bar-link:hover .fav-bar-x { opacity:.55; width:9px; margin-left:3px; }
+/* :hover do proprio × precisa de especificidade MAIOR que a regra do chip
+   acima, senao a do chip vence e o × nunca fica 100%/vermelho. */
+.fav-bar-link:hover .fav-bar-x:hover { opacity:1; color:#dc2626; }
 body.dark-mode .fav-bar { background:var(--bg-card); border-color:var(--border); }
 body.dark-mode .fav-bar-link { background:rgba(201,169,78,.12); color:#e0e0e0; border-color:rgba(201,169,78,.3); }
 body.dark-mode .fav-bar-link:hover { background:#c9a94e; color:#1a1a2e; }
