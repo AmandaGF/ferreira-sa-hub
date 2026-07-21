@@ -586,6 +586,13 @@ function fsaAbrirInstalar() {
 .fav-bar-link { display:inline-flex; align-items:center; gap:3px; padding:3px 9px; border-radius:100px; background:rgba(184,115,51,.08); color:var(--petrol-900); text-decoration:none; font-weight:600; font-size:.72rem; border:1px solid rgba(184,115,51,.2); transition:all .15s; white-space:nowrap; }
 .fav-bar-link:hover { background:#B87333; color:#fff; border-color:#B87333; }
 .fav-bar-empty { color:var(--text-muted); font-style:italic; font-size:.7rem; }
+/* Amanda 19/07/2026: ✕ pra remover o favorito direto da barra. Antes so dava
+   pra tirar pela estrela da sidebar — se o item sumisse do menu (modulo
+   renomeado/removido), o favorito virava orfao IMPOSSIVEL de remover, so
+   dando 404. Foi o que aconteceu no rename GERID -> FBI $. */
+.fav-bar-x { margin-left:2px; opacity:.45; font-weight:700; font-size:.78rem; line-height:1; padding:0 1px; border-radius:50%; cursor:pointer; }
+.fav-bar-x:hover { opacity:1; background:rgba(220,38,38,.15); color:#dc2626; }
+.fav-bar-link:hover .fav-bar-x { opacity:.8; }
 body.dark-mode .fav-bar { background:var(--bg-card); border-color:var(--border); }
 body.dark-mode .fav-bar-link { background:rgba(201,169,78,.12); color:#e0e0e0; border-color:rgba(201,169,78,.3); }
 body.dark-mode .fav-bar-link:hover { background:#c9a94e; color:#1a1a2e; }
@@ -846,6 +853,24 @@ function toggleFavorito(btn, evt) {
     saveFavoritos(favs);
     renderFavBar();
 }
+// Amanda 19/07/2026: remover favorito pelo ✕ da propria barra, sem depender da
+// estrela da sidebar (que some quando o modulo e renomeado/removido).
+function removerFavorito(id, evt) {
+    if (evt) { evt.preventDefault(); evt.stopPropagation(); }
+    var favs = getFavoritos();
+    var nova = favs.filter(function(f) { return f.id !== id; });
+    if (nova.length === favs.length) return;
+    saveFavoritos(nova);
+    // se o item ainda existir na sidebar, devolve a estrela pro estado vazio
+    var btn = document.querySelector('.sidebar-fav-btn[data-fav-id="' + id + '"]');
+    if (btn) { btn.classList.remove('active'); btn.textContent = '☆'; }
+    renderFavBar();
+}
+function _favEsc(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
 function renderFavBar() {
     var bar = document.getElementById('favBar');
     if (!bar) return;
@@ -855,7 +880,12 @@ function renderFavBar() {
         html += '<span class="fav-bar-empty">Clique na estrela ☆ ao lado de qualquer item da sidebar para adicionar aqui</span>';
     } else {
         favs.forEach(function(f) {
-            html += '<a href="' + f.href + '" class="fav-bar-link" title="' + f.label + '"><span>' + f.icon + '</span><span>' + f.label + '</span></a>';
+            var id = _favEsc(f.id), lbl = _favEsc(f.label);
+            html += '<a href="' + _favEsc(f.href) + '" class="fav-bar-link" title="' + lbl + '">'
+                  + '<span>' + _favEsc(f.icon) + '</span><span>' + lbl + '</span>'
+                  + '<span class="fav-bar-x" title="Remover dos favoritos"'
+                  + ' onclick="removerFavorito(\'' + id + '\', event)">✕</span>'
+                  + '</a>';
         });
     }
     bar.innerHTML = html;
@@ -888,6 +918,26 @@ function _sidebarRestorePrefs() {
                 }
             }
         });
+        // Amanda 19/07/2026: purga favoritos de módulos que não existem mais.
+        // Sem isso, quem tinha SÓ o GERID favoritado teria a lista do servidor
+        // vazia após a limpeza, e o bloco de migração abaixo ressuscitaria o
+        // link morto a partir do cache do localStorage.
+        try {
+            var _mortos = ['gerid'];
+            var _ehMorto = function(f) {
+                if (!f) return true;
+                if (_mortos.indexOf(String(f.id || '')) >= 0) return true;
+                return _mortos.some(function(m) { return String(f.href || '').indexOf('/modules/' + m) >= 0; });
+            };
+            var _cache = JSON.parse(localStorage.getItem('sidebar_favoritos') || '[]');
+            if (Array.isArray(_cache) && _cache.some(_ehMorto)) {
+                localStorage.setItem('sidebar_favoritos', JSON.stringify(_cache.filter(function(f){ return !_ehMorto(f); })));
+            }
+            if (window.FSA_FAVORITOS && Array.isArray(window.FSA_FAVORITOS) && window.FSA_FAVORITOS.some(_ehMorto)) {
+                window.FSA_FAVORITOS = window.FSA_FAVORITOS.filter(function(f){ return !_ehMorto(f); });
+                persistirFavoritosServidor(window.FSA_FAVORITOS);
+            }
+        } catch(e) {}
         // Migração 1x: servidor vazio + favoritos antigos no localStorage -> sobe
         // pro servidor (preserva quem já tinha favoritos nesta máquina).
         try {
