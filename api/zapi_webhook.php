@@ -685,7 +685,13 @@ try {
             // (~90% das msgs nem chega na IA). DEFAULT OFF.
             //
             // SO em msgs do CLIENTE (nao fromMe), tipo texto, com conteudo nao vazio.
-            if (!$fromMe && $tipo === 'texto' && !empty(trim($conteudo))) {
+            //
+            // Amanda 19/07/2026: exige tambem CLIENTE VINCULADO na conversa. Sem isso,
+            // feeds internos/automaticos (ex: "Controladoria Ferreira e Sa" repassando
+            // publicacoes judiciais) viravam alerta "🚨 Cliente urgencia: ..." — o texto
+            // juridico passa no filtro local (palavras CAIXA ALTA + "intimacao"/"prazo")
+            // e a IA classificava como urgencia. Falso positivo puro: nao e cliente.
+            if (!$fromMe && $tipo === 'texto' && !empty(trim($conteudo)) && !empty($conv['client_id'])) {
                 try {
                     require_once APP_ROOT . '/core/functions_ia.php';
                     require_once APP_ROOT . '/core/functions_notify.php';
