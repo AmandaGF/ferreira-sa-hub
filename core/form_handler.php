@@ -189,6 +189,12 @@ function process_form_submission($formType, $clientData, $payloadJson)
             // has_children e children_names: sempre atualizar se veio do formulário
             if ($hasChildren !== null) { $updateFields[] = 'has_children = ?'; $updateParams[] = $hasChildren; }
             if ($childrenNames) { $updateFields[] = 'children_names = ?'; $updateParams[] = $childrenNames; }
+            // Amanda 20/07/2026: deseja_onboard (sim/nao/nao_sei) — self-heal + sempre atualiza
+            if (isset($clientData['deseja_onboard']) && $clientData['deseja_onboard'] !== '') {
+                try { $pdo->exec("ALTER TABLE clients ADD COLUMN deseja_onboard VARCHAR(10) NULL"); } catch (Exception $e) {}
+                $updateFields[] = 'deseja_onboard = ?';
+                $updateParams[] = $clientData['deseja_onboard'];
+            }
 
             if (!empty($updateFields)) {
                 $updateFields[] = 'updated_at = NOW()';

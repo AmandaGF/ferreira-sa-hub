@@ -640,6 +640,16 @@ body.dark-mode .cv-toolbar-sticky { background: var(--bg-card, #16213e) !importa
         </button>
     </form>
     <?php endif; ?>
+    <?php if (!empty($case['urgencia_operacional'])): ?>
+    <!-- Amanda 20/07/2026: URGENCIA operacional ativa — botao pra resolver -->
+    <form method="POST" action="<?= module_url('operacional', 'api.php') ?>" style="display:inline;" onsubmit="return confirm('Resolver / desligar a URGÊNCIA operacional?\n\nO banner vermelho piscante some das outras telas do sistema.');">
+        <?= csrf_input() ?>
+        <input type="hidden" name="action" value="resolver_urgencia_op">
+        <input type="hidden" name="case_id" value="<?= $caseId ?>">
+        <button type="submit" class="btn btn-sm" style="background:#dc2626;color:#fff;border:none;font-weight:800;animation:cvUrgResolverPulsar 1s infinite alternate;" title="URGÊNCIA marcada pelo comercial. Clique aqui pra dar como resolvida.">🚨 Resolver urgência</button>
+    </form>
+    <style>@keyframes cvUrgResolverPulsar { from { box-shadow:0 0 0 0 rgba(220,38,38,.4); } to { box-shadow:0 0 0 6px rgba(220,38,38,0); } }</style>
+    <?php endif; ?>
     <a href="<?= module_url('documentos') . '?client_id=' . ($case['client_id'] ?: '') . '&case_id=' . $caseId ?>" class="btn btn-primary btn-sm" style="background:#052228;">📄 Documentos</a>
     <button type="button" onclick="copiarResumoPasta()" class="btn btn-outline btn-sm" title="Copia um resumo Markdown da pasta (CNJ, partes, vara, status) pra colar em e-mail/Slack/WhatsApp interno">📋 Copiar resumo</button>
     <?php if (has_min_role('operacional')): ?>

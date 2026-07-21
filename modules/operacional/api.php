@@ -3658,6 +3658,23 @@ switch ($action) {
         redirect_caso($caseId);
         break;
 
+    // Amanda 20/07/2026: operacional (ou qualquer um) resolve a urgencia
+    // marcada pelo comercial. Banner piscante some.
+    case 'resolver_urgencia_op':
+        $caseId = (int)($_POST['case_id'] ?? 0);
+        if ($caseId) {
+            try { $pdo->exec("ALTER TABLE cases ADD COLUMN urgencia_operacional TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+            try { $pdo->exec("ALTER TABLE cases ADD COLUMN urgencia_operacional_resolvido_em DATETIME NULL"); } catch (Exception $e) {}
+            try { $pdo->exec("ALTER TABLE cases ADD COLUMN urgencia_operacional_resolvido_por INT NULL"); } catch (Exception $e) {}
+            $pdo->prepare("UPDATE cases SET urgencia_operacional=0, urgencia_operacional_resolvido_em=NOW(), urgencia_operacional_resolvido_por=? WHERE id=?")
+                ->execute(array((int)current_user_id(), $caseId));
+            try { $pdo->prepare("UPDATE pipeline_leads SET urgencia_operacional=0 WHERE linked_case_id=?")->execute(array($caseId)); } catch (Exception $e) {}
+            audit_log('urgencia_op_resolvida', 'case', $caseId, 'resolvida por user=' . current_user_id());
+            flash_set('success', 'Urgência resolvida — banner some das telas.');
+        }
+        redirect_caso($caseId);
+        break;
+
     case 'toggle_acompanhamento_externo':
         // Marca/desmarca como processo de outro escritório (apenas observação).
         // Quando ativo, NÃO entra no painel de temperatura nem em alertas de

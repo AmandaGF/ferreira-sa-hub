@@ -615,6 +615,47 @@ switch ($action) {
         redirect(module_url('pipeline'));
         break;
 
+    // Amanda 20/07/2026: comercial marca URGENCIA no lead ja fechado —
+    // banner piscante aparece em todas as paginas pro operacional correr.
+    case 'urgencia_operacional':
+        header('Content-Type: application/json; charset=utf-8');
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        $desc = clean_str($_POST['descricao'] ?? '', 500);
+        if (!$leadId) _api_fail('lead_id obrigatorio', 400);
+        // Self-heal (cases + pipeline_leads)
+        try { $pdo->exec("ALTER TABLE cases ADD COLUMN urgencia_operacional TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE cases ADD COLUMN urgencia_operacional_desc TEXT NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE cases ADD COLUMN urgencia_operacional_em DATETIME NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE cases ADD COLUMN urgencia_operacional_por INT NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE cases ADD COLUMN urgencia_operacional_resolvido_em DATETIME NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE cases ADD COLUMN urgencia_operacional_resolvido_por INT NULL"); } catch (Exception $e) {}
+        try { $pdo->exec("ALTER TABLE pipeline_leads ADD COLUMN urgencia_operacional TINYINT(1) NOT NULL DEFAULT 0"); } catch (Exception $e) {}
+
+        $st = $pdo->prepare("SELECT id, linked_case_id, urgencia_operacional FROM pipeline_leads WHERE id = ?");
+        $st->execute(array($leadId));
+        $l = $st->fetch(PDO::FETCH_ASSOC);
+        if (!$l) _api_fail('lead nao encontrado', 404);
+        $caseId = (int)($l['linked_case_id'] ?? 0);
+        if (!$caseId) _api_fail('lead sem case vinculado — contrato precisa estar fechado antes', 400);
+        $ja = (int)$l['urgencia_operacional'] === 1;
+        if ($ja) {
+            // Toggle OFF: resolve/remove
+            $pdo->prepare("UPDATE cases SET urgencia_operacional=0, urgencia_operacional_resolvido_em=NOW(), urgencia_operacional_resolvido_por=? WHERE id=?")
+                ->execute(array((int)current_user_id(), $caseId));
+            $pdo->prepare("UPDATE pipeline_leads SET urgencia_operacional=0 WHERE id=?")->execute(array($leadId));
+            audit_log('urgencia_op_removida', 'case', $caseId, "por user=" . current_user_id());
+            echo json_encode(array('ok'=>true, 'ativo'=>false));
+        } else {
+            $pdo->prepare("UPDATE cases SET urgencia_operacional=1, urgencia_operacional_desc=?, urgencia_operacional_em=NOW(), urgencia_operacional_por=?, urgencia_operacional_resolvido_em=NULL WHERE id=?")
+                ->execute(array($desc ?: null, (int)current_user_id(), $caseId));
+            $pdo->prepare("UPDATE pipeline_leads SET urgencia_operacional=1 WHERE id=?")->execute(array($leadId));
+            audit_log('urgencia_op_marcada', 'case', $caseId, "desc=" . mb_substr($desc, 0, 100));
+            // Notify operacional + gestao
+            @notify_gestao('🚨 URGÊNCIA marcada pelo comercial!', 'Caso #' . $caseId . ' precisa ser executado com prioridade. ' . ($desc ?: ''), 'urgencia', url('modules/operacional/caso_ver.php?id=' . $caseId), '🚨');
+            echo json_encode(array('ok'=>true, 'ativo'=>true));
+        }
+        exit;
+
     case 'arquivar_todos_para_arquivar':
         // SÓ oculta do Kanban (kanban_oculto=1) — stage real preservado.
         // Lead continua aparecendo na sessão de processos com seu stage real.

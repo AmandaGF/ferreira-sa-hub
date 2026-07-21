@@ -293,6 +293,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .lead-card.dragging { opacity:.4; cursor:grabbing; }
 .lead-cobrar-ico { position:absolute; top:4px; right:4px; background:#B87333; border:none; color:#fff; border-radius:4px; padding:0 5px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-size:.55rem; font-weight:800; cursor:pointer; opacity:.9; transition:all .15s; line-height:1; }
 .lead-card:hover .lead-cobrar-ico { opacity:1; }
+/* Botão URGÊNCIA operacional (Amanda 20/07/2026) */
+.lead-urg-btn { position:absolute; top:4px; right:38px; background:#fff; border:2px solid #dc2626; color:#dc2626; border-radius:6px; padding:2px 8px; font-size:.58rem; font-weight:900; cursor:pointer; letter-spacing:.05em; z-index:2; transition:all .15s; }
+.lead-urg-btn:hover { background:#dc2626; color:#fff; box-shadow:0 0 0 3px rgba(220,38,38,.2); }
+.lead-urg-btn.ativa { background:#dc2626; color:#fff; animation:leadUrgPulsar 1s ease-in-out infinite alternate; box-shadow:0 0 0 3px rgba(220,38,38,.35); }
+@keyframes leadUrgPulsar { from { transform:scale(1); box-shadow:0 0 0 3px rgba(220,38,38,.35); } to { transform:scale(1.06); box-shadow:0 0 12px 3px rgba(220,38,38,.75); } }
 .lead-cobrar-ico:hover { background:#8b5a26; transform:scale(1.1); }
 .lead-cobrar-ico-off { background:#cbd5e1 !important; color:#64748b !important; opacity:.7; }
 .lead-name { font-weight:700; font-size:.8rem; color:var(--petrol-900); margin-bottom:.2rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -455,6 +460,22 @@ $_foraColunas = $totalAtivos - $_somaColunas;
                                 ontouchstart="event.stopPropagation();"
                                 onclick="event.stopPropagation();event.preventDefault();criarCobrancaAsaas(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>);return false;"
                                 title="<?= $_hasCli ? 'Criar cobrança no Asaas com os dados deste lead' : 'Lead sem cliente vinculado — vincule primeiro' ?>">R$</button>
+                    <?php endif; ?>
+                    <?php
+                    // Amanda 20/07/2026: badge de URGENCIA OPERACIONAL — quando o
+                    // comercial marca urgencia depois do contrato fechado,
+                    // banner piscante aparece em todo o sistema pro operacional.
+                    $_urgAtiva = !empty($lead['urgencia_operacional']) && !empty($lead['linked_case_id']);
+                    $_podeMarcarUrg = !empty($lead['linked_case_id']);
+                    ?>
+                    <?php if ($_podeMarcarUrg): ?>
+                    <button type="button"
+                            onmousedown="event.stopPropagation();"
+                            ondragstart="event.preventDefault();event.stopPropagation();return false;"
+                            ontouchstart="event.stopPropagation();"
+                            onclick="event.stopPropagation();event.preventDefault();leadToggleUrgencia(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>, <?= $_urgAtiva ? 1 : 0 ?>);return false;"
+                            class="lead-urg-btn<?= $_urgAtiva ? ' ativa' : '' ?>"
+                            title="<?= $_urgAtiva ? 'Urgência marcada — clique pra RESOLVER' : 'Marcar URGÊNCIA — banner piscante aparece em todo sistema pro operacional' ?>">🚨 <?= $_urgAtiva ? 'URGENTE' : 'URGÊNCIA' ?></button>
                     <?php endif; ?>
                     <div class="lead-name"><?= fsa_area_badge($lead['case_type'], 'xs') ?> <?= e($lead['name']) ?></div>
                     <div class="lead-meta">
@@ -1118,6 +1139,43 @@ function copiarCNJ(ev, numero, btn) {
 // Redireciona pra ficha financeira do cliente com modal já aberto e pré-preenchido.
 // Amanda REVISA valor, parcelas, vencimento, forma e processo antes de confirmar.
 // Se o user segurar Shift/Ctrl ao clicar, cria direto (modo rápido — legado).
+// Amanda 20/07/2026: comercial marca URGENCIA operacional no lead ja fechado.
+// Se ativa, banner vermelho pulsante aparece em toda pagina do sistema pro
+// operacional correr.
+function leadToggleUrgencia(leadId, nome, ativa) {
+    if (ativa) {
+        if (!confirm('Resolver / desligar a urgência de "' + nome + '"?\n\nO banner vermelho piscante some das outras telas.')) return;
+    } else {
+        var desc = prompt('Marcar URGÊNCIA operacional em "' + nome + '"?\n\nO banner vermelho piscante vai aparecer em TODAS as páginas do sistema pra Amanda, Naiara e o time operacional correrem.\n\nDescreva o que precisa ser feito (opcional):');
+        if (desc === null) return; // Cancelou
+        var fd = new FormData();
+        fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+        fd.append('action', 'urgencia_operacional');
+        fd.append('lead_id', leadId);
+        fd.append('descricao', desc || '');
+        fetch('<?= module_url("pipeline", "api.php") ?>', { method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'} })
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error) { alert('Erro: ' + d.error); return; }
+                location.reload();
+            })
+            .catch(function(){ alert('Falha de rede.'); });
+        return;
+    }
+    // Toggle OFF
+    var fd = new FormData();
+    fd.append('csrf_token', '<?= generate_csrf_token() ?>');
+    fd.append('action', 'urgencia_operacional');
+    fd.append('lead_id', leadId);
+    fetch('<?= module_url("pipeline", "api.php") ?>', { method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'} })
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+            if (d.error) { alert('Erro: ' + d.error); return; }
+            location.reload();
+        })
+        .catch(function(){ alert('Falha de rede.'); });
+}
+
 function criarCobrancaAsaas(leadId, nome) {
     var modoRapido = window.event && (window.event.shiftKey || window.event.ctrlKey);
     if (!modoRapido) {

@@ -49,6 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nome_filhos = clean_str($_POST['nome_filhos'] ?? '', 500);
     $tipo_atendimento = clean_str($_POST['tipo_atendimento'] ?? '', 30);
     $autoriza_contato = clean_str($_POST['autoriza_contato'] ?? '', 30);
+    // Amanda 20/07/2026: pergunta ao cliente se ele quer reuniao pos-contrato
+    // (onboard com CX). Salva em clients.deseja_onboard pra a CX filtrar quem
+    // precisa agendar reuniao.
+    $desejaOnboard = clean_str($_POST['deseja_onboard'] ?? '', 10);
+    if (!in_array($desejaOnboard, array('sim', 'nao', 'nao_sei'), true)) $desejaOnboard = '';
     $fam_saude = clean_str($_POST['fam_saude'] ?? '', 300);
     $fam_escola = clean_str($_POST['fam_escola'] ?? '', 30);
     $fam_pensao_atual = clean_str($_POST['fam_pensao_atual'] ?? '', 200);
@@ -87,6 +92,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'imposto_renda' => $imposto_renda, 'clt' => $clt,
             'filhos' => $filhos, 'nome_filhos' => $nome_filhos,
             'tipo_atendimento' => $tipo_atendimento, 'autoriza_contato' => $autoriza_contato,
+            'deseja_onboard' => $desejaOnboard,
             'fam_saude' => $fam_saude, 'fam_escola' => $fam_escola,
             'fam_pensao_atual' => $fam_pensao_atual, 'fam_trabalho_genitor' => $fam_trabalho_genitor,
             'fam_contato_genitor' => $fam_contato_genitor, 'fam_endereco_genitor' => $fam_endereco_genitor,
@@ -112,6 +118,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'has_children' => ($filhos === 'Sim') ? 1 : (($filhos === 'Não') ? 0 : null),
                     'children_names' => $nome_filhos ?: null,
                     'pix_key' => $pix ?: null,
+                    'deseja_onboard' => $desejaOnboard ?: null,
                 ),
                 json_encode($payload, JSON_UNESCAPED_UNICODE)
             );
@@ -306,6 +313,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <option value="Apenas andamento" <?= ($_POST['autoriza_contato'] ?? '') === 'Apenas andamento' ? 'selected' : '' ?>>Apenas andamento do processo</option>
                 <option value="Não" <?= ($_POST['autoriza_contato'] ?? '') === 'Não' ? 'selected' : '' ?>>Não</option>
             </select>
+
+            <label>Deseja realizar a reunião pós assinatura de contrato (<strong>ONBOARD</strong>)? <span class="obrigat">*</span></label>
+            <p style="font-size:12px;color:#5d5c62;margin-top:-10px;margin-bottom:8px;">É um bate-papo curto com a equipe de atendimento (CX) pra você conhecer quem vai cuidar do seu caso, entender os próximos passos e tirar dúvidas iniciais.</p>
+            <div class="radio-group" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;">
+                <label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;">
+                    <input type="radio" name="deseja_onboard" value="sim" required <?= ($_POST['deseja_onboard'] ?? '') === 'sim' ? 'checked' : '' ?>> Sim
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;">
+                    <input type="radio" name="deseja_onboard" value="nao" <?= ($_POST['deseja_onboard'] ?? '') === 'nao' ? 'checked' : '' ?>> Não
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:normal;cursor:pointer;">
+                    <input type="radio" name="deseja_onboard" value="nao_sei" <?= ($_POST['deseja_onboard'] ?? '') === 'nao_sei' ? 'checked' : '' ?>> Não sei ainda
+                </label>
+            </div>
 
             <div class="section-title">Específico: Direito de Família</div>
             <p style="font-size:13px;color:#5d5c62;margin-top:-15px;">(Preencher apenas se o seu caso for sobre Pensão, Guarda, Divórcio etc)</p>

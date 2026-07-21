@@ -40,6 +40,35 @@ require_once APP_ROOT . '/templates/sidebar.php';
     </style>
     <?php endif; ?>
 
+    <?php
+    // Amanda 20/07/2026: banner 🚨 URGÊNCIA OPERACIONAL — comercial pediu
+    // execução urgente. Vermelho piscante pra operacional correr.
+    if (!empty($_urgOps)):
+        $_urgCount = count($_urgOps);
+    ?>
+    <div id="fsaUrgOpBanner" style="position:sticky;top:0;z-index:2001;background:linear-gradient(90deg,#b91c1c,#7f1d1d);color:#fff;padding:.65rem 1rem;font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;box-shadow:0 4px 12px rgba(185,28,28,.35);animation:fsaUrgOpPiscar .9s ease-in-out infinite alternate;">
+        <span>🚨 <strong>URGÊNCIA <?= $_urgCount > 1 ? '('.$_urgCount.' casos) ' : '' ?>marcada pelo comercial!</strong> <span style="opacity:.9;font-weight:600;">O operacional precisa correr com a petição inicial / execução.</span></span>
+        <span style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;">
+        <?php foreach (array_slice($_urgOps, 0, 3) as $urg):
+            $_nomeUrg = $urg['client_name'] ?: ('case #' . $urg['id']);
+            $_tempo = $urg['mins'] < 60 ? ($urg['mins'] . 'min') : (floor($urg['mins']/60) . 'h');
+        ?>
+            <a href="<?= url('modules/operacional/caso_ver.php?id=' . (int)$urg['id']) ?>"
+               title="<?= e($urg['urgencia_operacional_desc'] ?: 'Sem descrição — clique pra ver o caso') ?> · Pediu: <?= e($urg['pediu_por'] ?: '?') ?> · há <?= $_tempo ?>"
+               style="background:rgba(255,255,255,.22);color:#fff;padding:.28rem .7rem;border-radius:6px;text-decoration:none;font-size:.75rem;font-weight:700;">
+                ⚖️ <?= e(mb_substr($_nomeUrg, 0, 24, 'UTF-8')) ?> · <?= $_tempo ?>
+            </a>
+        <?php endforeach; ?>
+        <?php if ($_urgCount > 3): ?>
+            <span style="font-size:.72rem;opacity:.9;">+ <?= $_urgCount - 3 ?> outro<?= $_urgCount-3>1?'s':'' ?></span>
+        <?php endif; ?>
+        </span>
+    </div>
+    <style>
+    @keyframes fsaUrgOpPiscar { from { box-shadow:0 4px 10px rgba(185,28,28,.35); background:linear-gradient(90deg,#b91c1c,#7f1d1d); } to { box-shadow:0 6px 30px rgba(220,38,38,.85); background:linear-gradient(90deg,#dc2626,#991b1b); } }
+    </style>
+    <?php endif; ?>
+
 
         <?php
         // ═══════════════════════════════════════════════════════
@@ -562,6 +591,21 @@ require_once APP_ROOT . '/templates/sidebar.php';
                                           LEFT JOIN clients cl ON cl.id = co.client_id
                                           WHERE s.eh_sos = 1 AND s.sos_resolvido_em IS NULL
                                           ORDER BY s.id DESC LIMIT 20") as $r) $_alfredoSos[] = $r;
+                } catch (Exception $e) {}
+
+                // Amanda 20/07/2026: banner 🚨 URGENCIA OPERACIONAL — comercial
+                // marcou caso urgente pos-contrato, operacional precisa correr.
+                $_urgOps = array();
+                try {
+                    foreach (db()->query("SELECT cs.id, cs.title, cs.urgencia_operacional_desc,
+                                                 TIMESTAMPDIFF(MINUTE, cs.urgencia_operacional_em, NOW()) mins,
+                                                 cl.name AS client_name, u.name AS pediu_por
+                                          FROM cases cs
+                                          LEFT JOIN clients cl ON cl.id = cs.client_id
+                                          LEFT JOIN users u ON u.id = cs.urgencia_operacional_por
+                                          WHERE cs.urgencia_operacional = 1
+                                            AND cs.urgencia_operacional_resolvido_em IS NULL
+                                          ORDER BY cs.urgencia_operacional_em DESC LIMIT 10") as $r) $_urgOps[] = $r;
                 } catch (Exception $e) {}
                 ?>
                 <?php $unreadCount = count_unread_notifications(); ?>
