@@ -42,11 +42,14 @@ require_once APP_ROOT . '/templates/sidebar.php';
 
     <?php
     // Amanda 20/07/2026: banner 🚨 URGÊNCIA OPERACIONAL — comercial pediu
-    // execução urgente. Vermelho piscante pra operacional correr.
+    // execução urgente. Vermelho piscante + SIRENE pra operacional correr.
     if (!empty($_urgOps)):
         $_urgCount = count($_urgOps);
+        // Fingerprint = ids concatenados. Localstorage 'urg_sirene_silenciada_ate'
+        // guarda ate quando o usuario silenciou a sirene deste conjunto.
+        $_urgFp = implode('-', array_map(function($u){ return (int)$u['id']; }, $_urgOps));
     ?>
-    <div id="fsaUrgOpBanner" style="position:sticky;top:0;z-index:2001;background:linear-gradient(90deg,#b91c1c,#7f1d1d);color:#fff;padding:.65rem 1rem;font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;box-shadow:0 4px 12px rgba(185,28,28,.35);animation:fsaUrgOpPiscar .9s ease-in-out infinite alternate;">
+    <div id="fsaUrgOpBanner" data-urg-fp="<?= e($_urgFp) ?>" style="position:sticky;top:0;z-index:2001;background:linear-gradient(90deg,#b91c1c,#7f1d1d);color:#fff;padding:.65rem 1rem;font-weight:800;font-size:.85rem;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;box-shadow:0 4px 12px rgba(185,28,28,.35);animation:fsaUrgOpPiscar .9s ease-in-out infinite alternate;">
         <span>🚨 <strong>URGÊNCIA <?= $_urgCount > 1 ? '('.$_urgCount.' casos) ' : '' ?>marcada pelo comercial!</strong> <span style="opacity:.9;font-weight:600;">O operacional precisa correr com a petição inicial / execução.</span></span>
         <span style="display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;">
         <?php foreach (array_slice($_urgOps, 0, 3) as $urg):
@@ -62,11 +65,73 @@ require_once APP_ROOT . '/templates/sidebar.php';
         <?php if ($_urgCount > 3): ?>
             <span style="font-size:.72rem;opacity:.9;">+ <?= $_urgCount - 3 ?> outro<?= $_urgCount-3>1?'s':'' ?></span>
         <?php endif; ?>
+        <button type="button" id="fsaUrgSilenciarBtn" onclick="fsaUrgSilenciarSirene(this)" style="background:rgba(0,0,0,.25);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:6px;padding:.28rem .7rem;font-size:.72rem;font-weight:700;cursor:pointer;" title="Silencia a sirene por 30min. Banner continua piscando até resolver a urgência.">🔕 Silenciar sirene</button>
         </span>
     </div>
     <style>
     @keyframes fsaUrgOpPiscar { from { box-shadow:0 4px 10px rgba(185,28,28,.35); background:linear-gradient(90deg,#b91c1c,#7f1d1d); } to { box-shadow:0 6px 30px rgba(220,38,38,.85); background:linear-gradient(90deg,#dc2626,#991b1b); } }
     </style>
+    <script>
+    // Sirene via Web Audio API (funciona offline no PWA, sem arquivo externo).
+    // Amanda 21/07/2026: toca ao carregar cada pagina se ha urgencia ativa.
+    // Silenciar guarda 30min no localStorage por fingerprint dos casos.
+    (function(){
+        var banner = document.getElementById('fsaUrgOpBanner');
+        if (!banner) return;
+        var fp = banner.dataset.urgFp || '';
+        var lsKey = 'fsaUrgSilenciadaFp_' + fp;
+        var silenciadaAte = parseInt(localStorage.getItem(lsKey) || '0', 10);
+        var agora = Date.now();
+        if (silenciadaAte > agora) return; // ainda silenciada
+
+        // Precisa gesto do usuario (Chrome bloqueia audio sem interação).
+        // Tenta imediatamente, se falhar aguarda 1o click em qualquer lugar.
+        var jaTocou = false;
+        function tocarSirene() {
+            if (jaTocou) return; jaTocou = true;
+            try {
+                var Ctx = window.AudioContext || window.webkitAudioContext;
+                if (!Ctx) return;
+                var ctx = new Ctx();
+                var duracaoTotal = 2.5; // segundos
+                var alternancia = 0.5; // troca de tom a cada 0.5s (sirene bombeiro)
+                var osc = ctx.createOscillator();
+                var gain = ctx.createGain();
+                osc.type = 'sawtooth'; // sawtooth = som mais "sirene"
+                osc.frequency.setValueAtTime(680, ctx.currentTime);
+                for (var t = 0; t < duracaoTotal; t += alternancia) {
+                    osc.frequency.setValueAtTime(t / alternancia % 2 === 0 ? 680 : 480, ctx.currentTime + t);
+                }
+                gain.gain.setValueAtTime(0, ctx.currentTime);
+                gain.gain.linearRampToValueAtTime(0.35, ctx.currentTime + 0.05);
+                gain.gain.setValueAtTime(0.35, ctx.currentTime + duracaoTotal - 0.15);
+                gain.gain.linearRampToValueAtTime(0, ctx.currentTime + duracaoTotal);
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.start();
+                osc.stop(ctx.currentTime + duracaoTotal);
+            } catch (e) { console.log('[urg-sirene] falhou', e); }
+        }
+        setTimeout(function(){
+            try { tocarSirene(); } catch(e){}
+            // Se Chrome bloqueou (autoplay policy), tenta ao 1o click do usuario.
+            if (!jaTocou) {
+                var handler = function() {
+                    tocarSirene();
+                    document.removeEventListener('click', handler, true);
+                };
+                document.addEventListener('click', handler, true);
+            }
+        }, 300);
+    })();
+    window.fsaUrgSilenciarSirene = function(btn) {
+        var banner = document.getElementById('fsaUrgOpBanner');
+        if (!banner) return;
+        var fp = banner.dataset.urgFp || '';
+        var ate = Date.now() + 30 * 60 * 1000; // 30 min
+        localStorage.setItem('fsaUrgSilenciadaFp_' + fp, String(ate));
+        if (btn) { btn.textContent = '🔕 silenciado 30min'; btn.disabled = true; btn.style.opacity = .6; }
+    };
+    </script>
     <?php endif; ?>
 
 
