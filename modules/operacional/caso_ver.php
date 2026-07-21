@@ -435,15 +435,21 @@ $_papelLabel = array(
 //  - Comparacao por CNJ normalizado (so digitos)
 $duplicatas = array();
 $_eAbsorvido = !empty($case['notes']) && preg_match('/Unificado ao caso #\d+/', $case['notes']);
-if (!empty($case['case_number']) && !$_eAbsorvido) {
+// Amanda 20/07/2026: se ESTE case ja e incidental, nao mostra aviso —
+// mesmo CNJ e legitimo (mesmo processo, incidente novo).
+$_euSouIncidental = !empty($case['is_incidental']);
+if (!empty($case['case_number']) && !$_eAbsorvido && !$_euSouIncidental) {
     try {
         $cnjDg = preg_replace('/\D/', '', $case['case_number']);
+        // Filtra tb duplicatas que ja foram marcadas como incidental — mesmo
+        // CNJ com incidental=1 no OUTRO nao e problema.
         $stmtDup = $pdo->prepare(
-            "SELECT id, title, case_number, status, client_id, created_at, notes
+            "SELECT id, title, case_number, status, client_id, created_at, notes, is_incidental
              FROM cases
              WHERE REPLACE(REPLACE(REPLACE(case_number,'-',''),'.',''),'/','') = ?
                AND id != ?
                AND (notes IS NULL OR notes NOT LIKE ?)
+               AND (is_incidental = 0 OR is_incidental IS NULL)
              ORDER BY created_at ASC, id ASC"
         );
         $stmtDup->execute(array($cnjDg, $caseId, '%Unificado ao caso #' . $caseId . '%'));
@@ -451,7 +457,7 @@ if (!empty($case['case_number']) && !$_eAbsorvido) {
     } catch (Exception $e) {
         // Fallback se REPLACE falhar (improvavel mas seguro)
         try {
-            $stmtDup2 = $pdo->prepare("SELECT id, title, case_number, status, client_id, created_at, notes FROM cases WHERE case_number = ? AND id != ? AND (notes IS NULL OR notes NOT LIKE ?) ORDER BY created_at ASC, id ASC");
+            $stmtDup2 = $pdo->prepare("SELECT id, title, case_number, status, client_id, created_at, notes, is_incidental FROM cases WHERE case_number = ? AND id != ? AND (notes IS NULL OR notes NOT LIKE ?) AND (is_incidental = 0 OR is_incidental IS NULL) ORDER BY created_at ASC, id ASC");
             $stmtDup2->execute(array($case['case_number'], $caseId, '%Unificado ao caso #' . $caseId . '%'));
             $duplicatas = $stmtDup2->fetchAll();
         } catch (Exception $e2) {}
@@ -1131,7 +1137,9 @@ if (!empty($case['cancelado_pelo_comercial'])):
         <?php endforeach; ?>
     </div>
     <?php if (has_min_role('gestao')): ?>
-    <div style="margin-top:.55rem;text-align:right;">
+    <div style="margin-top:.55rem;display:flex;gap:.4rem;flex-wrap:wrap;justify-content:flex-end;align-items:center;">
+        <span style="font-size:.72rem;opacity:.85;margin-right:auto;">Se essa pasta é um <strong>incidente</strong> do processo (recurso, execução, cumprimento etc), marque:</span>
+        <button type="button" onclick="abrirMarcarComoIncidental()" class="btn btn-sm" style="background:rgba(255,255,255,.25);color:#fff;border:1px solid rgba(255,255,255,.4);font-size:.78rem;font-weight:700;">📎 Esta é incidental</button>
         <button onclick="abrirMergeDuplicata(<?= (int)$duplicatas[0]['id'] ?>, <?= htmlspecialchars(json_encode($duplicatas[0]['title']), ENT_QUOTES) ?>, <?= htmlspecialchars(json_encode($duplicatas[0]['created_at'] ? date('d/m/Y', strtotime($duplicatas[0]['created_at'])) : '?'), ENT_QUOTES) ?>)" class="btn btn-sm" style="background:rgba(255,255,255,.2);color:#fff;border:none;font-size:.78rem;font-weight:700;">🔗 Mesclar pastas</button>
     </div>
     <?php endif; ?>
