@@ -470,10 +470,11 @@ $_foraColunas = $totalAtivos - $_somaColunas;
                     ?>
                     <?php if ($_podeMarcarUrg): ?>
                     <button type="button"
-                            onmousedown="event.stopPropagation();"
+                            draggable="false"
+                            onmousedown="event.stopPropagation();event.stopImmediatePropagation();"
                             ondragstart="event.preventDefault();event.stopPropagation();return false;"
                             ontouchstart="event.stopPropagation();"
-                            onclick="event.stopPropagation();event.preventDefault();leadToggleUrgencia(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>, <?= $_urgAtiva ? 1 : 0 ?>);return false;"
+                            onclick="event.stopPropagation();event.stopImmediatePropagation();event.preventDefault();leadToggleUrgencia(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>, <?= $_urgAtiva ? 1 : 0 ?>);return false;"
                             class="lead-urg-btn<?= $_urgAtiva ? ' ativa' : '' ?>"
                             title="<?= $_urgAtiva ? 'Urgência marcada — clique pra RESOLVER' : 'Marcar URGÊNCIA — banner piscante aparece em todo sistema pro operacional' ?>">🚨 <?= $_urgAtiva ? 'URGENTE' : 'URGÊNCIA' ?></button>
                     <?php endif; ?>
