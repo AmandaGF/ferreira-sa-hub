@@ -55,6 +55,26 @@ foreach ($pares as $p) {
 $dirVelho = __DIR__ . '/modules/gerid';
 if (is_dir($dirVelho)) {
     $resto = array_diff(scandir($dirVelho), array('.', '..'));
+
+    // error_log e desktop.ini sao lixo gerado (servidor / Windows), nao codigo.
+    // Mostra o fim do error_log antes de apagar — pode ter erro util do modulo velho.
+    foreach (array('error_log', 'desktop.ini') as $lixo) {
+        $pathLixo = $dirVelho . '/' . $lixo;
+        if (!file_exists($pathLixo)) continue;
+        if ($lixo === 'error_log') {
+            $tam = filesize($pathLixo);
+            echo "    --- conteudo de modules/gerid/error_log ({$tam} bytes, ultimos 2000) ---\n";
+            $txt = @file_get_contents($pathLixo, false, null, max(0, $tam - 2000));
+            foreach (array_slice(array_filter(explode("\n", (string)$txt)), -15) as $ln) {
+                echo "      " . $ln . "\n";
+            }
+            echo "    --- fim do log ---\n";
+        }
+        echo (@unlink($pathLixo) ? "    [OK] apagado modules/gerid/{$lixo}\n"
+                                 : "    [ERRO] nao consegui apagar modules/gerid/{$lixo}\n");
+    }
+
+    $resto = array_diff(scandir($dirVelho), array('.', '..'));
     if (empty($resto)) {
         echo (@rmdir($dirVelho) ? "    [OK] pasta modules/gerid/ removida\n"
                                 : "    [ERRO] nao consegui remover modules/gerid/\n");
