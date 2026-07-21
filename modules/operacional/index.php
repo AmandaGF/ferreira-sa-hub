@@ -26,6 +26,24 @@ $filterSearch = isset($_GET['q']) ? trim($_GET['q']) : '';
 $filterMonth = isset($_GET['mes']) ? $_GET['mes'] : '';
 // Filtro "❄️ Esfriando" — mostra só casos cujo cliente tem score >= 30 (atenção / esfriando)
 $filterEsfriando = !empty($_GET['esfriando']) ? 1 : 0;
+// Amanda 20/07/2026: filtro rapido por AREA (FAM/PREV/CONS/TRAB/etc)
+$filterArea = isset($_GET['area']) ? strtoupper(trim($_GET['area'])) : '';
+$_areaRegex = array(
+    'FAM'  => 'família|familia|divórcio|divorcio|guarda|convivência|convivencia|alimentos|pensão|pensao|medida protetiva|violência|violencia|união estável|uniao estavel|paternidade|adoção|adocao|curatela|tutela|dissolução|dissolucao|inventário|inventario|sucess|partilha',
+    'PREV' => 'prev|inss|aposentador|salário.*maternidade|salario.*maternidade|auxílio.*doença|auxilio.*doenca|invalidez|bpc|loas|pensão por morte|pensao por morte|benefício|beneficio|crps|jef|rpps|reconhecimento tempo|averbação tempo|averbacao tempo|requerimento administrativo|recurso administrativo|incapacidade',
+    'CONS' => 'consumid|cdc|indenizatória|indenizatoria|danos morais|danos materiais|revisional|inclusão indevida|inclusao indevida|negativação|negativacao|estelionato|financiamento|seguradora|operadora|aéreo|aereo|atraso voo',
+    'TRAB' => 'trabalhist|clt|rescisão|rescisao|verba rescisória|verba rescisoria|horas extras|assédio moral|assedio moral|insalubridade|periculosidade|fgts|aviso prévio|aviso previo|estabilidade',
+    'CIV'  => 'cível|civel|civil|obrigação de fazer|obrigacao fazer|agravo|apelação|apelacao|execução|execucao|cumprimento sentença|cumprimento sentenca|alvará|alvara|habilitação|habilitacao|monitória|monitoria',
+    'CRIM' => 'crime|criminal|penal|ação penal|acao penal|habeas corpus|inquérito|inquerito|delegacia|lesão corporal|lesao corporal|ameaça|ameaca',
+    'COND' => 'condomínio|condominio|condomin|cota condominial|assembleia|síndico|sindico',
+    'SAUD' => 'saúde|saude|medicamento|cirurgia|internação|internacao|home care|erro médico|erro medico|sus|conitec',
+    'IMOB' => 'imobiliár|imobiliar|usucapião|usucapiao|despejo|aluguel|locação|locacao|imóvel|imovel|escritura',
+    'EMPR' => 'empresarial|societár|societar|contratual|falência|falencia|recuperação judicial|recuperacao judicial|contabo',
+);
+if ($filterArea && isset($_areaRegex[$filterArea])) {
+    $where[] = "cs.case_type REGEXP ?";
+    $params[] = $_areaRegex[$filterArea];
+}
 
 // Colunas do board (conforme doc técnico v2)
 $columns = array(
@@ -399,10 +417,27 @@ require_once APP_ROOT . '/templates/layout_start.php';
             $_hrefEsfri = module_url('operacional') . '?' . http_build_query(array_filter($_qsEsfri, function($v){ return $v !== '' && $v !== 0; }));
             ?>
             <a href="<?= $_hrefEsfri ?>" class="btn btn-sm" style="font-size:.7rem;background:<?= $filterEsfriando ? '#dc2626' : '#fff' ?>;color:<?= $filterEsfriando ? '#fff' : '#dc2626' ?>;border:1px solid #dc2626;text-decoration:none;font-weight:700;" title="Filtrar só clientes em risco. Badges no card: 🟡 Esfriando 40-79 (45+ dias sem msg ou andamento) · 🔴 Risco real ≥80">❄️ Esfriando<?= $filterEsfriando ? ' ✓' : '' ?></a>
-            <?php if ($filterPriority || $filterUser || $filterSearch || $filterMonth || $filterEsfriando): ?>
+            <?php if ($filterPriority || $filterUser || $filterSearch || $filterMonth || $filterEsfriando || $filterArea): ?>
                 <a href="<?= module_url('operacional') ?>" class="btn btn-outline btn-sm" style="font-size:.65rem;">✕ Limpar</a>
             <?php endif; ?>
         </form>
+        <!-- Filtro por AREA (Amanda 20/07/2026) -->
+        <div style="display:flex;gap:.3rem;align-items:center;flex-wrap:wrap;margin-top:.4rem;">
+            <span style="font-size:.66rem;color:var(--text-muted);font-weight:700;letter-spacing:.05em;margin-right:.15rem;">ÁREA:</span>
+            <?php
+            $_qsBase = $_GET; unset($_qsBase['area']);
+            $_hrefTodas = module_url('operacional') . '?' . http_build_query(array_filter($_qsBase, function($v){ return $v !== '' && $v !== 0; }));
+            $_areasBtn = array('FAM'=>array('🏛️','Família','#4c6ef5','#eef2ff'),'PREV'=>array('🩺','Prev','#10b981','#ecfdf5'),'CONS'=>array('🛒','Consumidor','#f59e0b','#fef3c7'),'TRAB'=>array('👷','Trabalhista','#7c3aed','#f3e8ff'),'CIV'=>array('⚖️','Cível','#0891b2','#ecfeff'),'CRIM'=>array('🚨','Criminal','#dc2626','#fef2f2'),'COND'=>array('🏢','Condominial','#92400e','#fff7ed'),'SAUD'=>array('⚕️','Saúde','#0d9488','#f0fdfa'),'IMOB'=>array('🏠','Imobiliário','#a16207','#fefce8'),'EMPR'=>array('💼','Empresarial','#1e40af','#dbeafe'));
+            ?>
+            <a href="<?= $_hrefTodas ?>" style="font-size:.66rem;padding:2px 8px;border-radius:8px;text-decoration:none;background:<?= !$filterArea ? '#052228' : '#fff' ?>;color:<?= !$filterArea ? '#fff' : '#052228' ?>;border:1px solid #cbd5e1;font-weight:700;">Todas</a>
+            <?php foreach ($_areasBtn as $code => $ab):
+                $qs = $_qsBase; $qs['area'] = $code;
+                $href = module_url('operacional') . '?' . http_build_query(array_filter($qs, function($v){ return $v !== '' && $v !== 0; }));
+                $ativo = ($filterArea === $code);
+            ?>
+                <a href="<?= $href ?>" style="font-size:.66rem;padding:2px 8px;border-radius:8px;text-decoration:none;background:<?= $ativo ? $ab[2] : $ab[3] ?>;color:<?= $ativo ? '#fff' : $ab[2] ?>;border:1px solid <?= $ab[2] ?>;font-weight:800;letter-spacing:.03em;" title="Filtrar por <?= $ab[1] ?>"><?= $ab[0] ?> <?= $code ?></a>
+            <?php endforeach; ?>
+        </div>
     </div>
     <div style="display:flex;gap:.5rem;align-items:center;flex-shrink:0;">
         <a href="<?= module_url('operacional', 'caso_novo.php') ?>" class="btn btn-primary btn-sm" style="font-size:.78rem;">+ Novo Processo</a>
@@ -523,7 +558,13 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 $_isRenunciado = !empty($_renuTipo);
                 $_renuLabel  = $_renuTipo === 'desistencia' ? 'Desistência' : 'Renúncia';
                 ?>
-                <div class="op-card <?= $prazoClass ?><?= $_isAcompExt ? ' acomp-externo' : '' ?><?= $_isCanceladoCom ? ' cancelado-comercial' : '' ?><?= $_isRenunciado ? ' renunciado' : '' ?>" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" data-responsible-id="<?= (int)($cs['responsible_user_id'] ?? 0) ?>" style="<?= $_isCanceladoCom || $_isRenunciado ? '' : ($_isAcompExt ? '' : 'border-left-color:' . $pColor . ';') ?>"
+                <?php
+                // Amanda 20/07/2026: cor esquerda por AREA (fam/prev/cons/trab/etc)
+                // pra Amanda separar visualmente. Cancelado/renunciado/acomp_ext
+                // continuam com estilo proprio sobreposto.
+                $_areaCor = fsa_area_cor($cs['case_type']);
+                ?>
+                <div class="op-card <?= $prazoClass ?><?= $_isAcompExt ? ' acomp-externo' : '' ?><?= $_isCanceladoCom ? ' cancelado-comercial' : '' ?><?= $_isRenunciado ? ' renunciado' : '' ?>" draggable="true" data-case-id="<?= $cs['id'] ?>" data-case-type="<?= e($cs['case_type'] ?: '') ?>" data-case-number="<?= e($cs['case_number'] ?: '') ?>" data-court="<?= e($cs['court'] ?: '') ?>" data-client-id="<?= (int)($cs['client_id'] ?? 0) ?>" data-responsible-id="<?= (int)($cs['responsible_user_id'] ?? 0) ?>" style="<?= $_isCanceladoCom || $_isRenunciado ? '' : ($_isAcompExt ? '' : 'border-left-color:' . $_areaCor . ';border-left-width:5px;') ?>"
                      onclick="if(!event.target.closest('select,form,.op-card-move,button'))window.location='<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>'">
                     <?php if ($_isCanceladoCom): ?>
                     <div style="background:#dc2626;color:#fff;font-size:.62rem;font-weight:800;padding:2px 6px;border-radius:4px;text-align:center;margin-bottom:.35rem;letter-spacing:.03em;text-transform:uppercase;">❌ Cancelado pelo comercial</div>
@@ -533,8 +574,8 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <?php elseif ($_isRenunciado): ?>
                     <div style="background:#b91c1c;color:#fff;font-size:.62rem;font-weight:800;padding:2px 6px;border-radius:4px;text-align:center;margin-bottom:.35rem;letter-spacing:.03em;text-transform:uppercase;">📤 <?= e($_renuLabel) ?></div>
                     <?php endif; ?>
-                    <div style="display:flex;justify-content:space-between;align-items:flex-start;">
-                        <div class="op-card-name" style="flex:1;"><?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:.35rem;">
+                        <div class="op-card-name" style="flex:1;"><?= fsa_area_badge($cs['case_type'], 'xs') ?> <?= e($cs['title'] ?: 'Caso #' . $cs['id']) ?></div>
                         <div style="display:flex;gap:2px;flex-shrink:0;margin-left:4px;">
                             <a href="<?= module_url('operacional', 'caso_ver.php?id=' . $cs['id']) ?>" onclick="event.stopPropagation();" target="_blank" title="Abrir pasta do processo" style="font-size:.85rem;text-decoration:none;">📂</a>
                             <button type="button" onclick="event.stopPropagation();event.preventDefault();arquivarCard(<?= $cs['id'] ?>)" title="Arquivar" style="background:none;border:none;cursor:pointer;font-size:.75rem;padding:0;opacity:.5;line-height:1;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.5">📦</button>

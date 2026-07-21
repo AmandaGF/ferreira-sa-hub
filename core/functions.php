@@ -18,6 +18,7 @@ require_once __DIR__ . '/functions_auth.php';
 require_once __DIR__ . '/functions_notify.php';
 require_once __DIR__ . '/functions_push.php';
 require_once __DIR__ . '/functions_cases.php';
+require_once __DIR__ . '/functions_areas.php';
 require_once __DIR__ . '/functions_pipeline.php';
 require_once __DIR__ . '/functions_cpfcnpj.php';
 require_once __DIR__ . '/functions_gamificacao.php';

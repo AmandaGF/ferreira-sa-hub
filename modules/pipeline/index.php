@@ -439,7 +439,8 @@ $_foraColunas = $totalAtivos - $_somaColunas;
                 <div style="text-align:center;padding:1rem .5rem;color:var(--text-muted);font-size:.72rem;">Nenhum</div>
             <?php else: ?>
                 <?php foreach ($byStage[$stageKey] as $lead): ?>
-                <div class="lead-card<?= !empty($lead['gerid_positivo']) ? ' tem-carimbo-gerid' : '' ?>" draggable="true" data-lead-id="<?= $lead['id'] ?>" style="border-left-color:<?= $stage['color'] ?>;"
+                <?php $_leadAreaCor = fsa_area_cor($lead['case_type']); ?>
+                <div class="lead-card<?= !empty($lead['gerid_positivo']) ? ' tem-carimbo-gerid' : '' ?>" draggable="true" data-lead-id="<?= $lead['id'] ?>" style="border-left-color:<?= $_leadAreaCor ?>;border-left-width:5px;"
                      onclick="if(window._dragging)return;var t=event.target;if(t.closest&&(t.closest('.lead-actions')||t.closest('.lead-cobrar-ico')||t.closest('.lead-gerid-carimbo')||t.closest('button')||t.closest('a')||t.closest('select')))return;window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
                     <?php if (!empty($lead['gerid_positivo'])): ?>
                         <div class="lead-gerid-carimbo" title="Pesquisa GERID retornou vínculo empregatício POSITIVO — tarefa urgente criada"><span>COM<br>VÍN<br>CULO</span></div>
@@ -455,7 +456,7 @@ $_foraColunas = $totalAtivos - $_somaColunas;
                                 onclick="event.stopPropagation();event.preventDefault();criarCobrancaAsaas(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>);return false;"
                                 title="<?= $_hasCli ? 'Criar cobrança no Asaas com os dados deste lead' : 'Lead sem cliente vinculado — vincule primeiro' ?>">R$</button>
                     <?php endif; ?>
-                    <div class="lead-name"><?= e($lead['name']) ?></div>
+                    <div class="lead-name"><?= fsa_area_badge($lead['case_type'], 'xs') ?> <?= e($lead['name']) ?></div>
                     <div class="lead-meta">
                         <?php if ($lead['phone']): ?><span class="phone">📱 <?= e($lead['phone']) ?></span><?php endif; ?>
                         <?php if ($lead['case_type']): ?><span>📁 <?= e($lead['case_type']) ?></span><?php endif; ?>
