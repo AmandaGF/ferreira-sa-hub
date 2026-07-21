@@ -40,6 +40,9 @@ $isColaborador = has_role('colaborador');
 // Salvar origem para "Voltar ao processo" nas outras páginas
 $_SESSION['origem_case_id'] = $caseId;
 
+// Self-heal ANTES do prepare (Amanda 21/07/2026 — senao SELECT quebra se
+// a coluna deseja_onboard ainda nao existir na tabela).
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN deseja_onboard VARCHAR(10) NULL"); } catch (Exception $e) {}
 $stmt = $pdo->prepare(
     'SELECT cs.*, c.name as client_name, c.phone as client_phone, c.id as client_id,
             c.deseja_onboard as client_deseja_onboard,
@@ -47,8 +50,6 @@ $stmt = $pdo->prepare(
      FROM cases cs LEFT JOIN clients c ON c.id = cs.client_id LEFT JOIN users u ON u.id = cs.responsible_user_id
      WHERE cs.id = ?'
 );
-// Self-heal (Amanda 21/07/2026: coluna deseja_onboard editavel pela equipe)
-try { db()->exec("ALTER TABLE clients ADD COLUMN deseja_onboard VARCHAR(10) NULL"); } catch (Exception $e) {}
 $stmt->execute([$caseId]);
 $case = $stmt->fetch();
 
@@ -1756,6 +1757,22 @@ try {
     $_prazosBadge = (int)$stPB->fetchColumn();
 } catch (Exception $e) {}
 
+// Amanda 21/07/2026: linha do tempo do cliente (aba dedicada).
+// Só LÊ aqui — o registro é criado quando ela abre o editor, pra não gerar
+// token de linha do tempo em toda pasta que alguém abrir.
+$_ltInfo = null;
+$_ltMarcos = 0;
+try {
+    $stLT = $pdo->prepare("SELECT * FROM case_timeline WHERE case_id = ?");
+    $stLT->execute(array($caseId));
+    $_ltInfo = $stLT->fetch() ?: null;
+    if ($_ltInfo) {
+        $stLTM = $pdo->prepare("SELECT COUNT(*) FROM case_timeline_eventos WHERE timeline_id = ? AND visivel = 1");
+        $stLTM->execute(array((int)$_ltInfo['id']));
+        $_ltMarcos = (int)$stLTM->fetchColumn();
+    }
+} catch (Exception $e) { /* tabela ainda não migrada */ }
+
 // Amanda 09/07/2026: pesquisas FBI $ deste case (aba dedicada)
 $_fbiVinculoDoCase = array();
 $_fbiVinculoBadge = 0; // total (pra badge no tab)
@@ -1795,6 +1812,7 @@ try {
     <button type="button" class="cv-tab" data-aba="fbi_vinculo" onclick="cvAba('fbi_vinculo')">🔎 FBI $<?php if ($_fbiVinculoBadge > 0): ?> <span class="cv-tab-badge" style="<?= $_fbiVinculoPendCount > 0 ? 'background:#fbbf24;color:#78350f;' : '' ?>" title="<?= $_fbiVinculoPendCount > 0 ? ($_fbiVinculoPendCount . ' pendente(s), ' . $_fbiVinculoBadge . ' total') : 'Total de pesquisas' ?>"><?= $_fbiVinculoBadge ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="helpdesk" onclick="cvAba('helpdesk')">🎫 Helpdesk<?php if ($_helpdeskAbertos > 0): ?> <span class="cv-tab-badge" style="background:#dc2626;color:#fff;" title="<?= $_helpdeskAbertos ?> aberto(s), <?= $_helpdeskBadge ?> total"><?= $_helpdeskAbertos ?></span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="treinamentos" onclick="cvAba('treinamentos')">🎓 Treinamentos<?php if (!empty($_treinamentosCase)): ?> <span class="cv-tab-badge"><?= count($_treinamentosCase) ?></span><?php endif; ?></button>
+    <button type="button" class="cv-tab" data-aba="linha_tempo" onclick="cvAba('linha_tempo')">🕰️ Linha do Tempo<?php if (!empty($_ltInfo) && (int)$_ltInfo['publicado']): ?> <span class="cv-tab-badge" style="background:#065f46;color:#fff;" title="Publicada — o cliente já consegue abrir">no ar</span><?php endif; ?></button>
     <button type="button" class="cv-tab" data-aba="ia" onclick="cvAba('ia')">🧠 IA</button>
     <button type="button" class="cv-header-toggle" onclick="cvHeaderToggle()" style="margin-left:auto;" title="Minimizar/expandir cabeçalho do caso">▲ header</button>
   </div>
@@ -1849,6 +1867,68 @@ try {
 </div>
 
 <!-- 02/07/2026 Amanda: aba Treinamentos de audiência remota -->
+<?php
+// ═══ Linha do Tempo do Cliente (Amanda 21/07/2026) ═══════════════
+// Card compacto: o editor completo vive em linha_tempo.php.
+$_ltUrlEditor = module_url('operacional', 'linha_tempo.php?case_id=' . $caseId);
+$_ltUrlPub = $_ltInfo ? ('https://ferreiraesa.com.br' . BASE_URL . '/publico/linha/?t=' . urlencode($_ltInfo['token'])) : '';
+?>
+<div class="card mb-2 cv-secao" data-aba="linha_tempo" id="cv-linha-tempo">
+    <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
+        <h3 style="margin:0;">🕰️ Linha do Tempo do Cliente</h3>
+        <a href="<?= e($_ltUrlEditor) ?>" class="btn btn-sm btn-primary" style="font-size:.72rem;">
+            <?= $_ltInfo ? '✏️ Abrir editor' : '✨ Criar linha do tempo' ?>
+        </a>
+    </div>
+    <div class="card-body" style="padding:.6rem 1rem 1rem;">
+        <?php if (!$_ltInfo): ?>
+            <p style="font-size:.82rem;color:#6b7280;margin:0 0 .6rem;line-height:1.55;">
+                Uma página exclusiva, animada e em linguagem de leigo contando a história deste processo —
+                o cliente abre por um link só dele, destravado pelo CPF.
+                A IA lê os andamentos e escreve o rascunho; você revisa e publica.
+            </p>
+            <p style="font-size:.78rem;color:#9ca3af;margin:0;">Ainda não existe linha do tempo para esta pasta.</p>
+        <?php else: ?>
+            <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap;margin-bottom:.7rem;">
+                <span style="font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.4px;padding:.22rem .6rem;border-radius:999px;<?= (int)$_ltInfo['publicado'] ? 'background:#065f46;color:#fff;' : 'background:#fef3c7;color:#92400e;' ?>">
+                    <?= (int)$_ltInfo['publicado'] ? '● Publicada' : '○ Rascunho' ?>
+                </span>
+                <span style="font-size:.76rem;color:#6b7280;">
+                    <?= (int)$_ltMarcos ?> marco(s) visível(is) ·
+                    👁 <?= (int)$_ltInfo['visualizacoes'] ?> visualização(ões)<?php
+                    if (!empty($_ltInfo['ultima_visualizacao'])) echo ' · última em ' . date('d/m/Y H:i', strtotime($_ltInfo['ultima_visualizacao'])); ?>
+                </span>
+            </div>
+            <div style="display:flex;gap:.4rem;align-items:center;background:#f8fafc;border:1px solid #e5e7eb;border-radius:8px;padding:.4rem .55rem;margin-bottom:.6rem;">
+                <input type="text" id="cvLtLink" value="<?= e($_ltUrlPub) ?>" readonly onclick="this.select()"
+                       style="flex:1;border:none;background:none;font-family:monospace;font-size:.72rem;color:#334155;outline:none;min-width:0;">
+                <button type="button" class="btn btn-outline btn-sm" style="font-size:.68rem;" onclick="cvLtCopiar()">Copiar</button>
+            </div>
+            <div style="display:flex;gap:.4rem;flex-wrap:wrap;">
+                <a href="<?= e($_ltUrlPub) ?>" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="font-size:.72rem;">👁 Pré-visualizar</a>
+                <a href="<?= e($_ltUrlEditor) ?>" class="btn btn-outline btn-sm" style="font-size:.72rem;">📱 Enviar no WhatsApp</a>
+            </div>
+            <?php if (!(int)$_ltInfo['publicado']): ?>
+            <p style="margin:.7rem 0 0;font-size:.72rem;color:#92400e;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:.4rem .6rem;">
+                Em rascunho o link só abre pra quem está logado no Hub. Publique no editor pra liberar pro cliente.
+            </p>
+            <?php endif; ?>
+            <script>
+            function cvLtCopiar() {
+                var el = document.getElementById('cvLtLink');
+                el.select();
+                try {
+                    document.execCommand('copy');
+                    if (window.FsaFeedback) FsaFeedback.ok('Link copiado.');
+                } catch (e) {
+                    if (window.FsaFeedback) FsaFeedback.erro('Não consegui copiar — selecione e copie à mão.');
+                }
+            }
+            </script>
+        <?php endif; ?>
+    </div>
+</div>
+
 <div class="card mb-2 cv-secao" data-aba="treinamentos" id="cv-treinamentos">
     <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.5rem;">
         <h3 style="margin:0;">🎓 Treinamentos de Audiência Remota (<?= count($_treinamentosCase) ?>)</h3>
@@ -9120,7 +9200,7 @@ window.pedirObsRealizado = function(form) {
         if (renuTipo === 'renuncia' || renuTipo === 'desistencia' || ehRenunciado) document.body.classList.add('cv-renunciado');
         // Aba inicial: hash da URL ou 'visao'
         var hashAba = (location.hash || '').replace('#', '');
-        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','fbi_vinculo','helpdesk','treinamentos','ia'];
+        var abasValidas = ['visao','compromissos','prazos','andamentos','documentos','partes','incidentais','formularios','fbi_vinculo','helpdesk','treinamentos','linha_tempo','ia'];
         cvAba(abasValidas.indexOf(hashAba) !== -1 ? hashAba : 'visao');
         // Hash change (botão voltar do navegador, links externos)
         window.addEventListener('hashchange', function() {

@@ -124,6 +124,9 @@ if ($filterEsfriando) {
 
 $whereStr = implode(' AND ', $where);
 
+// Self-heal (Amanda 21/07/2026 — evita SELECT quebrar se coluna nao existir)
+try { $pdo->exec("ALTER TABLE clients ADD COLUMN deseja_onboard VARCHAR(10) NULL"); } catch (Exception $e) {}
+
 $sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, c.deseja_onboard as client_deseja_onboard, u.name as responsible_name,
         -- Esfriando: zera score se o cliente está adiado (snooze) até depois de hoje
         -- OU se o case é acompanhamento externo (não é nosso processo)
