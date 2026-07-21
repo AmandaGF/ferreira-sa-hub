@@ -590,9 +590,11 @@ function fsaAbrirInstalar() {
    pra tirar pela estrela da sidebar — se o item sumisse do menu (modulo
    renomeado/removido), o favorito virava orfao IMPOSSIVEL de remover, so
    dando 404. Foi o que aconteceu no rename GERID -> FBI $. */
-.fav-bar-x { margin-left:2px; opacity:.45; font-weight:700; font-size:.78rem; line-height:1; padding:0 1px; border-radius:50%; cursor:pointer; }
-.fav-bar-x:hover { opacity:1; background:rgba(220,38,38,.15); color:#dc2626; }
-.fav-bar-link:hover .fav-bar-x { opacity:.8; }
+.fav-bar-x { margin-left:3px; opacity:.28; font-weight:600; font-size:.6rem; line-height:1; padding:0 2px; border-radius:50%; cursor:pointer; }
+.fav-bar-link:hover .fav-bar-x { opacity:.6; }
+/* :hover do proprio ✕ precisa de especificidade MAIOR que a regra do chip
+   acima, senao a do chip vence e o ✕ nunca fica 100%/vermelho. */
+.fav-bar-link:hover .fav-bar-x:hover { opacity:1; background:rgba(220,38,38,.18); color:#dc2626; }
 body.dark-mode .fav-bar { background:var(--bg-card); border-color:var(--border); }
 body.dark-mode .fav-bar-link { background:rgba(201,169,78,.12); color:#e0e0e0; border-color:rgba(201,169,78,.3); }
 body.dark-mode .fav-bar-link:hover { background:#c9a94e; color:#1a1a2e; }
@@ -884,7 +886,7 @@ function renderFavBar() {
             html += '<a href="' + _favEsc(f.href) + '" class="fav-bar-link" title="' + lbl + '">'
                   + '<span>' + _favEsc(f.icon) + '</span><span>' + lbl + '</span>'
                   + '<span class="fav-bar-x" title="Remover dos favoritos"'
-                  + ' onclick="removerFavorito(\'' + id + '\', event)">✕</span>'
+                  + ' onclick="removerFavorito(\'' + id + '\', event)">×</span>'
                   + '</a>';
         });
     }
