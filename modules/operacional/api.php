@@ -3658,6 +3658,21 @@ switch ($action) {
         redirect_caso($caseId);
         break;
 
+    // Amanda 21/07/2026: qualquer usuario marca/edita se cliente deseja onboard
+    // (SIM/NAO/NAO_SEI/vazio). Salva em clients.deseja_onboard.
+    case 'set_deseja_onboard':
+        header('Content-Type: application/json; charset=utf-8');
+        $clientId = (int)($_POST['client_id'] ?? 0);
+        $valor = trim((string)($_POST['valor'] ?? ''));
+        if (!in_array($valor, array('sim','nao','nao_sei',''), true)) $valor = '';
+        if (!$clientId) { echo json_encode(array('error'=>'client_id obrigatorio')); exit; }
+        try { $pdo->exec("ALTER TABLE clients ADD COLUMN deseja_onboard VARCHAR(10) NULL"); } catch (Exception $e) {}
+        $pdo->prepare("UPDATE clients SET deseja_onboard = ? WHERE id = ?")
+            ->execute(array($valor ?: null, $clientId));
+        audit_log('cliente_deseja_onboard', 'clients', $clientId, "valor='" . ($valor?:'vazio') . "' por user=" . current_user_id());
+        echo json_encode(array('ok'=>true, 'valor'=>$valor));
+        exit;
+
     // Amanda 20/07/2026: operacional (ou qualquer um) resolve a urgencia
     // marcada pelo comercial. Banner piscante some.
     case 'resolver_urgencia_op':

@@ -41,10 +41,14 @@ $isColaborador = has_role('colaborador');
 $_SESSION['origem_case_id'] = $caseId;
 
 $stmt = $pdo->prepare(
-    'SELECT cs.*, c.name as client_name, c.phone as client_phone, c.id as client_id, u.name as responsible_name
+    'SELECT cs.*, c.name as client_name, c.phone as client_phone, c.id as client_id,
+            c.deseja_onboard as client_deseja_onboard,
+            u.name as responsible_name
      FROM cases cs LEFT JOIN clients c ON c.id = cs.client_id LEFT JOIN users u ON u.id = cs.responsible_user_id
      WHERE cs.id = ?'
 );
+// Self-heal (Amanda 21/07/2026: coluna deseja_onboard editavel pela equipe)
+try { db()->exec("ALTER TABLE clients ADD COLUMN deseja_onboard VARCHAR(10) NULL"); } catch (Exception $e) {}
 $stmt->execute([$caseId]);
 $case = $stmt->fetch();
 
@@ -949,6 +953,53 @@ $_ehCancelado = ($case['status'] ?? '') === 'cancelado' || !empty($case['cancela
     <div style="margin-top:.3rem;font-size:.75rem;color:rgba(255,255,255,.6);">
         Dept: <?= ucfirst(e($case['departamento'])) ?>
     </div>
+    <?php endif; ?>
+
+    <?php
+    // Amanda 21/07/2026: Reunião Onboard (com CX). Cliente respondeu no form
+    // publico, mas equipe pode marcar/mudar aqui tambem (bug: cliente antigo
+    // nao respondeu). Editavel pra qualquer usuario que ve o case.
+    $_onboardMapa = array(
+        'sim'     => array('label' => 'SIM — agendar onboard', 'cor' => '#059669', 'bg' => 'rgba(5,150,105,.85)'),
+        'nao'     => array('label' => 'NÃO quer',              'cor' => '#6b7280', 'bg' => 'rgba(107,114,128,.7)'),
+        'nao_sei' => array('label' => 'NÃO SEI — confirmar',   'cor' => '#b45309', 'bg' => 'rgba(180,83,9,.85)'),
+        ''        => array('label' => 'Não perguntado ainda',  'cor' => '#94a3b8', 'bg' => 'rgba(148,163,184,.55)'),
+    );
+    $_onboardVal = (string)($case['client_deseja_onboard'] ?? '');
+    if (!isset($_onboardMapa[$_onboardVal])) $_onboardVal = '';
+    $_onboardCur = $_onboardMapa[$_onboardVal];
+    ?>
+    <?php if (!empty($case['client_id'])): ?>
+    <div style="margin-top:.5rem;display:flex;align-items:center;gap:.5rem;font-size:.78rem;color:#fff;background:<?= $_onboardCur['bg'] ?>;padding:.35rem .65rem;border-radius:8px;flex-wrap:wrap;">
+        <span title="Reunião pós-assinatura com CX pra alinhar próximos passos.">🎯 <strong>Onboard:</strong></span>
+        <select onchange="salvarOnboardCliente(this)" data-client-id="<?= (int)$case['client_id'] ?>" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.4);border-radius:6px;padding:2px 6px;font-size:.78rem;font-weight:700;cursor:pointer;">
+            <option value=""       <?= $_onboardVal === ''       ? 'selected' : '' ?> style="color:#333;">— Não perguntado ainda —</option>
+            <option value="sim"    <?= $_onboardVal === 'sim'    ? 'selected' : '' ?> style="color:#333;">✅ SIM — agendar onboard</option>
+            <option value="nao"    <?= $_onboardVal === 'nao'    ? 'selected' : '' ?> style="color:#333;">❌ NÃO quer</option>
+            <option value="nao_sei"<?= $_onboardVal === 'nao_sei'? 'selected' : '' ?> style="color:#333;">❓ NÃO SEI — confirmar com cliente</option>
+        </select>
+        <span id="onboardStatus" style="font-size:.68rem;opacity:.85;"></span>
+    </div>
+    <script>
+    window.salvarOnboardCliente = function(sel) {
+        var st = document.getElementById('onboardStatus');
+        if (st) st.textContent = 'salvando...';
+        var fd = new FormData();
+        fd.append('<?= CSRF_TOKEN_NAME ?>', '<?= generate_csrf_token() ?>');
+        fd.append('action', 'set_deseja_onboard');
+        fd.append('client_id', sel.dataset.clientId);
+        fd.append('valor', sel.value);
+        fetch('<?= module_url('operacional', 'api.php') ?>', {method:'POST', body:fd, credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}})
+            .then(function(r){ return r.json(); })
+            .then(function(d){
+                if (d.error) { if (st) st.textContent = 'erro: ' + d.error; return; }
+                if (st) { st.textContent = '✓ salvo'; setTimeout(function(){ st.textContent=''; }, 2000); }
+                // Recarrega pra atualizar o fundo colorido
+                setTimeout(function(){ location.reload(); }, 500);
+            })
+            .catch(function(){ if (st) st.textContent = 'erro de rede'; });
+    };
+    </script>
     <?php endif; ?>
     <div class="actions">
         <?php

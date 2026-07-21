@@ -940,3 +940,283 @@ function ia_sentiment_wa($texto, $contexto = '') {
         'cached_hit' => false,
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════
+//  LINHA DO TEMPO DO CLIENTE — rascunho narrativo (Amanda 21/07/2026)
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Le a pasta do caso e devolve um RASCUNHO da linha do tempo em linguagem
+ * de leigo, pra Amanda revisar antes de publicar pro cliente.
+ *
+ * Nao grava nada — quem persiste eh linha_tempo_api.php (acao gerar_ia),
+ * que respeita os marcos ja editados a mao (editado_manual = 1).
+ *
+ * @param int $caseId
+ * @param int $userId  quem clicou (whitelist de IA + rateio de custo)
+ * @return array ['ok'=>bool, 'erro'=>?string, 'custo_brl'=>float, 'dados'=>array]
+ *   dados: titulo, lede, painel{ok,atencao,acao}, marcos[], proximos_passos[], fecho
+ */
+function ia_linha_tempo_gerar($caseId, $userId = 0) {
+    $pdo = db();
+    $caseId = (int)$caseId;
+    $falha = function ($msg) { return array('ok' => false, 'erro' => $msg, 'custo_brl' => 0, 'dados' => null); };
+
+    if ($caseId <= 0) return $falha('Caso invalido.');
+
+    // ── 1. Dados da pasta ──────────────────────────────────────────
+    $st = $pdo->prepare(
+        "SELECT c.id, c.title, c.case_type, c.case_number, c.status, c.stage, c.created_at,
+                cl.name AS cliente_nome
+         FROM cases c
+         LEFT JOIN clients cl ON cl.id = c.client_id
+         WHERE c.id = ?"
+    );
+    $st->execute(array($caseId));
+    $caso = $st->fetch();
+    if (!$caso) return $falha('Caso nao encontrado.');
+
+    // ── 2. Partes (nome pode estar em 4 colunas diferentes) ────────
+    $partes = array();
+    try {
+        $stP = $pdo->prepare(
+            "SELECT papel, nome, razao_social, representante_nome, nome_fantasia
+             FROM case_partes WHERE case_id = ? ORDER BY id"
+        );
+        $stP->execute(array($caseId));
+        foreach ($stP->fetchAll() as $p) {
+            $nome = '';
+            foreach (array('nome', 'razao_social', 'representante_nome', 'nome_fantasia') as $col) {
+                if (!empty($p[$col])) { $nome = trim((string)$p[$col]); break; }
+            }
+            if ($nome === '') continue;
+            $partes[] = trim((string)($p['papel'] ?? 'parte')) . ': ' . $nome;
+        }
+    } catch (Throwable $e) { /* tabela pode nao existir */ }
+
+    // ── 3. Andamentos em ordem cronologica ─────────────────────────
+    $andamentos = array();
+    try {
+        $stA = $pdo->prepare(
+            "SELECT id, data_andamento, tipo, descricao
+             FROM case_andamentos WHERE case_id = ?
+             ORDER BY data_andamento ASC, created_at ASC"
+        );
+        $stA->execute(array($caseId));
+        $andamentos = $stA->fetchAll();
+    } catch (Throwable $e) { /* tabela pode nao existir */ }
+
+    if (!$andamentos) {
+        return $falha('Esta pasta ainda nao tem andamentos lancados — a IA nao tem o que contar. '
+                    . 'Lance os andamentos primeiro, ou monte os marcos a mao.');
+    }
+
+    // ── 4. Documentos pendentes do cliente ─────────────────────────
+    //    Schema real: descricao + status ('pendente'/'recebido').
+    $pendentes = array();
+    try {
+        $stD = $pdo->prepare(
+            "SELECT descricao FROM documentos_pendentes
+             WHERE case_id = ? AND status = 'pendente' ORDER BY id"
+        );
+        $stD->execute(array($caseId));
+        $pendentes = $stD->fetchAll(PDO::FETCH_COLUMN);
+    } catch (Throwable $e) { /* ignora */ }
+
+    // ── 5. Proximo compromisso da agenda ───────────────────────────
+    $proximoEvento = '';
+    try {
+        $stE = $pdo->prepare(
+            "SELECT titulo, tipo, data_inicio FROM agenda_eventos
+             WHERE case_id = ? AND data_inicio >= NOW()
+             ORDER BY data_inicio ASC LIMIT 1"
+        );
+        $stE->execute(array($caseId));
+        $ev = $stE->fetch();
+        if ($ev) {
+            $proximoEvento = date('d/m/Y', strtotime($ev['data_inicio'])) . ' — '
+                           . trim((string)$ev['titulo']) . ' (' . trim((string)$ev['tipo']) . ')';
+        }
+    } catch (Throwable $e) { /* ignora */ }
+
+    // ── 6. Monta o dossie pra IA ───────────────────────────────────
+    $linhasAnd = array();
+    foreach ($andamentos as $a) {
+        $data = !empty($a['data_andamento']) ? date('d/m/Y', strtotime($a['data_andamento'])) : 's/ data';
+        $desc = trim(preg_replace('/\s+/u', ' ', (string)$a['descricao']));
+        $linhasAnd[] = '#' . (int)$a['id'] . ' | ' . $data . ' | ' . trim((string)$a['tipo'])
+                     . ' | ' . mb_substr($desc, 0, 600);
+    }
+    // Caso muito antigo com centenas de andamentos: mantem os 120 mais recentes
+    // (a narrativa importa mais no que aconteceu por ultimo).
+    if (count($linhasAnd) > 120) {
+        $linhasAnd = array_slice($linhasAnd, -120);
+        array_unshift($linhasAnd, '[... andamentos mais antigos omitidos ...]');
+    }
+
+    $dossie = "PROCESSO\n"
+            . 'Titulo interno: ' . trim((string)$caso['title']) . "\n"
+            . 'Tipo de acao: ' . (trim((string)$caso['case_type']) ?: 'nao informado') . "\n"
+            . 'Cliente: ' . (trim((string)$caso['cliente_nome']) ?: 'nao informado') . "\n"
+            . 'Aberto em: ' . (!empty($caso['created_at']) ? date('d/m/Y', strtotime($caso['created_at'])) : '?') . "\n"
+            . 'Situacao atual: ' . trim((string)$caso['status']) . "\n\n";
+
+    if ($partes)       $dossie .= "PARTES\n" . implode("\n", $partes) . "\n\n";
+    $dossie .= "ANDAMENTOS (do mais antigo pro mais novo)\n" . implode("\n", $linhasAnd) . "\n\n";
+    if ($pendentes)    $dossie .= "DOCUMENTOS QUE AINDA FALTAM DO CLIENTE\n- " . implode("\n- ", $pendentes) . "\n\n";
+    if ($proximoEvento) $dossie .= "PROXIMO COMPROMISSO AGENDADO\n" . $proximoEvento . "\n\n";
+
+    // ── 7. Prompt ──────────────────────────────────────────────────
+    $system =
+        "Voce escreve a LINHA DO TEMPO que o escritorio Ferreira & Sa Advocacia manda pro proprio cliente "
+      . "acompanhar o processo dele. Quem le e uma pessoa leiga, ansiosa, que quer saber se o caso esta andando.\n\n"
+      . "COMO ESCREVER\n"
+      . "- Portugues comum. Zero juridiques. Se precisar usar um termo tecnico, explique em seguida.\n"
+      . "- Tom acolhedor e adulto. Nunca infantilize, nunca use emoji.\n"
+      . "- Voz ativa e primeira pessoa do plural quando for ato do escritorio ('Entramos com a acao', 'Pedimos ao juiz').\n"
+      . "- Cada marco: um titulo curto que ja conta a noticia, e 1 a 3 frases explicando o que aquilo "
+      . "significou NA PRATICA pra vida do cliente.\n\n"
+      . "REGRAS INEGOCIAVEIS\n"
+      . "1. NUNCA prometa resultado, prazo de vitoria ou valor a receber. Nem sugira que e provavel.\n"
+      . "2. NUNCA invente fato que nao esteja nos andamentos. Se algo estiver ambiguo, fale so do que esta claro.\n"
+      . "3. NAO de conselho juridico novo — voce esta narrando o que ja aconteceu.\n"
+      . "4. Agrupe movimentacao burocratica repetitiva (juntadas, conclusoes, remessas) num marco so, "
+      . "ou simplesmente omita. O cliente nao quer ler cartorio.\n"
+      . "5. Escolha entre 5 e 12 marcos — os que mudaram alguma coisa de verdade.\n"
+      . "6. Se o processo corre em segredo de justica, nao cite nome de crianca por extenso "
+      . "alem do que ja consta no titulo.\n"
+      . "7. Assine sempre como 'Equipe Ferreira & Sa Advocacia'. NUNCA 'Dra. Amanda' nem nome de advogado.\n\n"
+      . "TIPOS DE MARCO (campo 'tipo')\n"
+      . "nos = ato do escritorio | decisao = decisao/sentenca do juiz | audiencia = audiencia ou sessao\n"
+      . "recurso = recurso da outra parte ou nosso | marco = virada importante na vida do cliente\n"
+      . "alerta = ponto que exige atencao | agora = onde o processo esta HOJE (use em no maximo 1 marco, o ultimo)\n"
+      . "outro = qualquer outra coisa\n\n"
+      . "RESPONDA SO COM JSON VALIDO, sem cercas de codigo, neste formato:\n"
+      . '{"titulo":"...","lede":"...","painel":{"ok":"...","atencao":"...","acao":"..."},'
+      . '"marcos":[{"data":"AAAA-MM-DD","titulo":"...","texto":"...","nota":"","tipo":"nos",'
+      . '"destaque":false,"andamento_id":123}],"proximos_passos":["...","..."],"fecho":"..."}' . "\n\n"
+      . "CAMPOS\n"
+      . "titulo: titulo da pagina, humano. Ex: 'A linha do tempo do processo da Maria'.\n"
+      . "lede: 1 paragrafo de abertura (2-3 frases) situando o cliente no caso.\n"
+      . "painel.ok: o que ja foi conquistado ate aqui. painel.atencao: o que esta em andamento agora. "
+      . "painel.acao: o que depende do cliente (ou '' se nada depende dele).\n"
+      . "nota: observacao secundaria do marco, opcional — use '' quando nao houver.\n"
+      . "destaque: true so nos 1 ou 2 marcos que sao a grande virada do caso.\n"
+      . "andamento_id: o # do andamento que originou o marco (use null se juntou varios).\n"
+      . "proximos_passos: 2 a 4 passos do que vem pela frente, em linguagem simples, sem prometer resultado.\n"
+      . "fecho: 1 paragrafo final acolhedor, assinado pela Equipe Ferreira & Sa Advocacia.";
+
+    $resp = ia_chamar(
+        'linha_tempo',
+        'claude-sonnet-4-6',
+        $system,
+        array(array('role' => 'user', 'content' => $dossie)),
+        array(
+            'user_id'     => $userId > 0 ? (int)$userId : null,
+            'max_tokens'  => 4000,
+            'temperature' => 0.6,
+            'contexto'    => 'caso#' . $caseId,
+        )
+    );
+
+    if (empty($resp['ok'])) {
+        return $falha((string)($resp['erro'] ?: 'A IA nao respondeu.'));
+    }
+
+    $dados = ia_linha_tempo_parse_json((string)$resp['texto']);
+    if ($dados === null) {
+        return $falha('A IA respondeu num formato que nao consegui ler. Tente gerar de novo.');
+    }
+
+    return array(
+        'ok'        => true,
+        'erro'      => null,
+        'custo_brl' => (float)($resp['custo_brl'] ?? 0),
+        'dados'     => $dados,
+    );
+}
+
+/**
+ * Extrai e normaliza o JSON da resposta da IA. Devolve null se nao der pra ler.
+ * Tolera cerca de codigo (```json) e texto solto antes/depois.
+ */
+function ia_linha_tempo_parse_json($texto) {
+    $texto = trim($texto);
+    // Tira cerca de codigo, se vier
+    $texto = preg_replace('/^```(?:json)?\s*/i', '', $texto);
+    $texto = preg_replace('/\s*```$/', '', $texto);
+
+    $j = json_decode($texto, true);
+    if (!is_array($j)) {
+        // Ultima tentativa: recorta do primeiro { ate o ultimo }
+        $ini = strpos($texto, '{');
+        $fim = strrpos($texto, '}');
+        if ($ini === false || $fim === false || $fim <= $ini) return null;
+        $j = json_decode(substr($texto, $ini, $fim - $ini + 1), true);
+        if (!is_array($j)) return null;
+    }
+
+    $tiposOk = array('nos', 'decisao', 'audiencia', 'recurso', 'marco', 'alerta', 'agora', 'outro');
+
+    $marcos = array();
+    $brutos = isset($j['marcos']) && is_array($j['marcos']) ? $j['marcos'] : array();
+    foreach ($brutos as $m) {
+        if (!is_array($m)) continue;
+        $titulo = trim((string)($m['titulo'] ?? ''));
+        if ($titulo === '') continue;
+
+        $data = trim((string)($m['data'] ?? ''));
+        // Aceita AAAA-MM-DD; qualquer outra coisa vira null (o editor deixa preencher)
+        if ($data !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $data)) {
+            $ts = strtotime($data);
+            $data = $ts ? date('Y-m-d', $ts) : '';
+        }
+
+        $tipo = strtolower(trim((string)($m['tipo'] ?? 'outro')));
+        if (!in_array($tipo, $tiposOk, true)) $tipo = 'outro';
+
+        $andId = isset($m['andamento_id']) ? (int)$m['andamento_id'] : 0;
+
+        $marcos[] = array(
+            'data'         => $data !== '' ? $data : null,
+            'titulo'       => mb_substr($titulo, 0, 200),
+            'texto'        => trim((string)($m['texto'] ?? '')),
+            'nota'         => trim((string)($m['nota'] ?? '')),
+            'tipo'         => $tipo,
+            'destaque'     => !empty($m['destaque']) ? 1 : 0,
+            'andamento_id' => $andId > 0 ? $andId : null,
+        );
+    }
+    if (!$marcos) return null;
+
+    // Ordena cronologicamente; marcos sem data vao pro fim
+    usort($marcos, function ($a, $b) {
+        if ($a['data'] === $b['data']) return 0;
+        if ($a['data'] === null) return 1;
+        if ($b['data'] === null) return -1;
+        return strcmp($a['data'], $b['data']);
+    });
+
+    $painel = isset($j['painel']) && is_array($j['painel']) ? $j['painel'] : array();
+
+    $passos = array();
+    if (isset($j['proximos_passos']) && is_array($j['proximos_passos'])) {
+        foreach ($j['proximos_passos'] as $p) {
+            $p = trim((string)$p);
+            if ($p !== '') $passos[] = $p;
+        }
+    }
+
+    return array(
+        'titulo'          => mb_substr(trim((string)($j['titulo'] ?? '')), 0, 200),
+        'lede'            => trim((string)($j['lede'] ?? '')),
+        'painel'          => array(
+            'ok'      => trim((string)($painel['ok'] ?? '')),
+            'atencao' => trim((string)($painel['atencao'] ?? '')),
+            'acao'    => trim((string)($painel['acao'] ?? '')),
+        ),
+        'marcos'          => $marcos,
+        'proximos_passos' => $passos,
+        'fecho'           => trim((string)($j['fecho'] ?? '')),
+    );
+}

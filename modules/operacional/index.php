@@ -124,7 +124,7 @@ if ($filterEsfriando) {
 
 $whereStr = implode(' AND ', $where);
 
-$sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, u.name as responsible_name,
+$sql = "SELECT cs.*, c.name as client_name, c.phone as client_phone, c.deseja_onboard as client_deseja_onboard, u.name as responsible_name,
         -- Esfriando: zera score se o cliente está adiado (snooze) até depois de hoje
         -- OU se o case é acompanhamento externo (não é nosso processo)
         IF(c.esfriando_snooze_ate IS NOT NULL AND c.esfriando_snooze_ate >= CURDATE(), 0,
@@ -624,6 +624,16 @@ require_once APP_ROOT . '/templates/layout_start.php';
                     <div class="op-card-badges">
                         <?php if ($_isAcompExt): ?>
                             <span class="op-card-badge" style="background:#475569;" title="Processo de outro escritorio — apenas acompanhamento">👁️ Acompanhamento</span>
+                        <?php endif; ?>
+                        <?php
+                        // Amanda 21/07/2026: badge Onboard pra CX bater olho e
+                        // saber se precisa agendar reuniao pos-contrato.
+                        $_onbVal = (string)($cs['client_deseja_onboard'] ?? '');
+                        if ($_onbVal === 'sim'):
+                        ?>
+                            <span class="op-card-badge" style="background:#059669;" title="Cliente disse SIM pra reunião de Onboard — CX precisa agendar">🎯 Onboard!</span>
+                        <?php elseif ($_onbVal === 'nao_sei'): ?>
+                            <span class="op-card-badge" style="background:#b45309;" title="Cliente respondeu 'não sei ainda' — CX precisa confirmar antes de decidir">❓ Onboard?</span>
                         <?php endif; ?>
                         <?php
                         // Badge do tipo de demanda. Judicial nao mostra badge (eh o
