@@ -293,11 +293,11 @@ require_once APP_ROOT . '/templates/layout_start.php';
 .lead-card.dragging { opacity:.4; cursor:grabbing; }
 .lead-cobrar-ico { position:absolute; top:4px; right:4px; background:#B87333; border:none; color:#fff; border-radius:4px; padding:0 5px; height:16px; display:inline-flex; align-items:center; justify-content:center; font-size:.55rem; font-weight:800; cursor:pointer; opacity:.9; transition:all .15s; line-height:1; }
 .lead-card:hover .lead-cobrar-ico { opacity:1; }
-/* Botão URGÊNCIA operacional (Amanda 20/07/2026) */
-.lead-urg-btn { position:absolute; top:4px; right:38px; background:#fff; border:2px solid #dc2626; color:#dc2626; border-radius:6px; padding:2px 8px; font-size:.58rem; font-weight:900; cursor:pointer; letter-spacing:.05em; z-index:2; transition:all .15s; }
-.lead-urg-btn:hover { background:#dc2626; color:#fff; box-shadow:0 0 0 3px rgba(220,38,38,.2); }
-.lead-urg-btn.ativa { background:#dc2626; color:#fff; animation:leadUrgPulsar 1s ease-in-out infinite alternate; box-shadow:0 0 0 3px rgba(220,38,38,.35); }
-@keyframes leadUrgPulsar { from { transform:scale(1); box-shadow:0 0 0 3px rgba(220,38,38,.35); } to { transform:scale(1.06); box-shadow:0 0 12px 3px rgba(220,38,38,.75); } }
+/* Botão URGÊNCIA operacional (Amanda 20/07/2026 — linha própria, sem overlap) */
+.lead-urg-btn { display:block; width:100%; margin-top:.35rem; background:#fff; border:1.5px dashed #dc2626; color:#dc2626; border-radius:6px; padding:4px 8px; font-size:.62rem; font-weight:800; cursor:pointer; letter-spacing:.03em; transition:all .15s; text-align:center; }
+.lead-urg-btn:hover { background:#fef2f2; border-style:solid; box-shadow:0 0 0 2px rgba(220,38,38,.15); }
+.lead-urg-btn.ativa { background:#dc2626; color:#fff; border:2px solid #7f1d1d; border-style:solid; animation:leadUrgPulsar 1s ease-in-out infinite alternate; }
+@keyframes leadUrgPulsar { from { transform:scale(1); box-shadow:0 0 0 2px rgba(220,38,38,.35); } to { transform:scale(1.03); box-shadow:0 0 10px 3px rgba(220,38,38,.65); } }
 .lead-cobrar-ico:hover { background:#8b5a26; transform:scale(1.1); }
 .lead-cobrar-ico-off { background:#cbd5e1 !important; color:#64748b !important; opacity:.7; }
 .lead-name { font-weight:700; font-size:.8rem; color:var(--petrol-900); margin-bottom:.2rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -468,21 +468,21 @@ $_foraColunas = $totalAtivos - $_somaColunas;
                     $_urgAtiva = !empty($lead['urgencia_operacional']) && !empty($lead['linked_case_id']);
                     $_podeMarcarUrg = !empty($lead['linked_case_id']);
                     ?>
-                    <?php if ($_podeMarcarUrg): ?>
-                    <button type="button"
-                            draggable="false"
-                            onmousedown="event.stopPropagation();event.stopImmediatePropagation();"
-                            ondragstart="event.preventDefault();event.stopPropagation();return false;"
-                            ontouchstart="event.stopPropagation();"
-                            onclick="event.stopPropagation();event.stopImmediatePropagation();event.preventDefault();leadToggleUrgencia(<?= (int)$lead['id'] ?>, <?= e(json_encode($lead['name'])) ?>, <?= $_urgAtiva ? 1 : 0 ?>);return false;"
-                            class="lead-urg-btn<?= $_urgAtiva ? ' ativa' : '' ?>"
-                            title="<?= $_urgAtiva ? 'Urgência marcada — clique pra RESOLVER' : 'Marcar URGÊNCIA — banner piscante aparece em todo sistema pro operacional' ?>">🚨 <?= $_urgAtiva ? 'URGENTE' : 'URGÊNCIA' ?></button>
-                    <?php endif; ?>
                     <div class="lead-name"><?= fsa_area_badge($lead['case_type'], 'xs') ?> <?= e($lead['name']) ?></div>
                     <div class="lead-meta">
                         <?php if ($lead['phone']): ?><span class="phone">📱 <?= e($lead['phone']) ?></span><?php endif; ?>
                         <?php if ($lead['case_type']): ?><span>📁 <?= e($lead['case_type']) ?></span><?php endif; ?>
                     </div>
+                    <?php if ($_podeMarcarUrg): ?>
+                    <button type="button"
+                            draggable="false"
+                            data-urg-btn="1"
+                            data-lead-id="<?= (int)$lead['id'] ?>"
+                            data-lead-name="<?= e($lead['name']) ?>"
+                            data-urg-ativa="<?= $_urgAtiva ? 1 : 0 ?>"
+                            class="lead-urg-btn<?= $_urgAtiva ? ' ativa' : '' ?>"
+                            title="<?= $_urgAtiva ? 'Urgência marcada — clique pra RESOLVER' : 'Marcar URGÊNCIA — banner piscante aparece em todo sistema pro operacional' ?>">🚨 <?= $_urgAtiva ? 'URGENTE — clique pra resolver' : 'Marcar URGÊNCIA operacional' ?></button>
+                    <?php endif; ?>
                     <?php if ($lead['assigned_name']): ?>
                         <div style="font-size:.6rem;color:var(--rose-dark);font-weight:600;margin-top:.15rem;">👤 <?= e(explode(' ', $lead['assigned_name'])[0]) ?></div>
                     <?php endif; ?>
@@ -1140,10 +1140,35 @@ function copiarCNJ(ev, numero, btn) {
 // Redireciona pra ficha financeira do cliente com modal já aberto e pré-preenchido.
 // Amanda REVISA valor, parcelas, vencimento, forma e processo antes de confirmar.
 // Se o user segurar Shift/Ctrl ao clicar, cria direto (modo rápido — legado).
+// Amanda 20/07/2026: instala handler dos botoes URGENCIA em FASE DE CAPTURA
+// (garante que o click nunca chega no card do lead, mesmo com onclick inline).
+// Delegated em document pra pegar botoes criados dinamicamente tambem.
+document.addEventListener('click', function(e) {
+    var btn = e.target && e.target.closest ? e.target.closest('[data-urg-btn]') : null;
+    if (!btn) return;
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    e.preventDefault();
+    var leadId = parseInt(btn.dataset.leadId, 10);
+    var nome = btn.dataset.leadName || '';
+    var ativa = btn.dataset.urgAtiva === '1';
+    leadToggleUrgencia(leadId, nome, ativa);
+    return false;
+}, true); // <-- true = capture phase, roda ANTES do onclick do card
+
+// Bloqueia tambem mousedown pra impedir drag do card comecar
+document.addEventListener('mousedown', function(e) {
+    var btn = e.target && e.target.closest ? e.target.closest('[data-urg-btn]') : null;
+    if (!btn) return;
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+}, true);
+
 // Amanda 20/07/2026: comercial marca URGENCIA operacional no lead ja fechado.
 // Se ativa, banner vermelho pulsante aparece em toda pagina do sistema pro
 // operacional correr.
 function leadToggleUrgencia(leadId, nome, ativa) {
+    console.log('[urgencia] leadToggleUrgencia', {leadId: leadId, nome: nome, ativa: ativa});
     if (ativa) {
         if (!confirm('Resolver / desligar a urgência de "' + nome + '"?\n\nO banner vermelho piscante some das outras telas.')) return;
     } else {
