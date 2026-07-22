@@ -1811,4 +1811,135 @@ HTML,
     'missao' => 'Cadastre um **colaborador de teste** pra treinar o fluxo completo. Sugestão de dados: nome "Teste Onboarding [seu nome]", nascimento 01/01/2000, CPF 000.000.000-00, perfil "outro". Depois de salvar: (1) copie o link, (2) abra em aba anônima, (3) faça login com o nome + data e veja o que a colaboradora enxerga. Depois volte no cadastro e **arquive** o teste pra não poluir a lista. Marque a missão como cumprida.',
 ),
 
+'linha-tempo-cliente' => array(
+    'por_que' => 'A pergunta que mais chega no WhatsApp do escritório é sempre a mesma: **"meu processo está andando?"**. Ela não vem de desconfiança — vem de o cliente não ter como enxergar o que acontece entre uma notícia e outra. Processo é feito de espera, e a espera sem explicação vira ansiedade, que vira mensagem, que vira retrabalho nosso.
+
+A **Linha do Tempo do Cliente** resolve isso na raiz. Você monta uma página exclusiva daquele processo, escrita em português comum, e manda o link. O cliente abre quando quiser, quantas vezes quiser, e vê a história inteira do caso dele — o que já foi conquistado, onde estamos hoje e o que vem pela frente.
+
+O detalhe que faz a diferença: **o espaço entre um marco e outro é proporcional ao tempo que realmente passou**. Uma espera de oito meses ocupa mais tela que uma de três semanas, e vem escrito "8 meses de espera" na própria linha. Em vez de esconder a demora, a página nomeia a demora — e isso, na prática, acalma muito mais do que um "está tudo correndo bem".
+
+Não é a Central VIP. A Central VIP é um portal com conta, senha e ativação por e-mail, feito pra quem acompanha de perto. A Linha do Tempo é uma peça única, sem senha de sistema: chega no WhatsApp, abre com o CPF, encanta e fecha.',
+    'telas_html' => <<<'HTML'
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/operacional/caso_ver.php?id=482#linha_tempo</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-tabs">
+      <span class="tm-mock-tab">📋 Visão geral</span>
+      <span class="tm-mock-tab">📜 Andamentos</span>
+      <span class="tm-mock-tab">📂 Documentos</span>
+      <span class="tm-mock-tab active">🕰️ Linha do Tempo <span class="n">no ar</span></span>
+    </div>
+    <div class="tm-mock-form">
+      <div class="tm-mock-form-title">🕰️ Linha do Tempo do Cliente</div>
+      <div class="tm-mock-hint">● Publicada &nbsp;·&nbsp; 7 marcos visíveis &nbsp;·&nbsp; 👁 3 visualizações · última em 18/07 21:14</div>
+      <div class="tm-mock-field full">
+        <label>Link exclusivo do cliente</label>
+        <div class="tm-mock-input">ferreiraesa.com.br/conecta/publico/linha/?t=9f2c…&nbsp; [Copiar]</div>
+      </div>
+      <div class="tm-mock-hint">[👁 Pré-visualizar] &nbsp; [📱 Enviar no WhatsApp] &nbsp; [✏️ Abrir editor]</div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — Aba <b>Linha do Tempo</b> dentro da pasta do processo. O card mostra se está publicada, quantos marcos o cliente vê e quantas vezes ele abriu. O botão "no ar" no topo da aba só aparece quando está publicada.</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">/conecta/modules/operacional/linha_tempo.php?case_id=482</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-ia">✨ Gerar rascunho com IA — a IA lê os andamentos e escreve os marcos em linguagem de leigo. Leva de 20 a 60 segundos.</div>
+    <div class="tm-mock-linha">
+      <div class="tm-mock-tarefa">
+        <b>⠿ 12/02/2024 · Ato nosso</b> <span class="tm-mock-kill">IA</span><br>
+        Entramos com a ação — "Protocolamos o pedido de pensão e de guarda…"<br>
+        <span class="s">☑ visível &nbsp; ☐ destaque &nbsp; [Salvar] [✕]</span>
+      </div>
+      <div class="tm-mock-tarefa">
+        <b>⠿ 06/03/2024 · Decisão do juiz</b> <span class="tm-mock-btn-good">editado à mão</span><br>
+        A juíza garantiu a pensão já no começo — "Sem esperar o fim do processo…"<br>
+        <span class="s">☑ visível &nbsp; ☑ destaque &nbsp; [Salvar] [✕]</span>
+      </div>
+      <div class="tm-mock-tarefa">
+        <b>⠿ 08/07/2026 · Onde estamos hoje</b> <span class="tm-mock-kill">IA</span><br>
+        Aguardando o estudo social — "O juiz determinou que uma assistente social…"<br>
+        <span class="s">☑ visível &nbsp; ☐ destaque &nbsp; [Salvar] [✕]</span>
+      </div>
+    </div>
+    <div class="tm-mock-hint">Arraste pelo ⠿ pra reordenar. Marcos com a etiqueta verde <b>editado à mão</b> a IA nunca sobrescreve.</div>
+  </div>
+  <p class="tm-screen-caption">Tela — Editor. Cada marco tem data, tipo, título, explicação e dois interruptores: <b>visível</b> (o cliente vê) e <b>destaque</b> (vira o marco grande de virada do caso). O que você editar ganha a etiqueta verde e fica protegido.</p>
+</figure>
+
+<figure class="tm-screen">
+  <div class="tm-screen-chrome">
+    <span class="tm-screen-dots"><span></span><span></span><span></span></span>
+    <span class="tm-screen-url">ferreiraesa.com.br/conecta/publico/linha/?t=9f2c… — o que o cliente vê</span>
+  </div>
+  <div class="tm-screen-body">
+    <div class="tm-mock-fluxo-cliente">
+      <div><b>1. Porta de entrada</b> — tela escura, pede só o CPF. Sem conta, sem senha, sem e-mail.</div>
+      <div><b>2. Abertura</b> — "Caminhando há 2 anos e 5 meses · 7 momentos registrados".</div>
+      <div><b>3. Onde estamos agora</b> — 3 cartões: já conquistamos / em andamento / exige atenção.</div>
+      <div><b>4. A história do caso</b> — a linha do tempo animada, com "8 meses de espera" escrito nos vãos.</div>
+      <div><b>5. O que precisamos de você</b> — os documentos pendentes da pasta, puxados sozinhos.</div>
+      <div><b>6. O que vem pela frente</b> — os próximos passos numerados.</div>
+    </div>
+  </div>
+  <p class="tm-screen-caption">Tela — A sequência que o cliente percorre. Tudo aparece com animação conforme ele rola, e a página se adapta ao tema claro ou escuro do celular dele.</p>
+</figure>
+HTML,
+    'passos' => array(
+        '**1. Abra a pasta do processo** e vá na aba **🕰️ Linha do Tempo**. Clique em **Criar linha do tempo** (ou **Abrir editor**, se já existir). Só de abrir o editor o sistema já gera o link exclusivo daquele processo.',
+        '**2. Clique em ✨ Gerar rascunho com IA.** Ela lê todos os andamentos lançados na pasta, o tipo de ação, as partes e os documentos pendentes, e escreve: título da página, parágrafo de abertura, os três cartões de situação, os marcos e os próximos passos. Leva de 20 a 60 segundos.',
+        '**3. Leia tudo antes de qualquer outra coisa.** A IA é um rascunho, não um texto pronto pra cliente. Corte marco burocrático, junte movimentações repetidas, corrija o que ela entendeu errado. Cada marco que você mexer ganha a etiqueta verde **editado à mão** e fica protegido de futuras gerações.',
+        '**4. Ajuste o "Onde estamos agora".** São os três cartões que o cliente lê primeiro: **já conquistamos**, **em andamento** e **exige atenção**. Cartão que você deixar em branco simplesmente não aparece na página. Use o "exige atenção" só quando realmente depender de alguma coisa — se ele estiver sempre cheio, perde o efeito.',
+        '**5. Marque o marco de virada.** O interruptor **destaque** deixa aquele momento maior e em rosé na página. Use em **um, no máximo dois** marcos do caso inteiro — a liminar que garantiu a pensão, a sentença favorável. Se tudo é destaque, nada é.',
+        '**6. Confira o "O que precisamos de você".** Por padrão a página puxa sozinha os documentos pendentes da pasta. Se preferir escrever a lista à mão, é só digitar um item por linha no campo — o texto manual sempre vence o automático.',
+        '**7. Grave um vídeo ou áudio (opcional).** Cole o link no campo de mídia. Aceita YouTube (embute o player), arquivo de áudio ou vídeo direto, e link do Drive (vira botão). É o item de maior impacto percebido — e o único que dá trabalho por cliente.',
+        '**8. Confira a trava.** O padrão é **pedir CPF**, já preenchido com o do cliente principal. Se quem acompanha é uma representante legal, troque pelo CPF dela e ajuste a frase da tela de entrada.',
+        '**9. Clique em Publicar para o cliente.** Antes disso o link existe mas só abre pra quem está logado no Hub — o cliente vê "página não encontrada". Publicar é o que libera.',
+        '**10. Clique em 📱 Enviar no WhatsApp.** Abre um modal com a mensagem pronta e o link encurtado. **Leia e ajuste antes de enviar** — nada sai sem você clicar em "Enviar agora". Vai pelo canal 24 (Operacional).',
+        '**11. Acompanhe.** O card na aba mostra quantas vezes o cliente abriu e quando foi a última. Cliente que abriu cinco vezes é cliente engajado; cliente que nunca abriu talvez não tenha recebido — vale um toque.',
+    ),
+    'atencao' => '**⚠️ O que não pode dar errado:**
+
+• **Nunca prometa resultado.** Nem você, nem a IA. "A juíza garantiu a pensão" é fato consumado e pode. "Vamos ganhar" ou "o valor deve aumentar" não pode — é a página do escritório, assinada pela equipe, e vira expectativa que a gente não controla. Se a IA escrever qualquer coisa nesse tom, corte.
+
+• **Leia o rascunho da IA inteiro, sempre.** Ela lê os andamentos e pode interpretar mal um despacho ambíguo. O que sai no ar é responsabilidade de quem publicou, não da IA.
+
+• **Nome de pessoa NUNCA vai no campo da tela de entrada.** A frase montada é "Informe o CPF ___ para abrir", e ela aparece **antes** de a pessoa se identificar — qualquer um com o link lê. Escreva "da representante legal", nunca "da Maria Silva".
+
+• **Processo em segredo de justiça exige trava por CPF.** A opção "link aberto, sem senha" existe pra casos específicos (cliente idoso que não lembra o CPF), e mesmo assim pense duas vezes: link do WhatsApp é reencaminhado o tempo todo.
+
+• **Link vazou? Gere link novo.** O botão **🔄 Gerar link novo** mata o link antigo na hora. Depois disso você precisa mandar o link novo pro cliente — o antigo para de abrir pra todo mundo, inclusive pra ele.
+
+• **Despublicar tira do ar imediatamente.** Se o cliente ligar reclamando de alguma coisa escrita ali, despublique primeiro, conserte com calma, publique de novo.
+
+• **Não é a Central VIP.** A Linha do Tempo não substitui o portal: não tem documentos, não tem mensagens, não tem GED. É peça de relacionamento, não canal de atendimento.
+
+• **Assinatura é sempre "Equipe Ferreira & Sá Advocacia"** — nunca "Dra. Amanda". Vale aqui como vale em toda comunicação automática do escritório.',
+    'dica' => 'O que faz a diferença entre uma página boa e uma página que o cliente manda pra família:
+
+• **Menos marcos, mais história.** Cinco a oito marcos que mudaram alguma coisa valem muito mais que vinte juntadas e conclusões. O cliente não quer ler cartório — corte sem dó.
+
+• **Título de marco conta a notícia.** "A juíza garantiu a pensão já no começo" é melhor que "Decisão liminar deferida". O título sozinho já deve dar a informação.
+
+• **Explique o efeito, não o ato.** Em vez de "foi deferida a tutela de urgência", escreva "a partir dessa data o pai passou a ser obrigado a pagar todo mês, e o atraso virou dívida cobrável".
+
+• **O tipo do marco muda o desenho.** Ato nosso vira bolinha rosé, decisão do juiz vira bolinha verde, audiência vira anel, recurso vira losango terracota. Escolher o tipo certo faz a página se ler sozinha.
+
+• **Use "Onde estamos hoje" no último marco.** Esse tipo ganha um cartão branco com halo pulsando — é o "você está aqui" da página.
+
+• **Pré-visualize sempre antes de publicar**, e de preferência no celular. É onde 90% dos clientes vão abrir.
+
+• **Bom momento pra mandar:** depois de uma vitória, depois de uma espera longa sem notícia, ou quando o cliente já perguntou duas vezes se o processo anda. Nesse último caso, a página responde melhor que qualquer texto.
+
+• **Reaproveite.** Se você já montou a linha do tempo de uma ação de alimentos, a próxima fica muito mais rápida — os marcos se repetem, muda o conteúdo.',
+    'missao' => 'Escolha **um processo seu que já tenha uns cinco andamentos lançados** e monte a linha do tempo dele do começo ao fim: gere o rascunho com IA, corte pelo menos um marco burocrático, reescreva pelo menos um título pra contar a notícia, marque **um** destaque e preencha os três cartões de "Onde estamos agora". Depois clique em **Pré-visualizar** e abra no seu celular. Se ficou bom o suficiente pra você mandar pro cliente, publique. Se não ficou, ajuste até ficar — e marque a missão como cumprida.',
+),
+
 );

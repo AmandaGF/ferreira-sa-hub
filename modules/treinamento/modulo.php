@@ -358,10 +358,25 @@ $_urlTreinamento = 'https://ferreiraesa.com.br/conecta/modules/treinamento/modul
     <?php endforeach; ?>
 </div>
 
+<?php
+/**
+ * Amanda 21/07/2026: o **negrito** e o `código` só eram convertidos no passo a
+ * passo — em "por que", "atenção", "dica" e "missão" os asteriscos apareciam
+ * crus na tela. Mesmo tratamento pra todos os blocos: escapa primeiro, depois
+ * converte (a ordem importa — inverter abriria XSS).
+ */
+function tm_texto($txt) {
+    $txt = e((string)$txt);
+    $txt = preg_replace('/\*\*(.+?)\*\*/', '<strong>$1</strong>', $txt);
+    $txt = preg_replace('/`(.+?)`/', '<code>$1</code>', $txt);
+    return nl2br($txt);
+}
+?>
+
 <?php if ($aba === 'conteudo'): ?>
 <div class="tm-box">
     <h3>POR QUE ISSO IMPORTA</h3>
-    <p><?= nl2br(e($cont['por_que'])) ?></p>
+    <p><?= tm_texto($cont['por_que']) ?></p>
 
     <?php if (!empty($cont['telas_html'])): ?>
     <h3>COMO É NA TELA</h3>
@@ -386,14 +401,14 @@ $_urlTreinamento = 'https://ferreiraesa.com.br/conecta/modules/treinamento/modul
     <?php if (!empty($cont['atencao'])): ?>
     <div class="tm-callout warn">
         <div class="icon">⚠️</div>
-        <div><strong>ATENÇÃO — erros comuns</strong><br><?= nl2br(e($cont['atencao'])) ?></div>
+        <div><strong>ATENÇÃO — erros comuns</strong><br><?= tm_texto($cont['atencao']) ?></div>
     </div>
     <?php endif; ?>
 
     <?php if (!empty($cont['dica'])): ?>
     <div class="tm-callout tip">
         <div class="icon">💡</div>
-        <div><strong>DICA DE OURO</strong><br><?= nl2br(e($cont['dica'])) ?></div>
+        <div><strong>DICA DE OURO</strong><br><?= tm_texto($cont['dica']) ?></div>
     </div>
     <?php endif; ?>
 
@@ -412,7 +427,7 @@ $_urlTreinamento = 'https://ferreiraesa.com.br/conecta/modules/treinamento/modul
 <?php elseif ($aba === 'missao'): ?>
 <div class="tm-box">
     <h2>🎯 Missão prática</h2>
-    <p style="font-size:1rem; line-height:1.7; color:#1A1A1A;"><?= nl2br(e($cont['missao'])) ?></p>
+    <p style="font-size:1rem; line-height:1.7; color:#1A1A1A;"><?= tm_texto($cont['missao']) ?></p>
 
     <div class="tm-callout tip">
         <div class="icon">💪</div>

@@ -47,15 +47,28 @@ try {
     $ativa = jorjao_tocada_ativa('peticao_distribuida');
     echo "Tocada peticao_distribuida ativa: " . ($ativa ? 'SIM' : 'NAO (killswitch OFF)') . "\n";
 
+    // Amanda 22/07/2026: Jorjão estava tocando "distribuição" pra cases com
+    // status=em_andamento mas SEM CNJ e SEM distribution_date (Larissa do
+    // Nascimento — o comercial provavelmente mudou status por engano).
+    // Regra correta: só toca se existe SINAL REAL de distribuição:
+    //   (a) case_number preenchido (CNJ chegou) — evidência definitiva OU
+    //   (b) status='distribuido' (comercial marcou explícito o stage) OU
+    //   (c) status='em_andamento' E distribution_date preenchida (mediação
+    //       pré-processual que virou processo com data de distribuição).
+    // Sem nenhum desses, NÃO toca — evita mensagem falsa no grupo.
     $stCandidatos = $pdo->query("
         SELECT cs.id, cs.title, cs.status, cs.case_number, cs.case_type,
                cs.client_id, cs.responsible_user_id, cs.created_at, cs.updated_at,
+               cs.distribution_date,
                c.name AS client_name
         FROM cases cs
         LEFT JOIN clients c ON c.id = cs.client_id
         WHERE cs.jorjao_distribuicao_tocado = 0
-          AND ((cs.case_number IS NOT NULL AND cs.case_number <> '')
-               OR cs.status IN ('em_andamento', 'distribuido'))
+          AND (
+              (cs.case_number IS NOT NULL AND cs.case_number <> '')
+              OR cs.status = 'distribuido'
+              OR (cs.status = 'em_andamento' AND cs.distribution_date IS NOT NULL)
+          )
           AND cs.updated_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
         ORDER BY cs.updated_at DESC
         LIMIT 20

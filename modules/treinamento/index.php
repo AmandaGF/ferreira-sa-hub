@@ -55,6 +55,7 @@ $catMap = array(
     // 👤 Cliente
     'sala-vip'                     => 'cliente',
     'aniversarios'                 => 'cliente',
+    'linha-tempo-cliente'          => 'cliente',
     // 💰 Financeiro
     'financeiro'                   => 'financeiro',
     'cobranca-honorarios'          => 'financeiro',
