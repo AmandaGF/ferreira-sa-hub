@@ -16,9 +16,39 @@ require_once APP_ROOT . '/templates/sidebar.php';
     <main class="main-content">
 
     <?php
+    // Amanda 23/07/2026: queries dos banners SOS/URGENCIA precisam rodar ANTES
+    // do render dos banners (abaixo). Estavam la embaixo, junto do sino, entao
+    // as variaveis chegavam vazias aqui e os banners NUNCA apareciam. Movidas.
+    // -----------------------------------------------------------------------
+    // banner 🚨 SOS Alfredo — quando IA nao soube responder e pediu socorro.
+    $_alfredoSos = array();
+    try {
+        foreach (db()->query("SELECT s.id, s.conversa_id, co.nome_contato, cl.name AS client_name
+                              FROM alfredo_sugestoes s
+                              JOIN zapi_conversas co ON co.id = s.conversa_id
+                              LEFT JOIN clients cl ON cl.id = co.client_id
+                              WHERE s.eh_sos = 1 AND s.sos_resolvido_em IS NULL
+                              ORDER BY s.id DESC LIMIT 20") as $r) $_alfredoSos[] = $r;
+    } catch (Exception $e) {}
+
+    // banner 🚨 URGENCIA OPERACIONAL — comercial marcou caso urgente pos-contrato.
+    $_urgOps = array();
+    try {
+        foreach (db()->query("SELECT cs.id, cs.title, cs.urgencia_operacional_desc,
+                                     TIMESTAMPDIFF(MINUTE, cs.urgencia_operacional_em, NOW()) mins,
+                                     cl.name AS client_name, u.name AS pediu_por
+                              FROM cases cs
+                              LEFT JOIN clients cl ON cl.id = cs.client_id
+                              LEFT JOIN users u ON u.id = cs.urgencia_operacional_por
+                              WHERE cs.urgencia_operacional = 1
+                                AND cs.urgencia_operacional_resolvido_em IS NULL
+                              ORDER BY cs.urgencia_operacional_em DESC LIMIT 10") as $r) $_urgOps[] = $r;
+    } catch (Exception $e) {}
+    ?>
+
+    <?php
     // Amanda 17/07/2026: banner SOS Alfredo — vermelho piscante no topo pra
     // todos os usuarios logados quando ha SOS nao resolvido.
-    // Query esta la em cima (antes do sino).
     if (!empty($_alfredoSos)):
         $_sosCount = count($_alfredoSos);
     ?>
@@ -645,34 +675,7 @@ require_once APP_ROOT . '/templates/sidebar.php';
                 });
                 </script>
 
-                <?php
-                // Amanda 17/07/2026: banner 🚨 SOS Alfredo — quando IA nao soube
-                // responder e pediu socorro pra equipe humana em N conversas.
-                $_alfredoSos = array();
-                try {
-                    foreach (db()->query("SELECT s.id, s.conversa_id, co.nome_contato, cl.name AS client_name
-                                          FROM alfredo_sugestoes s
-                                          JOIN zapi_conversas co ON co.id = s.conversa_id
-                                          LEFT JOIN clients cl ON cl.id = co.client_id
-                                          WHERE s.eh_sos = 1 AND s.sos_resolvido_em IS NULL
-                                          ORDER BY s.id DESC LIMIT 20") as $r) $_alfredoSos[] = $r;
-                } catch (Exception $e) {}
-
-                // Amanda 20/07/2026: banner 🚨 URGENCIA OPERACIONAL — comercial
-                // marcou caso urgente pos-contrato, operacional precisa correr.
-                $_urgOps = array();
-                try {
-                    foreach (db()->query("SELECT cs.id, cs.title, cs.urgencia_operacional_desc,
-                                                 TIMESTAMPDIFF(MINUTE, cs.urgencia_operacional_em, NOW()) mins,
-                                                 cl.name AS client_name, u.name AS pediu_por
-                                          FROM cases cs
-                                          LEFT JOIN clients cl ON cl.id = cs.client_id
-                                          LEFT JOIN users u ON u.id = cs.urgencia_operacional_por
-                                          WHERE cs.urgencia_operacional = 1
-                                            AND cs.urgencia_operacional_resolvido_em IS NULL
-                                          ORDER BY cs.urgencia_operacional_em DESC LIMIT 10") as $r) $_urgOps[] = $r;
-                } catch (Exception $e) {}
-                ?>
+                <?php // banners SOS/URGENCIA: queries movidas pro topo do <main> (rodam antes do render). ?>
                 <?php $unreadCount = count_unread_notifications(); ?>
                 <div class="notif-wrapper" id="notifWrapper">
                     <button class="notif-bell" id="notifBell" title="Notificações">
