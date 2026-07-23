@@ -401,6 +401,19 @@ if (in_array($action, $mutantes, true)) {
     if (!validate_csrf()) { echo json_encode(array('error' => 'CSRF inválido')); exit; }
 }
 
+// Amanda 23/07/2026: qualquer resposta humana numa conversa resolve o SOS
+// pendente do Alfredo. Antes o SOS so saia do banner via aprovar/descartar a
+// sugestao — entao conversa ja respondida (ex: Luiz Eduardo) continuava
+// gritando no banner. Canal 21 nao tem SOS, o UPDATE so afeta 0 linhas.
+function wa_resolver_sos_pendente($pdo, $convId, $userId) {
+    if (!$convId) return;
+    try {
+        $pdo->prepare("UPDATE alfredo_sugestoes SET sos_resolvido_em = NOW(), sos_resolvido_por = ?
+                       WHERE conversa_id = ? AND eh_sos = 1 AND sos_resolvido_em IS NULL")
+            ->execute(array($userId, $convId));
+    } catch (Exception $e) {}
+}
+
 // ── LISTAR CONVERSAS ─────────────────────────────────────
 if ($action === 'listar_conversas') {
     // OTIMIZAÇÃO (2026-05-07): tarefas de manutenção (expirar delegações + atualizar
@@ -1275,6 +1288,7 @@ if ($action === 'enviar_mensagem') {
     // Recalcula score de esfriando do cliente (sem IA, custo zero)
     if (!empty($conv['client_id'])) ia_disparar_recalc_esfriando($pdo, (int)$conv['client_id']);
 
+    wa_resolver_sos_pendente($pdo, $convId, $userId);
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId));
     exit;
 }
@@ -2383,6 +2397,7 @@ if ($action === 'enviar_arquivo') {
 
     if (!empty($conv['client_id'])) ia_disparar_recalc_esfriando($pdo, (int)$conv['client_id']);
 
+    wa_resolver_sos_pendente($pdo, $convId, $userId);
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
     exit;
 }
@@ -2477,6 +2492,7 @@ if ($action === 'enviar_audio') {
 
     if (!empty($conv['client_id'])) ia_disparar_recalc_esfriando($pdo, (int)$conv['client_id']);
 
+    wa_resolver_sos_pendente($pdo, $convId, $userId);
     echo json_encode(array('ok' => true, 'zapi_id' => $zapiId, 'url' => $publicUrl));
     exit;
 }
@@ -2676,6 +2692,7 @@ if ($action === 'enviar_rapido') {
                        {$setAtend}
                        WHERE id = ?")
             ->execute(array(mb_substr($mensagem, 0, 500), $conv['id']));
+        wa_resolver_sos_pendente($pdo, (int)$conv['id'], $userId);
     }
 
     audit_log('wa_enviar_rapido', 'zapi_conversas', $conv['id'] ?? 0, "canal={$canal} tel={$telefone} client_id={$clientId}");
