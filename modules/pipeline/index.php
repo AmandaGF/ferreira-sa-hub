@@ -445,7 +445,7 @@ $_foraColunas = $totalAtivos - $_somaColunas;
             <?php else: ?>
                 <?php foreach ($byStage[$stageKey] as $lead): ?>
                 <?php $_leadAreaCor = fsa_area_cor($lead['case_type']); ?>
-                <div class="lead-card<?= !empty($lead['fbi_vinculo_positivo']) ? ' tem-carimbo-fbi_vinculo' : '' ?>" draggable="true" data-lead-id="<?= $lead['id'] ?>" style="border-left-color:<?= $_leadAreaCor ?>;border-left-width:5px;"
+                <div class="lead-card<?= !empty($lead['fbi_vinculo_positivo']) ? ' tem-carimbo-fbi_vinculo' : '' ?>" draggable="true" data-lead-id="<?= $lead['id'] ?>" data-lead-name="<?= e($lead['name']) ?>" style="border-left-color:<?= $_leadAreaCor ?>;border-left-width:5px;"
                      onclick="if(window._dragging)return;var t=event.target;if(t.closest&&(t.closest('.lead-actions')||t.closest('.lead-cobrar-ico')||t.closest('.lead-fbi_vinculo-carimbo')||t.closest('button')||t.closest('a')||t.closest('select')))return;window.location='<?= module_url('pipeline', 'lead_ver.php?id=' . $lead['id']) ?>'">
                     <?php if (!empty($lead['fbi_vinculo_positivo'])): ?>
                         <div class="lead-fbi_vinculo-carimbo" title="Pesquisa FBI $ retornou vínculo empregatício POSITIVO — tarefa urgente criada"><span>COM<br>VÍN<br>CULO</span></div>
@@ -1661,8 +1661,15 @@ document.getElementById('folderNameInput').addEventListener('keydown', function(
     document.querySelectorAll('.lead-card[draggable]').forEach(function(card) {
         card.addEventListener('dragstart', function(e) {
             draggedId = this.dataset.leadId;
-            var nameEl = this.querySelector('.lead-name');
-            draggedName = nameEl ? nameEl.textContent.trim() : '';
+            // Nome LIMPO vem do atributo, nunca do textContent do .lead-name
+            // (que inclui o badge de area, ex "📁 OUT", e contaminava o nome
+            // da pasta/titulo do caso ao arrastar — bug 07/2026).
+            draggedName = (this.dataset.leadName || '').trim();
+            if (!draggedName) {
+                var nameEl = this.querySelector('.lead-name');
+                // fallback defensivo: remove prefixo de badge "<icone> CODIGO "
+                draggedName = nameEl ? nameEl.textContent.trim().replace(/^\s*\p{Emoji_Presentation}?\s*(FAM|PREV|CONS|TRAB|CIV|CRIM|COND|SAUD|IMOB|EMPR|OUT)\s+/u, '') : '';
+            }
             var form = this.querySelector('form');
             draggedType = form ? (form.dataset.caseType || '') : '';
             window._dragging = true;
