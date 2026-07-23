@@ -13,6 +13,18 @@
  * Retorna array com dados da área:
  *   ['code' => 'PREV', 'label' => 'Previdenciário', 'cor' => '#10b981', 'icon' => '🩺']
  */
+/**
+ * Normaliza texto pra matching de area: minusculo + sem acento + espacos
+ * colapsados. Assim "Salário Maternidade" casa com a chave "salario maternidade".
+ */
+function _fsa_norm_area($s) {
+    $s = mb_strtolower(trim((string)$s), 'UTF-8');
+    $de = array('á','à','â','ã','ä','é','è','ê','ë','í','ì','î','ï','ó','ò','ô','õ','ö','ú','ù','û','ü','ç','ñ');
+    $pa = array('a','a','a','a','a','e','e','e','e','i','i','i','i','o','o','o','o','o','u','u','u','u','c','n');
+    $s = str_replace($de, $pa, $s);
+    return preg_replace('/\s+/', ' ', $s);
+}
+
 function fsa_area_from_case_type($caseType) {
     static $mapa = null;
     if ($mapa === null) {
@@ -32,33 +44,37 @@ function fsa_area_from_case_type($caseType) {
         );
     }
 
-    $t = mb_strtolower(trim((string)$caseType), 'UTF-8');
+    // Normaliza SEM acento (as palavras-chave abaixo sao comparadas ja sem
+    // acento). Antes, "Salário Maternidade"/"Auxílio Doença" caiam em OUT
+    // porque a chave estava sem acento e o texto vinha com acento. Bug 07/2026.
+    $t = _fsa_norm_area((string)$caseType);
     if ($t === '') return $mapa['OUT'];
 
     // Regras (ordem importa — mais específicas primeiro).
     // Usa strpos pra matcar substring dentro do case_type (que pode vir com
     // texto livre tipo "Alimentos + Convivência", "PREV — Salário Maternidade").
+    // TODAS as chaves aqui devem estar SEM ACENTO (o texto ja e normalizado).
     $regras = array(
         // Previdenciário — INSS, benefícios, aposentadoria
-        'PREV' => array('prev', 'inss', 'aposentador', 'salário-maternidade', 'salario-maternidade', 'salario_maternidade', 'salario maternidade', 'auxílio-doença', 'auxilio-doenca', 'auxilio doenca', 'auxilio_doenca', 'invalidez', 'incapacidade', 'bpc', 'loas', 'pensão por morte', 'pensao por morte', 'benefício', 'beneficio', 'requerimento administrativo', 'recurso administrativo', 'reconhecimento tempo', 'averbação tempo', 'crps', 'jef', 'rpps'),
+        'PREV' => array('prev', 'inss', 'aposentador', 'salario-maternidade', 'salario maternidade', 'salario_maternidade', 'auxilio-maternidade', 'auxilio maternidade', 'aux maternidade', 'auxilio-doenca', 'auxilio doenca', 'auxilio_doenca', 'invalidez', 'incapacidade', 'bpc', 'loas', 'pensao por morte', 'beneficio', 'requerimento administrativo', 'recurso administrativo', 'reconhecimento tempo', 'averbacao tempo', 'crps', 'jef', 'rpps'),
         // Família
-        'FAM' => array('família', 'familia', 'divórcio', 'divorcio', 'guarda', 'convivência', 'convivencia', 'alimentos', 'pensão', 'pensao', 'medida protetiva', 'violência doméstica', 'violencia domestica', 'união estável', 'uniao estavel', 'investigação de paternidade', 'investigacao paternidade', 'adoção', 'adocao', 'curatela', 'tutela', 'reconhecimento paternidade', 'dissolução', 'dissolucao', 'inventário', 'inventario', 'testamento', 'sucessão', 'sucessao', 'sucessões', 'sucessoes', 'partilha', 'destituição poder familiar', 'destituicao poder familiar', 'suprimento consentimento'),
+        'FAM' => array('familia', 'divorcio', 'guarda', 'convivencia', 'alimentos', 'pensao', 'medida protetiva', 'violencia domestica', 'uniao estavel', 'paternidade', 'investigacao de paternidade', 'investigacao paternidade', 'reconhecimento de paternidade', 'adocao', 'curatela', 'tutela', 'dissolucao', 'inventario', 'testamento', 'sucessao', 'sucessoes', 'partilha', 'destituicao poder familiar', 'suprimento consentimento', 'abandono afetivo'),
         // Consumidor
-        'CONS' => array('consumid', 'cdc', 'produto defeituoso', 'serviço defeituoso', 'servico defeituoso', 'plano de saúde', 'plano de saude', 'operadora', 'banco', 'financeira', 'financiamento', 'seguradora', 'seguro', 'aereo', 'aéreo', 'viagem', 'atraso voo', 'inclusão indevida', 'inclusao indevida', 'spc', 'serasa', 'negativação', 'negativacao', 'cobrança indevida', 'cobranca indevida', 'estelionato sentimental', 'indenizatória', 'indenizatoria', 'danos morais', 'danos materiais', 'revisional'),
+        'CONS' => array('consumid', 'cdc', 'produto defeituoso', 'servico defeituoso', 'plano de saude', 'operadora', 'banco', 'bancario', 'financeira', 'financiamento', 'seguradora', 'seguro', 'aereo', 'viagem', 'atraso voo', 'inclusao indevida', 'spc', 'serasa', 'negativacao', 'cobranca indevida', 'estelionato', 'indeniza', 'dano moral', 'dano material', 'danos morais', 'danos materiais', 'revisional', 'revisao de contrato', 'revisao bancario', 'juros abusivos', 'superendividamento', 'fraude banc'),
         // Trabalhista
-        'TRAB' => array('trabalhist', 'clt', 'rescisão', 'rescisao', 'verba rescisória', 'verba rescisoria', 'horas extras', 'assédio moral', 'assedio moral', 'insalubridade', 'periculosidade', 'fgts', 'aviso prévio', 'aviso previo', 'estabilidade'),
+        'TRAB' => array('trabalhist', 'clt', 'rescisao', 'verba rescisoria', 'horas extras', 'assedio moral', 'insalubridade', 'periculosidade', 'fgts', 'aviso previo', 'estabilidade'),
         // Criminal
-        'CRIM' => array('crime', 'criminal', 'penal', 'ação penal', 'acao penal', 'habeas corpus', 'inquérito', 'inquerito', 'delegacia', 'boletim de ocorrência', 'boletim ocorrencia', 'lesão corporal', 'lesao corporal', 'ameaça', 'ameaca'),
+        'CRIM' => array('crime', 'criminal', 'penal', 'acao penal', 'habeas corpus', 'inquerito', 'delegacia', 'boletim de ocorrencia', 'boletim ocorrencia', 'lesao corporal', 'ameaca', 'anpp'),
         // Condominial
-        'COND' => array('condomínio', 'condominio', 'condomin', 'cota condominial', 'assembleia', 'síndico', 'sindico'),
+        'COND' => array('condominio', 'condomin', 'cota condominial', 'assembleia', 'sindico'),
         // Saúde (judicialização, plano)
-        'SAUD' => array('saúde', 'saude', 'medicamento', 'cirurgia', 'internação', 'internacao', 'home care', 'tratamento médico', 'tratamento medico', 'erro médico', 'erro medico', 'sus', 'renome', 'conitec'),
+        'SAUD' => array('saude', 'medicamento', 'cirurgia', 'internacao', 'home care', 'tratamento medico', 'erro medico', 'sus', 'renome', 'conitec'),
         // Imobiliário
-        'IMOB' => array('imobiliár', 'imobiliar', 'usucapião', 'usucapiao', 'despejo', 'aluguel', 'locação', 'locacao', 'imóvel', 'imovel', 'escritura', 'registro'),
+        'IMOB' => array('imobiliar', 'usucapiao', 'despejo', 'aluguel', 'locacao', 'imovel', 'escritura', 'registro'),
         // Empresarial
-        'EMPR' => array('empresarial', 'societár', 'societar', 'contratual', 'cobrança empresarial', 'cobranca empresarial', 'execução extrajudicial', 'execucao extrajudicial', 'execução título', 'execucao titulo', 'monitória', 'monitoria', 'falência', 'falencia', 'recuperação judicial', 'recuperacao judicial', 'organizações contabo', 'organizacoes contabo'),
+        'EMPR' => array('empresarial', 'societar', 'cobranca empresarial', 'execucao extrajudicial', 'execucao titulo', 'monitoria', 'falencia', 'recuperacao judicial', 'organizacoes contabo'),
         // Cível genérico (última linha antes de OUT)
-        'CIV'  => array('cível', 'civel', 'civil', 'obrigação de fazer', 'obrigacao fazer', 'petição', 'peticao', 'oferecimento', 'agravo', 'apelação', 'apelacao', 'execução', 'execucao', 'cumprimento sentença', 'cumprimento sentenca', 'alvará', 'alvara', 'habilitação', 'habilitacao'),
+        'CIV'  => array('civel', 'civil', 'obrigacao de fazer', 'obrigacao fazer', 'obrigacao de nao fazer', 'peticao', 'oferecimento', 'agravo', 'apelacao', 'execucao', 'cumprimento sentenca', 'cumprimento de sentenca', 'alvara', 'habilitacao', 'anulatoria', 'consignatoria', 'possessoria', 'rescisoria', 'embargos', 'responsabilidade civil'),
     );
 
     foreach ($regras as $codigo => $keywords) {
