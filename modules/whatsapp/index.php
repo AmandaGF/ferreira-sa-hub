@@ -482,6 +482,9 @@ require_once APP_ROOT . '/templates/layout_start.php';
                 <button class="wa-filter" data-filter="em_atendimento">Em atend.</button>
                 <button class="wa-filter" data-filter="nao_lidas">🔴 Não lidas</button>
                 <button class="wa-filter" data-filter="resolvido">✅ Resolv.</button>
+                <?php if (!$isComercial): ?>
+                <button class="wa-filter" data-filter="sos" style="background:#fef2f2;border-color:#dc2626;color:#991b1b;font-weight:700;" title="Conversas onde o Alfredo pediu socorro — não soube responder e precisa da equipe. Abra e responda/descarte a sugestão pra tirar do banner.">🩹 SOS Alfredo</button>
+                <?php endif; ?>
                 <button class="wa-filter" data-filter="arquivado" title="Ver conversas arquivadas (ficam ocultas por padrão)">📦 Arquiv.</button>
                 <?php if ($etqAtDesbloqueadoId): ?>
                 <button class="wa-filter" id="waBtnAtDesbloqueado" onclick="waFiltrarAtDesbloqueado()" style="background:#fef2f2;border-color:#dc2626;color:#991b1b;font-weight:700;" title="Leads com atendente ausente há mais de 8h úteis — precisam de resposta">🔓 AT Desbloq.</button>
@@ -605,7 +608,7 @@ require_once APP_ROOT . '/templates/layout_start.php';
     setInterval(function(){ if (window._FSA_CSRF) csrf = window._FSA_CSRF; }, 1500);
     // Status inicial vem da URL (?status=aguardando|em_atendimento|bot|nao_lidas|resolvido)
     // Útil pra linkar direto do Dashboard já filtrado.
-    var filtroAtual = <?= json_encode(in_array($_GET['status'] ?? '', array('aguardando','em_atendimento','bot','nao_lidas','resolvido'), true) ? $_GET['status'] : 'todos') ?>;
+    var filtroAtual = <?= json_encode(in_array($_GET['status'] ?? '', array('aguardando','em_atendimento','bot','nao_lidas','resolvido','sos'), true) ? $_GET['status'] : 'todos') ?>;
     var buscaAtual  = '';
     var etiquetaFiltro = 0;
     var ETQ_AT_DESBLOQUEADO_ID = <?= (int)$etqAtDesbloqueadoId ?>;

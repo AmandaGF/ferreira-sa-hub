@@ -437,6 +437,9 @@ if ($action === 'listar_conversas') {
     if ($status && $status !== 'todos') {
         if ($status === 'bot')  $where[] = 'co.bot_ativo = 1';
         elseif ($status === 'nao_lidas') $where[] = 'co.nao_lidas > 0';
+        // Amanda 23/07/2026: filtro SOS Alfredo — conversas onde a IA pediu socorro
+        // e ninguem resolveu ainda. Usado pelo banner ("Ver todas") e pelo chip 🩹.
+        elseif ($status === 'sos') $where[] = 'co.id IN (SELECT conversa_id FROM alfredo_sugestoes WHERE eh_sos = 1 AND sos_resolvido_em IS NULL)';
         else { $where[] = 'co.status = ?'; $params[] = $status; }
     } else {
         // Padrão (sem filtro OU "todos"): oculta arquivadas. Só aparecem se usuário filtrar explicitamente por status=arquivado

@@ -61,8 +61,9 @@ require_once APP_ROOT . '/templates/sidebar.php';
             <a href="<?= url('modules/whatsapp/?abrir=' . (int)$sos['conversa_id'] . '&canal=24') ?>" style="background:rgba(255,255,255,.2);color:#fff;padding:.25rem .6rem;border-radius:6px;text-decoration:none;font-size:.75rem;font-weight:700;">🩹 <?= e(mb_substr($nome, 0, 22, 'UTF-8')) ?></a>
         <?php endforeach; ?>
         <?php if ($_sosCount > 3): ?>
-            <span style="font-size:.72rem;opacity:.9;">+ <?= $_sosCount - 3 ?> outra<?= $_sosCount-3>1?'s':'' ?></span>
+            <a href="<?= url('modules/whatsapp/?canal=24&status=sos') ?>" style="background:rgba(0,0,0,.22);color:#fff;padding:.25rem .6rem;border-radius:6px;text-decoration:none;font-size:.72rem;font-weight:800;" title="Ver todas as conversas com SOS numa lista filtrada">+ <?= $_sosCount - 3 ?> outra<?= $_sosCount-3>1?'s':'' ?> →</a>
         <?php endif; ?>
+        <a href="<?= url('modules/whatsapp/?canal=24&status=sos') ?>" style="background:#fff;color:#991b1b;padding:.28rem .75rem;border-radius:6px;text-decoration:none;font-size:.72rem;font-weight:800;" title="Abre o WhatsApp CX filtrado só nos SOS — responda ou descarte a sugestão do Alfredo pra tirar cada conversa do banner">📋 Ver todas</a>
         </span>
     </div>
     <style>
