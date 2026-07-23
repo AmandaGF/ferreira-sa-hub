@@ -68,7 +68,8 @@ function fsa_area_from_case_type($caseType) {
         // Condominial
         'COND' => array('condominio', 'condomin', 'cota condominial', 'assembleia', 'sindico'),
         // Saúde (judicialização, plano)
-        'SAUD' => array('saude', 'medicamento', 'cirurgia', 'internacao', 'home care', 'tratamento medico', 'erro medico', 'sus', 'renome', 'conitec'),
+        // (evitar 'renome' isolado: casa dentro de "prenome")
+        'SAUD' => array('saude', 'medicamento', 'cirurgia', 'internacao', 'home care', 'tratamento medico', 'erro medico', 'judicializacao da saude', 'rename ', 'conitec'),
         // Imobiliário
         'IMOB' => array('imobiliar', 'usucapiao', 'despejo', 'aluguel', 'locacao', 'imovel', 'escritura', 'registro'),
         // Empresarial
