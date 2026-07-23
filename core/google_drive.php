@@ -213,6 +213,38 @@ function upload_file_to_drive($folderUrl, $fileName, $sourceUrl, $mimeType = '')
 }
 
 /**
+ * Renomeia uma pasta do Drive. NAO muda o ID/URL da pasta (o link continua
+ * valido). Apps Script handler: action=renameFolder (folderId + newName).
+ *
+ * @param string $folderIdOrUrl ID ou URL completa da pasta
+ * @param string $newName Novo nome
+ * @return array ['success'=>bool, 'title'=>?, 'error'=>?]
+ */
+function rename_drive_folder($folderIdOrUrl, $newName) {
+    if (!defined('GOOGLE_APPS_SCRIPT_URL') || !GOOGLE_APPS_SCRIPT_URL) {
+        return array('success' => false, 'error' => 'GOOGLE_APPS_SCRIPT_URL não configurado');
+    }
+    $folderId = $folderIdOrUrl;
+    if (preg_match('/folders\/([a-zA-Z0-9_-]+)/', $folderIdOrUrl, $m)) $folderId = $m[1];
+    $newName = _drive_sanitize_filename($newName);
+    if ($folderId === '' || $newName === '') {
+        return array('success' => false, 'error' => 'folderId ou newName vazio');
+    }
+    $payload = json_encode(array(
+        'action'   => 'renameFolder',
+        'folderId' => $folderId,
+        'newName'  => $newName,
+    ));
+    $r = _drive_post_com_retry($payload, 30, 3);
+    if ($r['err']) return array('success' => false, 'error' => 'cURL: ' . $r['err']);
+    $data = json_decode($r['resp'], true);
+    if ($r['http'] === 200 && !empty($data['ok'])) {
+        return array('success' => true, 'title' => $data['title'] ?? $newName);
+    }
+    return array('success' => false, 'error' => 'HTTP ' . $r['http'] . ': ' . $r['resp']);
+}
+
+/**
  * Pega ID de subpasta dentro de uma pasta-pai, criando se nao existir.
  * Apps Script handler: action=getOrCreateSubfolder
  *
