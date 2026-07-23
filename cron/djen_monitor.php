@@ -285,6 +285,15 @@ function claudin_chamar_claude($item, $dataFatalSugerida) {
         . "- CPC art. 224 §3º: termo inicial é o primeiro dia útil seguinte à disponibilização.\n"
         . "- NUNCA diga 'apelação' quando for JEC — é Recurso Inominado.\n"
         . "- Sempre nomear o recurso correto para o rito identificado.\n\n"
+        . "⛔ VOCABULÁRIO PROIBIDO (erros comuns de IA que não podem sair):\n"
+        . "  ❌ 'TRÉPLICA' — NÃO EXISTE no CPC. O procedimento comum tem: petição inicial → contestação (réu) → RÉPLICA (autor, art. 350-351 CPC, 15 dias úteis) → provas → sentença. NÃO há resposta à réplica.\n"
+        . "  ❌ 'CONTRARRAZÃO' fora de contexto de recurso. Contrarrazões só existem em resposta a APELAÇÃO/RECURSO. Ato ordinatório 'ao autor, em réplica' NÃO é resposta a contrarrazão — é intimação pra o AUTOR se manifestar sobre a CONTESTAÇÃO do réu.\n"
+        . "  ❌ 'DÚPLICA' — não existe.\n\n"
+        . "✅ ATOS ORDINATÓRIOS COMUNS — traduza corretamente:\n"
+        . "  • 'ao autor, em réplica' / 'à parte autora, em réplica' → Autor deve apresentar RÉPLICA (15 dias úteis) contestando os argumentos da defesa apresentada pelo réu. NÃO é tréplica, NÃO é contrarrazão.\n"
+        . "  • 'às partes, especifiquem provas' → Ambas as partes devem indicar as provas que pretendem produzir (15 dias úteis).\n"
+        . "  • 'ciência às partes' / 'dê-se ciência' → Ciência simples, sem prazo do advogado (a menos que texto especifique).\n"
+        . "  • 'em contrarrazões' → SÓ quando é recurso (apelação, agravo, etc). Não confundir com réplica.\n\n"
         . "OUTPUTS:\n"
         . "1. RESUMO (até 25 palavras): o que a publicação comunica, em português claro, sem juridiquês.\n"
         . "2. ORIENTAÇÃO (até 45 palavras): o que o advogado deve fazer e em quanto tempo. Mencione o rito identificado quando houver prazo (ex: 'JEC — interpor Recurso Inominado em 10 dias úteis até DD/MM/AAAA').\n"
@@ -324,11 +333,26 @@ function claudin_chamar_claude($item, $dataFatalSugerida) {
                 if (preg_match('/\{[\s\S]*\}/', $texto, $m)) $texto = $m[0];
                 $json = json_decode($texto, true);
                 if (is_array($json) && isset($json['resumo'], $json['orientacao'])) {
-                    return array(
-                        'resumo'     => trim($json['resumo']),
-                        'orientacao' => trim($json['orientacao']),
-                        'falhou'     => false,
-                    );
+                    $_resumo = trim($json['resumo']);
+                    $_orient = trim($json['orientacao']);
+                    // Amanda 22/07/2026: guard-rail contra vocabulário proibido
+                    // ('tréplica' não existe no CPC comum; 'contrarrazão' só em
+                    // recurso). Se aparecer, retry — nao envia texto errado.
+                    $_txtCombo = mb_strtolower($_resumo . ' ' . $_orient, 'UTF-8');
+                    $_temErroConceitual = preg_match('/tr[ée]plica|d[uú]plica/i', $_txtCombo)
+                        || (preg_match('/contrarraz[aã]o|contrarrazoes|contrarrazões/i', $_txtCombo)
+                            && !preg_match('/apela[cç][aã]o|recurso inominado|recurso ordin[aá]rio|agravo|recurso especial|recurso extraordin[aá]rio|embargos infringentes/i', $_txtCombo));
+                    if ($_temErroConceitual && $tentativa < ANTHROPIC_RETRY_TENTATIVAS) {
+                        $ultimoErro = 'guard-rail: texto contem termo conceitualmente errado (tréplica/contrarrazão fora de recurso). Retry.';
+                        claudin_log($ultimoErro . ' — resumo=' . mb_substr($_resumo, 0, 80));
+                        // Cai no retry (nao retorna)
+                    } else {
+                        return array(
+                            'resumo'     => $_resumo,
+                            'orientacao' => $_orient,
+                            'falhou'     => false,
+                        );
+                    }
                 }
             }
             $ultimoErro = 'resposta inesperada';
